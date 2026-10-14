@@ -116,6 +116,36 @@ tr.me td { color: var(--accent); font-weight: 600; }
 .wchecks label { display: flex; align-items: center; gap: 8px; }
 .formh { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-top: 8px; }
 .code { font: 700 40px var(--display); letter-spacing: 0.18em; color: var(--accent); }
+/* Controles de toque: joystick flutuante à esquerda, área de mira à direita, botões no canto direito */
+#touch { position: fixed; inset: 0; touch-action: none; --ts: 1; }
+#tStick { position: absolute; width: calc(120px * var(--ts)); height: calc(120px * var(--ts)); margin: calc(-60px * var(--ts)) 0 0 calc(-60px * var(--ts)); border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.35); background: rgba(0,0,0,0.18); pointer-events: none; }
+#tKnob { position: absolute; left: 50%; top: 50%; width: 46%; height: 46%; margin: -23% 0 0 -23%; border-radius: 50%; background: rgba(255,255,255,0.45); }
+.tb { position: absolute; width: calc(62px * var(--ts)); height: calc(62px * var(--ts)); border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
+  background: rgba(10,12,14,0.35); color: #fff; font: 600 calc(10.5px * var(--ts)) var(--display); text-transform: uppercase; letter-spacing: 0.04em; padding: 0;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.tb.on { background: rgba(242,160,58,0.6); border-color: var(--accent); }
+.tb.tbig { width: calc(92px * var(--ts)); height: calc(92px * var(--ts)); font-size: calc(13px * var(--ts)); }
+#tFire { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 82px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 60px * var(--ts)); }
+#tJump { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 30px * var(--ts)); }
+#tCrouch { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 100px * var(--ts)); }
+#tScope { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 185px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 120px * var(--ts)); }
+#tReload { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 190px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 45px * var(--ts)); }
+#tSwap { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 95px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 165px * var(--ts)); width: calc(78px * var(--ts)); border-radius: 31px; }
+#tKnife { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 20px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 175px * var(--ts)); }
+#tPause { left: max(12px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); width: 44px; height: 44px; }
+#tScore { left: calc(max(12px, env(safe-area-inset-left, 0px)) + 52px); top: max(10px, env(safe-area-inset-top, 0px)); width: 64px; height: 44px; border-radius: 22px; font-size: 11px; }
+.side:has(#mainButtons[hidden]) #gpuWarn { display: none; }
+body.touch #slots, body.touch #hint, body.touch #lockHint { display: none !important; }
+body.touch #fps { left: auto; right: max(16px, env(safe-area-inset-right, 0px)); top: max(8px, env(safe-area-inset-top, 0px)); font-size: 11px; }
+body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
+body.touch #hp { left: 50%; transform: translateX(-110%); bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+body.touch #ammo { right: auto; left: 50%; transform: translateX(10%); bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+body.touch .big { font-size: 24px; }
+body.touch #top { font-size: 12px; top: max(8px, env(safe-area-inset-top, 0px)); }
+body.touch #feed { top: 44px; font-size: 12px; }
+body.touch #death { font-size: 15px; }
+@media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
 #lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--body); font-size: 18px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
 </style>
@@ -194,7 +224,7 @@ tr.me td { color: var(--accent); font-weight: 600; }
       <button class="btn" id="bDmBack">Voltar</button>
     </div>
     <p class="note" id="controlsNote"></p>
-    <p class="note" id="touchNote" hidden>Esta prévia precisa de teclado e mouse. No celular dá para ver os menus, mas não jogar.</p>
+    <p class="note" id="touchNote" hidden>No celular: arraste no lado esquerdo para andar e no lado direito para mirar. O botão Atirar também mira se você arrastar. Jogue com o celular deitado. Assistência de mira e tamanho dos botões ficam em Configurações &gt; Celular.</p>
   </div>
 </div>
 
@@ -226,6 +256,20 @@ tr.me td { color: var(--accent); font-weight: 600; }
   </div>
 </div>
 
+<div id="touch" hidden>
+  <div id="tStick" hidden><div id="tKnob"></div></div>
+  <button class="tb" id="tPause" aria-label="Pausar">II</button>
+  <button class="tb" id="tScore">Placar</button>
+  <button class="tb tbig" id="tFire" aria-label="Atirar">Atirar</button>
+  <button class="tb" id="tJump">Pular</button>
+  <button class="tb" id="tCrouch">Agachar</button>
+  <button class="tb" id="tReload">Rec.</button>
+  <button class="tb" id="tScope">Mira</button>
+  <button class="tb" id="tSwap">Arma</button>
+  <button class="tb" id="tKnife">Faca</button>
+</div>
+<div class="layer dim" id="rotate" hidden><div class="center panel"><h2>Gire o celular</h2><p class="sub">O jogo funciona com o celular deitado.</p></div></div>
+
 <div id="dev" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -254,6 +298,7 @@ const DEFAULTS = {
   audio: { master: 0.6, sfx: 1, hit: true },
   controls: { sens: 2, zoomSens: 1, invertY: false },
   move: { autoHop: true, showSpeed: true },
+  touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1 },
   ch: { style: 0, dot: false, len: 6, thick: 2, gap: 3, outline: true, dyn: true, color: '#33ff33', alpha: 1 },
   keys: Object.fromEntries(ACTIONS.map(a => [a[0], a[2]])),
 };
@@ -315,9 +360,12 @@ function assignKey(action, code) {
 }
 
 const canvas = $('#game');
-const locked = () => document.pointerLockElement === canvas;
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches;
+const touchOn = () => S.touch.mode === 1 || (S.touch.mode === 0 && IS_TOUCH);
+const locked = () => document.pointerLockElement === canvas || (touchOn() && state === 'playing');
 // mouse "cru" (sem a aceleração do sistema) quando o navegador suporta; senão o modo normal
 function lockPointer() {
+  if (touchOn()) return;
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
     if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} });
@@ -332,6 +380,116 @@ canvas.addEventListener('click', () => {
   if (devOpen) toggleDev(false);
   lockPointer();
 });
+
+// =====================================================================================
+// Controles de toque (celular)
+// =====================================================================================
+const tMove = { x: 0, y: 0 }, tLook = { x: 0, y: 0 };
+const tTouches = new Map();
+const TB_ACTION = { tFire: 'fire', tJump: 'jump', tCrouch: 'crouch', tReload: 'reload', tScope: 'scope', tKnife: 'knife', tScore: 'score' };
+function tPress(a) { const k = S.keys[a]; held.add(k); pressed.add(k); }
+function tRelease(a) { held.delete(S.keys[a]); }
+function onTouchStart(e) {
+  e.preventDefault(); initAudio();
+  for (const t of e.changedTouches) {
+    const btn = t.target.closest && t.target.closest('.tb');
+    if (btn) {
+      btn.classList.add('on');
+      if (btn.id === 'tPause') { setPaused(true); continue; }
+      if (btn.id === 'tSwap') { wheel += 1; tTouches.set(t.identifier, { kind: 'btn', btn }); continue; }
+      const a = TB_ACTION[btn.id]; if (a) tPress(a);
+      // o botão de atirar também mira: arrastar o dedo nele move a câmera
+      tTouches.set(t.identifier, { kind: btn.id === 'tFire' ? 'fireLook' : 'btn', btn, a, lx: t.clientX, ly: t.clientY });
+    } else if (t.clientX < innerWidth * 0.42) {
+      const st = $('#tStick'); st.hidden = false; st.style.left = t.clientX + 'px'; st.style.top = t.clientY + 'px';
+      tTouches.set(t.identifier, { kind: 'stick', cx: t.clientX, cy: t.clientY });
+    } else tTouches.set(t.identifier, { kind: 'look', lx: t.clientX, ly: t.clientY });
+  }
+}
+function onTouchMove(e) {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const d = tTouches.get(t.identifier); if (!d) continue;
+    if (d.kind === 'stick') {
+      const R = 50 * S.touch.size; let dx = t.clientX - d.cx, dy = t.clientY - d.cy; const l = Math.hypot(dx, dy);
+      if (l > R) { dx *= R / l; dy *= R / l; }
+      tMove.x = dx / R; tMove.y = -dy / R;
+      $('#tKnob').style.transform = `translate(${dx}px, ${dy}px)`;
+    } else if (d.kind === 'look' || d.kind === 'fireLook') {
+      tLook.x += t.clientX - d.lx; tLook.y += t.clientY - d.ly; d.lx = t.clientX; d.ly = t.clientY;
+    }
+  }
+}
+function onTouchEnd(e) {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const d = tTouches.get(t.identifier); if (!d) continue;
+    tTouches.delete(t.identifier);
+    if (d.btn) { d.btn.classList.remove('on'); if (d.a) tRelease(d.a); }
+    if (d.kind === 'stick') { tMove.x = tMove.y = 0; $('#tStick').hidden = true; $('#tKnob').style.transform = ''; }
+  }
+}
+function touchReset() {
+  for (const d of tTouches.values()) { if (d.btn) d.btn.classList.remove('on'); if (d.a) tRelease(d.a); }
+  tTouches.clear(); tMove.x = tMove.y = 0; tLook.x = tLook.y = 0; $('#tStick').hidden = true;
+}
+{
+  const el = $('#touch');
+  el.addEventListener('touchstart', onTouchStart, { passive: false });
+  el.addEventListener('touchmove', onTouchMove, { passive: false });
+  el.addEventListener('touchend', onTouchEnd, { passive: false });
+  el.addEventListener('touchcancel', onTouchEnd, { passive: false });
+}
+function updateTouchUI() {
+  const on = touchOn();
+  document.body.classList.toggle('touch', on);
+  const show = on && state === 'playing' && !paused && !(mode && mode.over) && !devOpen;
+  if ($('#touch').hidden === show) { $('#touch').hidden = !show; if (!show) touchReset(); }
+  $('#touch').style.setProperty('--ts', S.touch.size);
+  const rot = on && state === 'playing' && innerHeight > innerWidth * 1.05;
+  if ($('#rotate').hidden === rot) $('#rotate').hidden = !rot;
+  if (on && player && pw.slots.length) { const nm = active().w.name; const b = $('#tSwap'); if (b._n !== nm) { b._n = nm; b.textContent = nm.length > 8 ? nm.slice(0, 7) + '.' : nm; } }
+}
+function goFullscreen() {
+  if (!touchOn()) return;
+  try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  try { const o = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (o && o.catch) o.catch(() => {}); } catch (e) {}
+}
+
+// Assistência de mira (só nos controles de toque): perto de um inimigo a mira fica mais "pesada" (desacelera)
+// e, enquanto você anda ou atira, puxa de leve para o peito dele. Força em Configurações > Celular.
+const assist = { target: null, ang: 99, visAt: 0, vis: new Map(), onTarget: false };
+function updateAssist(p) {
+  assist.target = null; assist.ang = 99; assist.onTarget = false;
+  if (!touchOn() || S.touch.assist <= 0 || !mode || !p.alive) return;
+  const eye = eyePos(p), fwd = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(p.pitch, p.yaw, 0, 'YXZ'));
+  const recheck = now >= assist.visAt; if (recheck) assist.visAt = now + 0.15;
+  for (const o of combatants) {
+    if (o === p || !o.alive || !mode.enemies(p, o)) continue;
+    const to = chestPos(o).sub(eye), dist = to.length(); if (dist > 120) continue;
+    const ang = fwd.angleTo(to);
+    if (ang > 12 * DEG) continue;
+    if (recheck || !assist.vis.has(o)) assist.vis.set(o, canSee(p, o));
+    if (!assist.vis.get(o)) continue;
+    if (ang < assist.ang) { assist.ang = ang; assist.target = o; assist.dist = dist; }
+  }
+  if (assist.target) assist.onTarget = assist.ang < Math.atan2(0.3, assist.dist);
+}
+function assistFriction() {
+  if (!assist.target) return 1;
+  const zone = Math.max(4 * DEG, Math.atan2(1.2, assist.dist));
+  return assist.ang < zone ? 1 - 0.55 * S.touch.assist * (1 - assist.ang / zone) : 1;
+}
+function assistPull(p, dt, active) {
+  if (!assist.target || !active) return;
+  const zone = Math.max(6 * DEG, Math.atan2(1.6, assist.dist));
+  if (assist.ang > zone) return;
+  const d = chestPos(assist.target).sub(eyePos(p));
+  const dy = Math.atan2(-d.x, -d.z), dp = Math.atan2(d.y, Math.hypot(d.x, d.z));
+  const k = Math.min(1, S.touch.assist * 5 * dt * (1 - assist.ang / zone));
+  p.yaw += (((dy - p.yaw + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * k;
+  p.pitch += (dp - p.pitch) * k;
+}
 
 // =====================================================================================
 // Áudio sintetizado (WebAudio)
@@ -1004,21 +1162,25 @@ function updatePlayer(dt) {
   const p = player;
   if (!p.alive) { look.x = look.y = 0; return; }
   const input = canInput();
+  updateAssist(p);
   if (input) {
     const z = pw.zoom ? S.controls.zoomSens * zoomMult() : 1;
     const k = S.controls.sens * 0.022 * DEG * z;
-    p.yaw -= look.x * k;
-    p.pitch = clamp(p.pitch - look.y * k * (S.controls.invertY ? -1 : 1), -89 * DEG, 89 * DEG);
+    const tk = S.touch.sens * 0.28 * DEG * z * assistFriction();
+    p.yaw -= look.x * k + tLook.x * tk;
+    p.pitch = clamp(p.pitch - (look.y * k + tLook.y * tk) * (S.controls.invertY ? -1 : 1), -89 * DEG, 89 * DEG);
+    assistPull(p, dt, Math.hypot(tMove.x, tMove.y) > 0.2 || isHeld('fire') || (S.touch.autoFire && assist.onTarget));
+    p.pitch = clamp(p.pitch, -89 * DEG, 89 * DEG);
     pv.sway.x = lerp(pv.sway.x, clamp(-look.x * 0.02, -1, 1), Math.min(1, dt * 9));
     pv.sway.y = lerp(pv.sway.y, clamp(look.y * 0.02, -1, 1), Math.min(1, dt * 9));
   } else { pv.sway.x = lerp(pv.sway.x, 0, Math.min(1, dt * 9)); pv.sway.y = lerp(pv.sway.y, 0, Math.min(1, dt * 9)); }
-  look.x = look.y = 0;
+  look.x = look.y = 0; tLook.x = tLook.y = 0;
   const firing = now - pw.lastShot < 0.15;
   const dec = Math.exp(-dt * (firing ? 1.5 : 7));
   pv.recoil.x *= dec; pv.recoil.y *= dec;
 
   let h = 0, v = 0;
-  if (input) { h = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0); v = (isHeld('forward') ? 1 : 0) - (isHeld('back') ? 1 : 0); }
+  if (input) { h = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0) + tMove.x; v = (isHeld('forward') ? 1 : 0) - (isHeld('back') ? 1 : 0) + tMove.y; }
   const fwd = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw)), rgt = new THREE.Vector3(Math.cos(p.yaw), 0, -Math.sin(p.yaw));
 
   if (pv.noclip) {
@@ -1140,11 +1302,13 @@ function updateWeapons(dt) {
   if (isDown('last')) selectWeapon(pw.prev);
   if (wheel > 0) selectWeapon((pw.cur + 1) % n); else if (wheel < 0) selectWeapon((pw.cur + n - 1) % n);
   wheel = 0;
-  if (w.melee) { if (isHeld('scope')) tryMelee(true); else if (isHeld('fire')) tryMelee(false); return; }
+  const autoF = S.touch.autoFire && touchOn() && assist.onTarget;
+  if (w.melee) { if (isHeld('scope')) tryMelee(true); else if (isHeld('fire') || (autoF && assist.dist < w.range)) tryMelee(false); return; }
   if (isDown('reload')) tryReload();
   if (w.scope && isDown('scope') && !pw.reloadT && pw.drawT <= 0) { pw.zoom = (pw.zoom + 1) % 3; pw.rezoom = 0; play('zoom', 0.7); }
   const pressedFire = isDown('fire');
   if (w.auto ? isHeld('fire') : pressedFire) tryFire(pressedFire);
+  else if (autoF && slot.mag > 0) tryFire(false);
 }
 function tryReload() {
   const s = active();
@@ -1777,6 +1941,7 @@ function removeBotAtCrosshair() {
 }
 
 function enterPlaying() {
+  goFullscreen();
   state = 'playing'; paused = false; devOpen = false;
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
   $('#hud').hidden = false; dmgNums = [];
@@ -1822,7 +1987,7 @@ function toggleDev(open) {
   else lockPointer();
   updateLockHint();
 }
-function updateLockHint() { $('#lockHint').hidden = !(state === 'playing' && !paused && !devOpen && !locked() && !(mode && mode.over)); }
+function updateLockHint() { $('#lockHint').hidden = touchOn() || !(state === 'playing' && !paused && !devOpen && !locked() && !(mode && mode.over)); }
 
 // =====================================================================================
 // HUD
@@ -2053,7 +2218,7 @@ const GPU = (() => {
   } catch (e) { return { name: '?', soft: false }; }
 })();
 if (GPU.soft) { $('#gpuWarn').hidden = false; $('#gpuName').textContent = 'Placa detectada: ' + GPU.name; }
-if (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches) $('#touchNote').hidden = false;
+if (IS_TOUCH) $('#touchNote').hidden = false;
 const rangeOut = (inp, out) => { const f = () => out.textContent = inp.value; inp.addEventListener('input', f); f(); };
 rangeOut($('#dmBots'), $('#dmBotsV')); rangeOut($('#dmKills'), $('#dmKillsV')); rangeOut($('#dmTime'), $('#dmTimeV'));
 $('#bDm').onclick = () => { initAudio(); $('#dmSetup').hidden = false; $('#mainButtons').hidden = true; };
@@ -2169,12 +2334,12 @@ $('#eAgain').onclick = () => mode.restart();
 $('#eMenu').onclick = () => goMenu();
 
 let setTab = 0;
-const TABS = ['Vídeo', 'Áudio', 'Controles', 'Mira', 'Movimento'];
+const TABS = ['Vídeo', 'Áudio', 'Controles', 'Mira', 'Movimento', 'Celular'];
 function openSettings() { initAudio(); $('#settings').hidden = false; renderSettings(); }
 function closeSettings() { capturing = null; $('#settings').hidden = true; saveSettings(); buildSlots(); }
 $('#sBack').onclick = closeSettings;
 $('#sReset').onclick = () => {
-  const keys = [['video'], ['audio'], ['controls', 'keys'], ['ch'], ['move']][setTab];
+  const keys = [['video'], ['audio'], ['controls', 'keys'], ['ch'], ['move'], ['touch']][setTab];
   for (const k of keys) S[k] = clone(DEFAULTS[k]);
   saveSettings(); applySettings(); renderSettings();
 };
@@ -2204,6 +2369,11 @@ function renderSettings() {
     h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') +
       `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla (ou botão do mouse). Esc cancela.</p>` +
       ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
+  } else if (setTab === 5) {
+    h = Sel('touch', 'mode', 'Controles de toque', ['Automático (liga no celular)', 'Sempre ligados', 'Desligados']) +
+      R_('touch', 'sens', 'Sensibilidade ao arrastar', 0.2, 3, 0.05, 2) + R_('touch', 'assist', 'Assistência de mira', 0, 1, 0.05, 2) +
+      T_('touch', 'autoFire', 'Atirar sozinho quando a mira estiver no inimigo') + R_('touch', 'size', 'Tamanho dos botões', 0.7, 1.5, 0.05, 2) +
+      `<p class="note">A assistência de mira só vale nos controles de toque: perto de um inimigo a mira desacelera e, enquanto você anda ou atira, puxa de leve para o peito dele. 0 desliga.</p>`;
   } else if (setTab === 4) {
     h = T_('move', 'autoHop', 'Pular sem parar segurando Espaço') + T_('move', 'showSpeed', 'Mostrar velocidade embaixo da mira') +
       `<p class="note">Como fazer o bunny hop: corra, pule e aperte agachar (<kbd>${keyLabel(S.keys.crouch)}</kbd>) antes de tocar o chão. Ao cair agachado você desliza com impulso; pule de novo durante o deslize e repita.
@@ -2285,6 +2455,7 @@ function frame(t) {
     camera.lookAt(0, 0, 0);
     renderer.clear(); renderer.render(scene, camera);
   }
+  updateTouchUI();
   updateHud(dt, performance.now() - t0, realDt);
   pressed.clear();
 }
@@ -2295,7 +2466,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, startDeathmatch, startDev, startX1, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
