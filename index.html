@@ -312,6 +312,14 @@ button.btn.primary:hover, button.btn.primary:focus-visible { filter: brightness(
 #tPause, #tScore, #tChat, #tSpray { width: auto; min-width: 44px; height: 38px; border-radius: 19px; padding: 0 12px; font-size: 10.5px; }
 body:not(.canpick) #tUse { display: none !important; }
 #tUse { border-color: var(--accent); background: rgba(242,160,58,0.35); }
+#classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: min(62vh, 560px); overflow: auto; }
+.clspanel { width: min(980px, calc(100vw - 32px)); max-width: none; }
+button.clscard { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; text-align: left; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); cursor: pointer; clip-path: var(--chamfer); font-family: var(--body); }
+button.clscard b { font: 700 16px var(--display); letter-spacing: 0.03em; } button.clscard .cw { color: var(--accent); font-size: 13px; font-weight: 600; }
+button.clscard small { color: var(--muted); font-size: 12px; line-height: 1.35; min-height: 32px; }
+button.clscard .cst { display: grid; gap: 3px; font-size: 11px; color: var(--muted); } button.clscard .cst i { font-style: normal; display: grid; grid-template-columns: 74px 1fr; align-items: center; }
+button.clscard .cst em { display: block; height: 5px; background: var(--accent); }
+button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 </style>
 </head>
 <body>
@@ -346,6 +354,7 @@ body:not(.canpick) #tUse { display: none !important; }
   <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6"/></g></symbol>
   <symbol id="i-net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.8"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M14.5 14.5c.8-.3 1.6-.5 2.5-.5 2.8 0 5 2 5 5"/></g></symbol>
   <symbol id="i-dm" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 14 10M10 4l10 10M15 3l6 6-3 3-6-6zM3 15l6 6"/></g></symbol>
+  <symbol id="i-cls" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="M8.5 12.5 11 15l4.5-5"/></g></symbol>
   <symbol id="i-aim" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></g></symbol>
   <symbol id="i-skin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z"/></g></symbol>
   <symbol id="i-map" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/></g></symbol>
@@ -372,6 +381,7 @@ body:not(.canpick) #tUse { display: none !important; }
       <div class="modes">
         <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>X1 contra bots</b><small>Você escolhe mapa, regras, armas e times</small></span></button>
         <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Sala com código, até 8 jogadores</small></span></button>
+        <button class="mode" id="bKr"><svg><use href="#i-cls"/></svg><span><b>Classes · infinito</b><small>Estilo Krunker: escolha classe e jogue sem fim</small></span></button>
         <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
       </div>
       <div class="label">Treinar e personalizar</div>
@@ -446,11 +456,20 @@ body:not(.canpick) #tUse { display: none !important; }
   </div>
 </div>
 
+<div class="layer dim" id="classPick" hidden>
+  <div class="center panel clspanel">
+    <h2>Escolha sua classe</h2>
+    <div id="classGrid"></div>
+    <p class="note" id="classNote" style="margin:0"></p>
+    <div class="btnrow"><button class="btn primary" id="classClose">Jogar</button></div>
+  </div>
+</div>
 <div class="layer dim" id="pause" hidden>
   <div class="center panel">
     <h2>Pausado</h2>
     <button class="btn primary" id="pResume">Continuar</button>
     <button class="btn" id="pSet">Configurações</button>
+    <button class="btn" id="pClass" hidden>Trocar classe</button>
     <button class="btn" id="pRestart">Reiniciar</button>
     <button class="btn" id="pMenu">Menu principal</button>
   </div>
@@ -518,7 +537,7 @@ const ACTIONS = [
   ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
-  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'],
+  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'],
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
@@ -602,11 +621,12 @@ function lockPointer() {
   } catch (e) { try { canvas.requestPointerLock(); } catch (e2) {} }
 }
 document.addEventListener('pointerlockchange', () => {
-  if (!locked()) { held.clear(); if (state === 'playing' && !paused && !devOpen && !(mode && mode.over)) setPaused(true); }
+  if (classOpen && document.pointerLockElement) { document.exitPointerLock(); return; }   // escolhendo classe: o mouse fica livre
+  if (!locked()) { held.clear(); if (state === 'playing' && !paused && !devOpen && !classOpen && !(mode && mode.over)) setPaused(true); }
   updateLockHint();
 });
 canvas.addEventListener('click', () => {
-  if (state !== 'playing' || paused || (mode && mode.over)) return;
+  if (state !== 'playing' || paused || classOpen || (mode && mode.over)) return;
   if (devOpen) toggleDev(false);
   lockPointer();
 });
@@ -1801,7 +1821,8 @@ function damage(victim, amount, attacker, weapon, zone, dir) {
 
 function respawn(c, sp) {
   c.pos.copy(sp.pos); c.yaw = sp.yaw; c.pitch = 0; c.vel.set(0, 0, 0); c.hp = c.maxHp; c.alive = true; c.deathT = -1; c.lastAttacker = null; c.respawnAt = -1; c.crouch = 0; c.h = 1.8;
-  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) endRagdoll(c);
+  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) endRagdoll(c); c.spawnAt = now;
+  if (c.isPlayer && classesOn()) { applyClassStats(c, myClass); c.hp = c.maxHp; }
   if (c.isPlayer) resetPlayerWeapons(); else if (c.bot) { c.weapon.magNow = c.weapon.w.mag; c.bot.target = null; c.bot.hasWp = false; }
 }
 
@@ -2039,7 +2060,7 @@ const pw = { slots: [], cur: 0, prev: 0, nextFire: 0, reloadT: 0, drawT: 0, shot
 const pv = { recoil: { x: 0, y: 0 }, landDip: 0, bob: 0, step: 0, jumpQ: -9, god: false, noclip: false, kick: 0, sway: { x: 0, y: 0 }, vbob: 0, boltT: 1, flashT: 0,
   swing: 0, swingAlt: false, swingSide: 1, roll: 0 };
 
-const loadoutIds = () => (mode && mode.pickup) ? [WI('knife')].concat(mode.weapons.includes(WI('pistol')) ? [WI('pistol')] : []) :
+const loadoutIds = () => (mode && mode.classes) ? classIds(myClass) : (mode && mode.pickup) ? [WI('knife')].concat(mode.weapons.includes(WI('pistol')) ? [WI('pistol')] : []) :
   (mode && mode.cfg && mode.cfg.duel && duelLoadout(mode, player.team)) || (mode && mode.weapons) || CLASSIC_IDS();
 function resetPlayerWeapons() {
   const keep = pw.slots[pw.cur] && pw.slots[pw.cur].w;
@@ -2064,8 +2085,8 @@ function selectWeapon(i, force) {
 }
 const active = () => pw.slots[pw.cur];
 const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : 1;
-const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
-const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(mode && mode.over);
+const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
+const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(classOpen && !(mode && mode.net) && !mode.started) && !(mode && mode.over);
 
 function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
 
@@ -2125,7 +2146,7 @@ function updatePlayer(dt) {
   p.crouch = clamp(p.crouch + (p.crouching ? 1 : -1) * dt * 8, 0, 1);
   p.h = lerp(1.8, 1.25, p.crouch);
   const walking = input && isHeld('walk');
-  const maxS = RUN * SPEED_MULT * active().w.speed * (pw.zoom ? 0.8 : 1);
+  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1);
   const wishS = maxS * (p.crouching ? 0.34 : walking ? 0.52 : 1);
   if (input && isDown('jump')) pv.jumpQ = now;
   if (!p.grounded && input && isDown('crouch')) p.slideReady = true; // precisa apertar agachar no ar (segurar desde o chão não vale)
@@ -2549,7 +2570,7 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal' };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game']];
 const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
@@ -2621,7 +2642,8 @@ function startX1(cfgIn, net, ids) {
   const tIdx = id => lineup.filter(p => p.team === lineup.find(q => q.id === id).team).findIndex(p => p.id === id);
   const weapons = cfgWeapons(cfg);
   mode = makeX1Mode(cfg, net, weapons, myTeam);
-  mode.pickup = (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
+  mode.classes = !!cfg.classes && (!cfg.duel || cfg.duel === 'normal');
+  mode.pickup = !mode.classes && (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
   const ts = mapInfo.teamSpawns, myIdx = net ? Math.max(0, tIdx(meP.id)) : 0;
   setupPlayer(teamSpawn(myTeam, myIdx), TEAM_COLORS[myTeam], net ? net.myName : 'Você');
   player.team = myTeam; player.maxHp = player.hp = cfg.hp; player.spawnIdx = myIdx;
@@ -2644,20 +2666,26 @@ function startX1(cfgIn, net, ids) {
       const wsel = cfg.botWeapon >= 0 && WEAPONS[cfg.botWeapon] ? cfg.botWeapon : guns.length ? guns[Math.floor(Math.random() * guns.length)] : WI('knife');
       const bc = Object.assign(botDefaults(), { name: (team === myTeam ? 'Aliado ' : 'Bot ') + NAMES[n++ % NAMES.length], weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov,
         hp: cfg.hp, move: cfg.botMove, shoot: cfg.botShoot });
+      // com classes, cada bot sorteia uma (menos Construtor e Ninja, que bot não sabe usar direito)
+      if (mode.classes) { const k = CLASSES.filter(x => x.w.length && x.id !== 'construtor')[Math.floor(Math.random() * 8)]; bc.weapon = WI(k.w[0]); bc.hp = Math.round(cfg.hp * k.hp / 100); bc.speed *= k.spd; bc.name += ' · ' + k.name; }
       const list = ts[team], b = createBot(bc, list[idx % list.length], shade(TEAM_COLORS[team], idx));
       b.team = team; b.spawnIdx = idx;
     };
     for (let i = 0; i < cfg.allies; i++) mk(myTeam, i + 1);
     for (let i = 0; i < cfg.enemies; i++) mk(1 - myTeam, i);
   }
+  if (mode.classes) { applyClassStats(player, myClass); player.hp = player.maxHp; pw.slots = []; resetPlayerWeapons(); }
   enterPlaying();
   resetItems();
   mode.startRound(true);
   applyDuel(mode);
+  mode.started = !mode.classes;
+  $('#pClass').hidden = !mode.classes;
+  if (mode.classes) openClassPick();
 }
 
 function makeX1Mode(cfg, net, weapons, myTeam) {
-  const rounds = cfg.format === 'rounds';
+  const rounds = cfg.format === 'rounds', endless = cfg.format === 'endless' && cfg.duel !== 'gungame';
   const host = !net || net.role === 'host';
   const enemyBots = () => combatants.filter(c => c.team !== myTeam);
   return {
@@ -2675,14 +2703,14 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     topParts() {
       const a = myTeam, b = 1 - myTeam;
-      const sub = cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : `Até ${cfg.target} abates`;
-      return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: fmtTime(this.timeLeft), hot: this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
+      const sub = cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
+      return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: endless ? '∞' : fmtTime(this.timeLeft), hot: !endless && this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
     },
     top() {
       const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       const ping = net ? `  ·  ping ${Net.ping} ms` : '';
       if (cfg.duel === 'gungame') { const lv = Math.min(this.score[myTeam], GG.length - 1); return `Gun game  ·  ${sc}  ·  sua arma: ${WEAPONS[WI(GG[lv])].name} (${lv + 1}/${GG.length})  ·  ${fmtTime(this.timeLeft)}${ping}`; }
-      return rounds ? `Round ${this.round}  ·  ${sc}  ·  ${fmtTime(this.timeLeft)}${ping}` : `${sc}  ·  até ${cfg.target} abates  ·  ${fmtTime(this.timeLeft)}${ping}`;
+      return rounds ? `Round ${this.round}  ·  ${sc}  ·  ${fmtTime(this.timeLeft)}${ping}` : endless ? `${sc}  ·  modo infinito${ping}` : `${sc}  ·  até ${cfg.target} abates  ·  ${fmtTime(this.timeLeft)}${ping}`;
     },
     startRound(first) {
       if (!host && !first) return;
@@ -2696,7 +2724,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         if (this.pickup && !first) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
         banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
         if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun });
-      } else banner(cfg.duel === 'gungame' ? 'Gun game' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : `Primeiro a ${cfg.target} abates`);
+      } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`);
       applyDuel(this);
       play('round', 0.7);
     },
@@ -2733,7 +2761,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         if (host && a && a.team !== v.team) {
           this.score[a.team]++;
           if (net) Net.send({ t: 'score', s: this.score });
-          if (this.score[a.team] >= cfg.target) { this.finishAt = now + 1.2; this.finishTeam = a.team; }
+          if (!endless && this.score[a.team] >= cfg.target) { this.finishAt = now + 1.2; this.finishTeam = a.team; }
         }
         return;
       }
@@ -2759,7 +2787,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
           const a = sum(0), b = sum(1);
           this.endRound(a === b ? null : a > b ? 0 : 1);
         }
-        if (!rounds && this.timeLeft <= 0 && this.finishAt < 0) { this.finishAt = now; this.finishTeam = this.score[0] === this.score[1] ? null : this.score[0] > this.score[1] ? 0 : 1; }
+        if (!rounds && !endless && this.timeLeft <= 0 && this.finishAt < 0) { this.finishAt = now; this.finishTeam = this.score[0] === this.score[1] ? null : this.score[0] > this.score[1] ? 0 : 1; }
         if (this.nextRoundAt > 0 && now >= this.nextRoundAt) this.startRound(false);
         if (this.finishAt >= 0 && now >= this.finishAt) this.finish(this.finishTeam);
       }
@@ -4564,6 +4592,7 @@ function updateSocial() {
   if (state !== 'playing' || paused || chatOpen) return;
   if (isDown('chat') || pressed.has('Enter') || pressed.has('NumpadEnter')) { openChat(); return; }
   if (canInput() && isDown('spray')) trySpray();
+  if (canInput() && isDown('cls')) openClassPick();
 }
 
 function enterPlaying() {
@@ -4579,7 +4608,7 @@ function enterPlaying() {
   hurtT = 0; hitT = 0;
   $('#endTitle').textContent = 'Fim de partida'; $('#end table').hidden = false;
   buildSlots();
-  lockPointer();
+  if (!(mode && mode.classes && !mode.started)) lockPointer();
   updateLockHint();
 }
 function goMenu() {
@@ -4603,6 +4632,7 @@ function setPaused(p) {
 }
 function onEscape() {
   if (performance.now() - pausedAt < 400) return; // o mesmo Esc que soltou o mouse já pausou
+  if (classOpen) { if (mode && mode.started) closeClassPick(); return; }
   if (!$('#settings').hidden) { closeSettings(); return; }
   if (devOpen) { toggleDev(false); return; }
   if (mode && mode.over) return;
@@ -4918,6 +4948,55 @@ refreshCustomMaps();
 $('#bHist').onclick = () => { $('#mainButtons').hidden = true; $('#histPanel').hidden = false; renderHist(); };
 $('#bHistBack').onclick = () => { $('#histPanel').hidden = true; $('#mainButtons').hidden = false; };
 $('#bHistClear').onclick = () => { if (confirm('Apagar todo o histórico de x1 deste aparelho?')) { saveHist({ matches: [], vs: {} }); renderHist(); } };
+// =====================================================================================
+// Classes estilo Krunker: cada uma tem arma principal, secundária, vida e velocidade próprias (a faca vem sempre junto)
+// =====================================================================================
+const CLASSES = [
+  { id: 'atirador', name: 'Atirador', w: ['rifle', 'pistol'], hp: 100, spd: 1, desc: 'Metralhadora para tudo. O mais equilibrado.' },
+  { id: 'cacador', name: 'Caçador', w: ['sniper', 'pistol'], hp: 60, spd: 1.05, desc: 'Sniper. Pouca vida, um tiro no peito derruba.' },
+  { id: 'corredor', name: 'Corredor', w: ['smg', 'revolver'], hp: 100, spd: 1.18, desc: 'Submetralhadora e muita velocidade.' },
+  { id: 'metralha', name: 'Metralha', w: ['lmg', 'pistol'], hp: 170, spd: 0.88, desc: 'Metralhadora pesada e muita vida. Lento.' },
+  { id: 'brutamontes', name: 'Brutamontes', w: ['shotgun', 'deagle'], hp: 120, spd: 1, desc: 'Shotgun de perto, Deagle de longe.' },
+  { id: 'detetive', name: 'Detetive', w: ['revolver', 'deagle'], hp: 100, spd: 1.08, desc: 'Dois canos curtos e certeiros.' },
+  { id: 'besteiro', name: 'Besteiro', w: ['crossbow', 'pistol'], hp: 100, spd: 1.06, desc: 'Besta: a seta cai com a distância. Mata com um no peito.' },
+  { id: 'foguete', name: 'Foguete', w: ['rocket', 'pistol'], hp: 130, spd: 0.95, desc: 'Lança-foguete. Atire no chão para pular alto.' },
+  { id: 'construtor', name: 'Construtor', w: ['build', 'smg'], hp: 110, spd: 1, desc: 'Ergue paredes e caixotes, com submetralhadora para se defender.' },
+  { id: 'ninja', name: 'Ninja', w: [], hp: 100, spd: 1.3, desc: 'Só a faca, mas é o mais rápido de todos.' },
+];
+const CLS_KEY = 'cs3.web.cls';
+let myClass = (() => { const v = localStorage.getItem(CLS_KEY); return CLASSES.some(c => c.id === v) ? v : 'atirador'; })();
+const clsById = id => CLASSES.find(c => c.id === id) || CLASSES[0];
+const classIds = id => clsById(id).w.map(WI).filter(i => i >= 0).concat([WI('knife')]);
+const classesOn = () => !!(mode && mode.classes);
+// vida e velocidade da classe; vale a partir do próximo renascimento (ou na hora, se ainda não saiu do spawn)
+function applyClassStats(c, id) {
+  const k = clsById(id); c.cls = k.id; c.spd = k.spd; c.maxHp = Math.round((mode.cfg.hp || 100) * k.hp / 100);
+}
+let classOpen = false;
+function openClassPick() {
+  if (!classesOn() || state !== 'playing' || (mode && mode.over)) return;
+  classOpen = true; held.clear();
+  if (paused) { paused = false; $('#pause').hidden = true; }
+  if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+  const k = clsById(myClass), W = id => WEAPONS[WI(id)].name;
+  $('#classGrid').innerHTML = CLASSES.map(c => `<button class="clscard ${c.id === myClass ? 'on' : ''}" data-cls="${c.id}"><b>${esc(c.name)}</b>
+    <span class="cw">${esc(c.w.length ? c.w.map(W).join(' + ') : 'Faca')}</span><small>${esc(c.desc)}</small>
+    <span class="cst"><i>Vida <em style="width:${Math.round(c.hp / 170 * 100)}%"></em></i><i>Velocidade <em style="width:${Math.round((c.spd - 0.8) / 0.5 * 100)}%"></em></i></span></button>`).join('');
+  $('#classGrid').querySelectorAll('[data-cls]').forEach(b => b.onclick = () => chooseClass(b.dataset.cls));
+  $('#classNote').textContent = player && player.alive && mode.started && now - (player.spawnAt || -99) > 3 ? `Você está de ${k.name}. A nova classe vale quando você renascer.` : 'Escolha e entre na partida.';
+  $('#classPick').hidden = false;
+}
+function closeClassPick() { if (!classOpen) return; classOpen = false; $('#classPick').hidden = true; if (state === 'playing' && !(mode && mode.over)) lockPointer(); }
+function chooseClass(id) {
+  myClass = id; try { localStorage.setItem(CLS_KEY, id); } catch (e) {}
+  // ainda no spawn (ou acabou de começar): troca já
+  if (player && (!player.alive || now - (player.spawnAt || -99) <= 3 || !mode.started)) {
+    applyClassStats(player, id); if (player.alive) player.hp = player.maxHp; pw.slots = []; resetPlayerWeapons();
+  } else banner(`${clsById(id).name} na próxima vida`, '', 1.6);
+  mode.started = true;
+  closeClassPick();
+}
+$('#classClose').onclick = () => { if (!mode || !mode.started) chooseClass(myClass); else closeClassPick(); };
 // ---- formulário do x1 (usado contra bots e na sala online)
 function renderX1Form(root, online, onChange) {
   const c = X1;
@@ -4932,11 +5011,11 @@ function renderX1Form(root, online, onChange) {
       gungame: `Cada abate troca sua arma: ${GG.map(g => WEAPONS[WI(g)].name).join(' → ')}. Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.` }[c.duel || 'normal']}</p>` +
     `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
-    (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)']]) +
-    rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1)) +
-    (rounds ? rng('roundTime', 'Tempo do round (s)', 30, 300, 15) : rng('time', 'Tempo limite (min)', 1, 30, 1)) +
+    (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)'], ['endless', 'Infinito (renasce, sem tempo e sem fim)']]) +
+    (c.format === 'endless' ? '' : rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1))) +
+    (rounds ? rng('roundTime', 'Tempo do round (s)', 30, 300, 15) : c.format === 'endless' && !gg ? '' : rng('time', 'Tempo limite (min)', 1, 30, 1)) +
     rng('hp', 'Vida', 10, 300, 10) + chk('hsOnly', 'Só vale tiro na cabeça') + chk('infinite', 'Munição infinita') +
-    (c.duel && c.duel !== 'normal' ? '' : sel('ground', 'Armas no chão', [['auto', 'Só no fy_pool_day'], ['on', 'Ligado em todos os mapas'], ['off', 'Desligado']]) +
+    ((c.duel && c.duel !== 'normal') || c.classes ? '' : sel('ground', 'Armas no chão', [['auto', 'Só no fy_pool_day'], ['on', 'Ligado em todos os mapas'], ['off', 'Desligado']]) +
       `<p class="note" style="margin:0 0 4px">Com armas no chão, todo mundo começa com faca e pistola e pega o resto no mapa: passe por cima para pegar, ${keyLabel(S.keys.use)} troca pela arma do chão e ${keyLabel(S.keys.drop)} larga a arma.</p>`);
   if (!online) {
     h += `<div class="formh">Times e bots</div>` +
@@ -4945,7 +5024,9 @@ function renderX1Form(root, online, onChange) {
       sel('botWeapon', 'Arma dos bots', [[-1, 'Aleatória (das permitidas)']].concat(GUN_IDS().map(i => [i, WEAPONS[i].name]))) +
       chk('botMove', 'Bots se movem') + chk('botShoot', 'Bots atacam');
   }
-  const fixedW = c.duel === 'knife' || c.duel === 'awp' || gg;
+  if (!c.duel || c.duel === 'normal') h += `<div class="formh">Classes</div>` + chk('classes', 'Escolher classe (estilo Krunker)') +
+    `<p class="note" style="margin:0 0 4px">${c.classes ? `Cada um escolhe a classe ao entrar e pode trocar com ${keyLabel(S.keys.cls)} (vale na próxima vida): ${CLASSES.map(k => k.name).join(', ')}. As armas liberadas abaixo não valem.` : 'Desligado: todo mundo usa as armas liberadas abaixo.'}</p>`;
+  const fixedW = c.duel === 'knife' || c.duel === 'awp' || gg || (c.classes && (!c.duel || c.duel === 'normal'));
   if (!fixedW) h += `<div class="formh">Armas</div>` + sel('preset', 'Armas liberadas', WEAPON_PRESETS.map((p, i) => [i, p[0]]));
   const ids = cfgWeapons(c);
   if (!fixedW) h += `<div class="wchecks">${GUN_IDS().map(i => `<label><input type="checkbox" data-w="${i}" ${ids.includes(i) ? 'checked' : ''}>${esc(WEAPONS[i].name)}</label>`).join('')}</div>`;
@@ -4961,7 +5042,7 @@ function renderX1Form(root, online, onChange) {
       if (k === 'preset' && WEAPON_PRESETS[c.preset][1] !== 'custom') c.weapons = cfgWeapons(c);
       saveX1(); onChange && onChange();
       if (k === 'map' && state === 'menu') (MAPS.find(m => m.id === c.map) || MAPS[0]).build();
-      if (k === 'format' || k === 'preset' || k === 'duel') renderX1Form(root, online, onChange);
+      if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes') renderX1Form(root, online, onChange);
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
   });
@@ -4974,8 +5055,8 @@ function renderX1Form(root, online, onChange) {
 function cfgSummary(cfg) {
   cfg = duelFix(clone(cfg));
   const m = mapName(cfg);
-  const fmt = cfg.format === 'rounds' ? `melhor de ${cfg.target * 2 - 1} rounds` : `primeiro a ${cfg.target} abates`;
-  const ws = cfg.duel && cfg.duel !== 'normal' && cfg.duel !== 'random' ? (DUELS.find(d => d[0] === cfg.duel) || ['', ''])[1] : cfgWeapons(cfg).map(i => WEAPONS[i].name).join(', ') + (cfg.duel === 'random' ? ' (uma sorteada por round)' : '');
+  const fmt = cfg.format === 'rounds' ? `melhor de ${cfg.target * 2 - 1} rounds` : cfg.format === 'endless' && cfg.duel !== 'gungame' ? 'modo infinito (sem fim)' : `primeiro a ${cfg.target} abates`;
+  const ws = cfg.classes && (!cfg.duel || cfg.duel === 'normal') ? 'cada um escolhe a classe' : cfg.duel && cfg.duel !== 'normal' && cfg.duel !== 'random' ? (DUELS.find(d => d[0] === cfg.duel) || ['', ''])[1] : cfgWeapons(cfg).map(i => WEAPONS[i].name).join(', ') + (cfg.duel === 'random' ? ' (uma sorteada por round)' : '');
   return `Mapa ${m}, ${fmt}, ${cfg.hp} de vida${cfg.hsOnly ? ', só cabeça' : ''}. Armas: ${ws}. Bunny hop: ${BHOP_PRESETS[cfg.bhop].name.toLowerCase()}.`;
 }
 
@@ -5037,6 +5118,9 @@ $('#bNetBack').onclick = () => {
 $('#bX1').onclick = () => { initAudio(); $('#x1Setup').hidden = false; $('#mainButtons').hidden = true; renderX1Form($('#x1Form'), false); (MAPS.find(m => m.id === X1.map) || MAPS[0]).build(); };
 $('#bX1Back').onclick = () => { $('#x1Setup').hidden = true; $('#mainButtons').hidden = false; buildArena(); };
 $('#bX1Start').onclick = () => startX1(clone(X1));
+// atalho: deixa o x1 pronto no estilo Krunker (classes, infinito, 3 contra 3) e abre a tela para ajustar
+$('#bKr').onclick = () => { Object.assign(X1, { classes: true, format: 'endless', duel: 'normal', allies: Math.max(2, X1.allies), enemies: Math.max(3, X1.enemies) }); if (X1.map === 'duelo') X1.map = 'arena'; saveX1(); $('#bX1').onclick(); };
+$('#pClass').onclick = () => openClassPick();
 
 $('#bSet').onclick = () => openSettings();
 $('#pResume').onclick = () => setPaused(false);
