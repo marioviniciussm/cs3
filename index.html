@@ -71,18 +71,20 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 /* HUD */
 #hud { position: fixed; inset: 0; pointer-events: none; font-family: var(--display); }
 #ch { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-.box { position: absolute; background: rgba(0, 0, 0, 0.42); padding: 8px 16px; }
+:root { --hud-fg: #e9edf0; --hud-accent: #f2a03a; --hud-bg: 0.42; }
+#hud { color: var(--hud-fg); }
+.box { position: absolute; background: rgb(0 0 0 / var(--hud-bg)); padding: 8px 16px; }
 #hp { left: max(20px, env(safe-area-inset-left, 0px)); bottom: max(20px, env(safe-area-inset-bottom, 0px)); min-width: 200px; }
 #ammo { right: max(20px, env(safe-area-inset-right, 0px)); bottom: max(20px, env(safe-area-inset-bottom, 0px)); min-width: 200px; text-align: right; }
 .big { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.bar { height: 4px; background: var(--fg); margin-top: 4px; transition: width 0.1s; }
+.bar { height: 4px; background: var(--hud-fg); margin-top: 4px; transition: width 0.1s; }
 #slots { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: 100px; display: flex; flex-direction: column; gap: 4px; width: 200px; }
-#slots div { background: rgba(0, 0, 0, 0.35); padding: 6px 12px; font-size: 15px; }
-#slots div.on { background: rgba(242, 160, 58, 0.6); }
+#slots div { background: rgb(0 0 0 / calc(var(--hud-bg) * 0.85)); padding: 6px 12px; font-size: 15px; }
+#slots div.on { background: color-mix(in srgb, var(--hud-accent) 65%, transparent); }
 #top { left: 50%; top: max(14px, env(safe-area-inset-top, 0px)); transform: translateX(-50%); white-space: nowrap; font-size: 16px; font-variant-numeric: tabular-nums; }
 #feed { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); top: 64px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-family: var(--body); font-weight: 600; }
-#feed div { background: rgba(0, 0, 0, 0.5); padding: 4px 10px; }
-#fps { left: max(16px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); font-size: 13px; color: var(--muted); padding: 4px 8px; }
+#feed div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 4px 10px; white-space: nowrap; }
+#fps { left: max(16px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); font-size: 13px; color: var(--muted); padding: 4px 8px; white-space: nowrap; }
 #hint { left: max(16px, env(safe-area-inset-left, 0px)); top: 44px; font-family: var(--body); font-size: 14px; }
 #death { left: 50%; top: 60%; transform: translateX(-50%); text-align: center; font-family: var(--body); font-size: 20px; padding: 12px 24px; width: min(700px, 90%); }
 #scope { position: absolute; inset: 0; background: radial-gradient(circle at center, transparent 0, transparent calc(min(50vw, 50vh) - 4px), #000 calc(min(50vw, 50vh)));
@@ -108,7 +110,30 @@ tr.me td { color: var(--accent); font-weight: 600; }
 .botitem button.btn { font-size: 14px; padding: 6px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .botitem button.btn.sel { border-left-color: var(--accent); background: #2c333b; }
 #speed { position: absolute; left: 50%; top: calc(50% + 70px); transform: translateX(-50%); font-size: 18px; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; }
-#speed.slide { color: var(--accent); }
+#speed.slide { color: var(--hud-accent); }
+body.kc #death, body.kc #hp, body.kc #ammo, body.kc #slots, body.kc #speed, body.kc #top, body.kc #fps { visibility: hidden; }
+#killcam { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px rgb(0 0 0 / 0.55); }
+#killcam .kcbar { position: absolute; left: 0; right: 0; background: rgb(0 0 0 / 0.72); color: #fff; text-align: center; padding: 10px 16px; font-size: 15px; }
+#killcam .kcbar.top { top: 0; padding-top: max(10px, env(safe-area-inset-top, 0px)); } #killcam .kcbar.bot { bottom: 0; color: var(--muted); font-size: 13px; }
+#killcam b { color: var(--danger); letter-spacing: 0.12em; margin-right: 8px; }
+#killcam.slow b::after { content: ' · câmera lenta'; color: var(--muted); letter-spacing: 0; font-weight: 400; }
+#end .center { max-height: 92vh; overflow: auto; }
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; }
+.statgrid div { background: rgb(255 255 255 / 0.05); border: 1px solid var(--line, rgb(255 255 255 / 0.1)); padding: 8px; text-align: center; }
+.statgrid b { display: block; font-size: 22px; color: var(--accent); } .statgrid span { font-size: 12px; color: var(--muted); }
+.res { display: inline-block; width: 20px; text-align: center; font-weight: 700; } .res.w { color: #4ade80; } .res.l { color: var(--danger); } .res.e { color: var(--muted); }
+#histPanel { flex-shrink: 0; }
+.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote { display: none; }
+#histPanel table { width: 100%; font-size: 14px; }
+#mapEd { position: fixed; inset: 0; display: flex; gap: 12px; padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+#mePanel { width: 340px; flex-shrink: 0; overflow-y: auto; gap: 8px; }
+#meWrap { flex: 1; min-width: 0; background: rgb(8 10 12 / 0.85); border: 1px solid rgb(255 255 255 / 0.1); touch-action: none; }
+#meCanvas { display: block; touch-action: none; cursor: crosshair; }
+#mapEd.v3d #meWrap { opacity: 0; pointer-events: none; }
+.metools { flex-wrap: wrap; } .metools button { flex: 1 1 auto; font-size: 12px; padding: 8px 6px; }
+.meCols button.on { outline: 3px solid #ffd166; outline-offset: 2px; }
+@media (max-width: 760px) { #mapEd { flex-direction: column; } #mePanel { width: auto; order: 2; flex: 1; } #meWrap { flex: 0 0 52vh; } }
+@media (max-width: 760px) and (orientation: landscape) { #mapEd { flex-direction: row; } #mePanel { width: 300px; order: 0; } #meWrap { flex: 1; } }
 #banner { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; font-size: clamp(26px, 4vw, 44px); font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; text-shadow: 0 2px 6px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.25s; width: min(900px, 94%); }
 #banner small { display: block; font-size: 18px; letter-spacing: 0.02em; text-transform: none; color: var(--muted); font-family: var(--body); }
@@ -126,24 +151,27 @@ tr.me td { color: var(--accent); font-weight: 600; }
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .tb.on { background: rgba(242,160,58,0.6); border-color: var(--accent); }
 .tb.tbig { width: calc(92px * var(--ts)); height: calc(92px * var(--ts)); font-size: calc(13px * var(--ts)); }
-#tFire { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 82px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 60px * var(--ts)); }
-#tJump { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 30px * var(--ts)); }
-#tCrouch { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 100px * var(--ts)); }
-#tScope { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 185px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 120px * var(--ts)); }
-#tReload { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 190px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 45px * var(--ts)); }
-#tSwap { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 95px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 165px * var(--ts)); width: calc(78px * var(--ts)); border-radius: 31px; }
-#tKnife { right: calc(max(24px, env(safe-area-inset-right, 0px)) + 20px * var(--ts)); bottom: calc(max(20px, env(safe-area-inset-bottom, 0px)) + 175px * var(--ts)); }
-#tPause { left: max(12px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); width: 44px; height: 44px; }
-#tScore { left: calc(max(12px, env(safe-area-inset-left, 0px)) + 52px); top: max(10px, env(safe-area-inset-top, 0px)); width: 64px; height: 44px; border-radius: 22px; font-size: 11px; }
-.side:has(#mainButtons[hidden]) #gpuWarn { display: none; }
-body.touch #slots, body.touch #hint, body.touch #lockHint { display: none !important; }
-body.touch #fps { left: auto; right: max(16px, env(safe-area-inset-right, 0px)); top: max(8px, env(safe-area-inset-top, 0px)); font-size: 11px; }
+#tSwap { width: calc(78px * var(--ts)); border-radius: 31px; }
+#tPause { width: 44px; height: 44px; }
+#tScore { width: 64px; height: 44px; border-radius: 22px; font-size: 11px; }
+#tStick { margin: 0; }
+.lay-hide { display: none !important; }
+#editor { position: fixed; inset: 0; z-index: 50; touch-action: none; }
+#edHandles .edh { position: absolute; border: 2px dashed rgba(255,255,255,0.75); background: rgba(242,160,58,0.12); cursor: move; touch-action: none; border-radius: 6px; }
+#edHandles .edh.sel { border-color: var(--accent); border-style: solid; background: rgba(242,160,58,0.25); }
+#edHandles .edh.off { border-color: rgba(255,90,74,0.8); }
+#edHandles .edh span { position: absolute; left: 0; top: -20px; font: 600 11px var(--display); background: rgba(0,0,0,0.7); padding: 1px 6px; white-space: nowrap; color: #fff; }
+#edBar { position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(760px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+#edBar.top { bottom: auto; top: max(10px, env(safe-area-inset-top, 0px)); }
+.edrow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.edrow label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+.edrow input[type=range] { width: 120px; }
+.edrow select { background: #1b2026; color: var(--fg); border: 1px solid var(--line); padding: 5px; font: 14px var(--body); }
+body.editing #menu, body.editing #pause, body.editing #end { visibility: hidden; }
+body.editing #hud, body.editing #touch { pointer-events: none; }
+body.touch #hint, body.touch #lockHint { display: none !important; }
 body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
-body.touch #hp { left: 50%; transform: translateX(-110%); bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
-body.touch #ammo { right: auto; left: 50%; transform: translateX(10%); bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
 body.touch .big { font-size: 24px; }
-body.touch #top { font-size: 12px; top: max(8px, env(safe-area-inset-top, 0px)); }
-body.touch #feed { top: 44px; font-size: 12px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
 #lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--body); font-size: 18px; text-align: center; }
@@ -165,11 +193,12 @@ body.touch #death { font-size: 15px; }
   <div id="feed"></div>
   <div class="box" id="hp"><span class="big" id="hpNum">100</span> <span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
   <div id="slots"></div>
-  <div class="box" id="ammo"><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--accent)"></div></div>
+  <div class="box" id="ammo"><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--hud-accent)"></div></div>
   <div class="box" id="death" hidden></div>
   <div class="box" id="lockHint" hidden>Clique para voltar ao jogo</div>
   <div id="speed"></div>
   <div id="banner"></div>
+  <div id="killcam" hidden><div class="kcbar top"><b>REPLAY</b> <span id="kcInfo"></span></div><div class="kcbar bot">Clique, toque ou aperte Espaço para pular</div></div>
   <div class="panel" id="scoreboard"><h2 id="sbTitle">Placar</h2><table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="sbBody"></tbody></table></div>
 </div>
 
@@ -190,7 +219,14 @@ body.touch #death { font-size: 15px; }
       <button class="btn" id="bNet">X1 online com um amigo</button>
       <button class="btn" id="bDm">Mata-mata na Arena</button>
       <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
+      <button class="btn" id="bMapEd">Editor de mapa</button>
+      <button class="btn" id="bHist">Histórico de x1</button>
       <button class="btn" id="bSet">Configurações</button>
+    </div>
+    <div class="panel stack" id="histPanel" hidden style="gap:8px">
+      <h2>Histórico de x1</h2>
+      <div id="histBody" class="stack" style="gap:8px"></div>
+      <div class="btnrow"><button class="btn" id="bHistClear">Apagar histórico</button><button class="btn primary" id="bHistBack">Voltar</button></div>
     </div>
     <div class="panel stack" id="x1Setup" hidden style="gap:8px">
       <h2>X1 personalizado</h2>
@@ -238,11 +274,14 @@ body.touch #death { font-size: 15px; }
   </div>
 </div>
 
+<div id="mapEd" hidden><div class="panel stack" id="mePanel"></div><div id="meWrap"><canvas id="meCanvas"></canvas></div></div>
+
 <div class="layer dim" id="end" hidden>
   <div class="center panel">
     <h2>Fim de partida</h2>
     <p id="endWinner" class="sub"></p>
     <table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="endBody"></tbody></table>
+    <div id="endStats"></div>
     <div class="btnrow"><button class="btn primary" id="eAgain">Jogar novamente</button><button class="btn" id="eMenu">Menu principal</button></div>
   </div>
 </div>
@@ -261,6 +300,7 @@ body.touch #death { font-size: 15px; }
   <button class="tb" id="tPause" aria-label="Pausar">II</button>
   <button class="tb" id="tScore">Placar</button>
   <button class="tb tbig" id="tFire" aria-label="Atirar">Atirar</button>
+  <button class="tb tbig" id="tFire2" aria-label="Atirar">Atirar</button>
   <button class="tb" id="tJump">Pular</button>
   <button class="tb" id="tCrouch">Agachar</button>
   <button class="tb" id="tReload">Rec.</button>
@@ -268,6 +308,7 @@ body.touch #death { font-size: 15px; }
   <button class="tb" id="tSwap">Arma</button>
   <button class="tb" id="tKnife">Faca</button>
 </div>
+<div id="editor" hidden><div id="edHandles"></div><div class="panel" id="edBar"></div></div>
 <div class="layer dim" id="rotate" hidden><div class="center panel"><h2>Gire o celular</h2><p class="sub">O jogo funciona com o celular deitado.</p></div></div>
 
 <div id="dev" hidden></div>
@@ -295,10 +336,12 @@ const ACTIONS = [
 ];
 const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1 },
-  audio: { master: 0.6, sfx: 1, hit: true },
+  audio: { master: 0.6, sfx: 1, hit: true, hrtf: true },
   controls: { sens: 2, zoomSens: 1, invertY: false },
   move: { autoHop: true, showSpeed: true },
-  touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1 },
+  touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
+  hud: { scale: 1, bg: 0.42, fg: '#e9edf0', accent: '#f2a03a', hitmarker: true, dmgDir: true, killcam: true },
+  layout: { hud: {}, hudT: {}, touch: {} },
   ch: { style: 0, dot: false, len: 6, thick: 2, gap: 3, outline: true, dyn: true, color: '#33ff33', alpha: 1 },
   keys: Object.fromEntries(ACTIONS.map(a => [a[0], a[2]])),
 };
@@ -386,9 +429,13 @@ canvas.addEventListener('click', () => {
 // =====================================================================================
 const tMove = { x: 0, y: 0 }, tLook = { x: 0, y: 0 };
 const tTouches = new Map();
-const TB_ACTION = { tFire: 'fire', tJump: 'jump', tCrouch: 'crouch', tReload: 'reload', tScope: 'scope', tKnife: 'knife', tScore: 'score' };
+const TB_ACTION = { tFire: 'fire', tFire2: 'fire', tJump: 'jump', tCrouch: 'crouch', tReload: 'reload', tScope: 'scope', tKnife: 'knife', tScore: 'score' };
+let crouchLatched = false;
 function tPress(a) { const k = S.keys[a]; held.add(k); pressed.add(k); }
 function tRelease(a) { held.delete(S.keys[a]); }
+// tamanho automático: telas menores encolhem os botões, tablets aumentam
+const touchAuto = () => S.touch.autoScale ? clamp(Math.min(innerWidth, innerHeight) / 412, 0.75, 1.35) : 1;
+const stickRadius = () => 50 * S.touch.size * touchAuto() * (layoutOf('touch', 'tStick').s || 1);
 function onTouchStart(e) {
   e.preventDefault(); initAudio();
   for (const t of e.changedTouches) {
@@ -397,27 +444,37 @@ function onTouchStart(e) {
       btn.classList.add('on');
       if (btn.id === 'tPause') { setPaused(true); continue; }
       if (btn.id === 'tSwap') { wheel += 1; tTouches.set(t.identifier, { kind: 'btn', btn }); continue; }
+      if (btn.id === 'tCrouch' && S.touch.crouchToggle) {
+        crouchLatched = !crouchLatched;
+        if (crouchLatched) tPress('crouch'); else tRelease('crouch');
+        tTouches.set(t.identifier, { kind: 'btn', btn, latch: true }); continue;
+      }
       const a = TB_ACTION[btn.id]; if (a) tPress(a);
-      // o botão de atirar também mira: arrastar o dedo nele move a câmera
-      tTouches.set(t.identifier, { kind: btn.id === 'tFire' ? 'fireLook' : 'btn', btn, a, lx: t.clientX, ly: t.clientY });
-    } else if (t.clientX < innerWidth * 0.42) {
-      const st = $('#tStick'); st.hidden = false; st.style.left = t.clientX + 'px'; st.style.top = t.clientY + 'px';
-      tTouches.set(t.identifier, { kind: 'stick', cx: t.clientX, cy: t.clientY });
+      // os botões de atirar também miram: arrastar o dedo neles move a câmera
+      tTouches.set(t.identifier, { kind: a === 'fire' ? 'fireLook' : 'btn', btn, a, lx: t.clientX, ly: t.clientY });
+    } else if (t.clientX < innerWidth * 0.45) {
+      const st = $('#tStick');
+      let cx = t.clientX, cy = t.clientY;
+      if (S.touch.stickFixed) { const r = st.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
+      else { st.hidden = false; st.style.left = cx + 'px'; st.style.top = cy + 'px'; }
+      tTouches.set(t.identifier, { kind: 'stick', cx, cy });
+      moveStick(tTouches.get(t.identifier), t);
     } else tTouches.set(t.identifier, { kind: 'look', lx: t.clientX, ly: t.clientY });
   }
+}
+function moveStick(d, t) {
+  const R = stickRadius(); let dx = t.clientX - d.cx, dy = t.clientY - d.cy; const l = Math.hypot(dx, dy);
+  if (l > R) { dx *= R / l; dy *= R / l; }
+  tMove.x = dx / R; tMove.y = -dy / R;
+  const sc = S.touch.size * touchAuto() * (layoutOf('touch', 'tStick').s || 1);
+  $('#tKnob').style.transform = `translate(${dx / sc}px, ${dy / sc}px)`;
 }
 function onTouchMove(e) {
   e.preventDefault();
   for (const t of e.changedTouches) {
     const d = tTouches.get(t.identifier); if (!d) continue;
-    if (d.kind === 'stick') {
-      const R = 50 * S.touch.size; let dx = t.clientX - d.cx, dy = t.clientY - d.cy; const l = Math.hypot(dx, dy);
-      if (l > R) { dx *= R / l; dy *= R / l; }
-      tMove.x = dx / R; tMove.y = -dy / R;
-      $('#tKnob').style.transform = `translate(${dx}px, ${dy}px)`;
-    } else if (d.kind === 'look' || d.kind === 'fireLook') {
-      tLook.x += t.clientX - d.lx; tLook.y += t.clientY - d.ly; d.lx = t.clientX; d.ly = t.clientY;
-    }
+    if (d.kind === 'stick') moveStick(d, t);
+    else if (d.kind === 'look' || d.kind === 'fireLook') { tLook.x += t.clientX - d.lx; tLook.y += t.clientY - d.ly; d.lx = t.clientX; d.ly = t.clientY; }
   }
 }
 function onTouchEnd(e) {
@@ -425,13 +482,14 @@ function onTouchEnd(e) {
   for (const t of e.changedTouches) {
     const d = tTouches.get(t.identifier); if (!d) continue;
     tTouches.delete(t.identifier);
-    if (d.btn) { d.btn.classList.remove('on'); if (d.a) tRelease(d.a); }
-    if (d.kind === 'stick') { tMove.x = tMove.y = 0; $('#tStick').hidden = true; $('#tKnob').style.transform = ''; }
+    if (d.btn) { if (!(d.latch && crouchLatched)) d.btn.classList.remove('on'); if (d.a) tRelease(d.a); }
+    if (d.kind === 'stick') { tMove.x = tMove.y = 0; if (!S.touch.stickFixed) $('#tStick').hidden = true; $('#tKnob').style.transform = ''; applyLayout(); }
   }
 }
 function touchReset() {
   for (const d of tTouches.values()) { if (d.btn) d.btn.classList.remove('on'); if (d.a) tRelease(d.a); }
-  tTouches.clear(); tMove.x = tMove.y = 0; tLook.x = tLook.y = 0; $('#tStick').hidden = true;
+  tTouches.clear(); tMove.x = tMove.y = 0; tLook.x = tLook.y = 0; $('#tKnob').style.transform = '';
+  if (crouchLatched) { crouchLatched = false; tRelease('crouch'); $('#tCrouch').classList.remove('on'); }
 }
 {
   const el = $('#touch');
@@ -443,12 +501,149 @@ function touchReset() {
 function updateTouchUI() {
   const on = touchOn();
   document.body.classList.toggle('touch', on);
-  const show = on && state === 'playing' && !paused && !(mode && mode.over) && !devOpen;
-  if ($('#touch').hidden === show) { $('#touch').hidden = !show; if (!show) touchReset(); }
-  $('#touch').style.setProperty('--ts', S.touch.size);
-  const rot = on && state === 'playing' && innerHeight > innerWidth * 1.05;
+  const editT = edState && edState.kind === 'touch';
+  const show = editT || (on && state === 'playing' && !paused && !(mode && mode.over) && !devOpen);
+  if ($('#touch').hidden === show) { $('#touch').hidden = !show; if (!show) touchReset(); applyLayout(); }
+  const stickVis = editT || (show && (S.touch.stickFixed || [...tTouches.values()].some(d => d.kind === 'stick')));
+  if ($('#tStick').hidden === stickVis) { $('#tStick').hidden = !stickVis; applyLayout(); }
+  const rot = on && state === 'playing' && !edState && innerHeight > innerWidth * 1.05;
   if ($('#rotate').hidden === rot) $('#rotate').hidden = !rot;
   if (on && player && pw.slots.length) { const nm = active().w.name; const b = $('#tSwap'); if (b._n !== nm) { b._n = nm; b.textContent = nm.length > 8 ? nm.slice(0, 7) + '.' : nm; } }
+}
+
+// =====================================================================================
+// Layout: posição, tamanho, opacidade e visibilidade de cada parte da HUD e de cada botão do celular
+// x/y = onde fica o ponto de âncora, em fração da tela; ax/ay = qual ponto do elemento é a âncora
+// =====================================================================================
+const HUD_IDS = { hp: 'Vida', ammo: 'Munição', slots: 'Lista de armas', top: 'Placar do topo', feed: 'Abates', fps: 'FPS', speed: 'Velocidade' };
+const TOUCH_IDS = { tStick: 'Joystick', tFire: 'Atirar', tFire2: 'Atirar (2º)', tJump: 'Pular', tCrouch: 'Agachar', tReload: 'Recarregar', tScope: 'Mira', tSwap: 'Trocar arma',
+  tKnife: 'Faca', tPause: 'Pausa', tScore: 'Placar' };
+const HUD_DEF_DESK = { hp: { x: 0.015, y: 0.975, ax: 0, ay: 1 }, ammo: { x: 0.985, y: 0.975, ax: 1, ay: 1 }, slots: { x: 0.985, y: 0.86, ax: 1, ay: 1 },
+  top: { x: 0.5, y: 0.015, ax: 0.5, ay: 0 }, feed: { x: 0.985, y: 0.08, ax: 1, ay: 0 }, fps: { x: 0.012, y: 0.012, ax: 0, ay: 0 }, speed: { x: 0.5, y: 0.58, ax: 0.5, ay: 0 } };
+const HUD_DEF_TOUCH = { ...HUD_DEF_DESK, hp: { x: 0.44, y: 0.985, ax: 1, ay: 1, s: 0.8 }, ammo: { x: 0.56, y: 0.985, ax: 0, ay: 1, s: 0.8 },
+  slots: { x: 0.985, y: 0.5, ax: 1, ay: 0.5, hide: true }, fps: { x: 0.988, y: 0.012, ax: 1, ay: 0, s: 0.8 }, feed: { x: 0.988, y: 0.1, ax: 1, ay: 0, s: 0.8 },
+  top: { x: 0.5, y: 0.012, ax: 0.5, ay: 0, s: 0.8 }, speed: { x: 0.5, y: 0.6, ax: 0.5, ay: 0, s: 0.85 } };
+const TOUCH_DEF = { tStick: { x: 0.17, y: 0.7 }, tFire: { x: 0.8, y: 0.7 }, tFire2: { x: 0.24, y: 0.36, hide: true }, tJump: { x: 0.945, y: 0.8 }, tCrouch: { x: 0.945, y: 0.6 },
+  tReload: { x: 0.7, y: 0.79 }, tScope: { x: 0.7, y: 0.57 }, tSwap: { x: 0.82, y: 0.45 }, tKnife: { x: 0.925, y: 0.4 }, tPause: { x: 0.035, y: 0.09 }, tScore: { x: 0.105, y: 0.09 } };
+const TOUCH_PRESETS = {
+  'Padrão': () => ({}),
+  'Canhoto (espelhado)': () => Object.fromEntries(Object.entries(TOUCH_DEF).map(([k, v]) => [k, { ...v, x: +(1 - v.x).toFixed(3) }])),
+  'Garra (atirar também à esquerda)': () => ({ tFire2: { x: 0.24, y: 0.36, hide: false }, tJump: { x: 0.62, y: 0.33 }, tScope: { x: 0.7, y: 0.6 } }),
+  'Compacto': () => Object.fromEntries(Object.entries(TOUCH_DEF).map(([k, v]) => [k, { ...v, s: 0.8 }])),
+};
+// a HUD tem posições separadas para o computador ('hud') e para os controles de toque ('hudT')
+const lkey = kind => kind === 'hud' && touchOn() ? 'hudT' : kind;
+function layStore(kind) { const k = lkey(kind); return S.layout[k] || (S.layout[k] = {}); }
+function layoutOf(kind, id) {
+  const def = kind === 'touch' ? TOUCH_DEF[id] : (touchOn() ? HUD_DEF_TOUCH : HUD_DEF_DESK)[id];
+  return Object.assign({ ax: 0.5, ay: 0.5, s: 1, o: 1, hide: false }, def, layStore(kind)[id] || {});
+}
+function setLayout(kind, id, patch) { const L = layStore(kind); L[id] = Object.assign(L[id] || {}, patch); applyLayout(); }
+function placeEl(el, L, scale, opacity, editing) {
+  const f = n => n.toFixed(4);
+  el.style.left = `calc(${f(L.x * 100)}vw + ${f(1 - L.x)} * env(safe-area-inset-left, 0px) - ${f(L.x)} * env(safe-area-inset-right, 0px))`;
+  el.style.top = `calc(${f(L.y * 100)}vh + ${f(1 - L.y)} * env(safe-area-inset-top, 0px) - ${f(L.y)} * env(safe-area-inset-bottom, 0px))`;
+  el.style.right = el.style.bottom = 'auto'; el.style.margin = '0';
+  el.style.transformOrigin = `${L.ax * 100}% ${L.ay * 100}%`;
+  el.style.transform = `translate(${-L.ax * 100}%, ${-L.ay * 100}%) scale(${scale.toFixed(3)})`;
+  el.style.opacity = L.hide ? (editing ? 0.3 : 0) : opacity;
+  el.classList.toggle('lay-hide', !!L.hide && !editing);
+}
+function applyLayout() {
+  const ed = edState && edState.kind;
+  for (const id in HUD_IDS) { const L = layoutOf('hud', id); placeEl(H(id), L, S.hud.scale * L.s, L.o, ed === 'hud'); }
+  const ts = S.touch.size * touchAuto();
+  for (const id in TOUCH_IDS) {
+    const el = $('#' + id), L = layoutOf('touch', id);
+    if (id === 'tStick' && !S.touch.stickFixed && ed !== 'touch' && [...tTouches.values()].some(d => d.kind === 'stick')) {
+      // joystick flutuante: fica onde o dedo encostou
+      el.style.transform = `translate(-50%, -50%) scale(${(ts * L.s).toFixed(3)})`; el.style.opacity = L.o * S.touch.opacity; continue;
+    }
+    placeEl(el, L, ts * L.s, L.o * S.touch.opacity, ed === 'touch');
+  }
+  const r = document.documentElement.style;
+  r.setProperty('--hud-fg', S.hud.fg); r.setProperty('--hud-accent', S.hud.accent); r.setProperty('--hud-bg', S.hud.bg);
+}
+addEventListener('resize', () => { applyLayout(); if (edState) positionHandles(); });
+
+// ---- editor de layout: arraste os elementos; toque/clique em um para mudar tamanho, opacidade ou esconder
+let edState = null;
+function openEditor(kind) {
+  edState = { kind, sel: null, barTop: false };
+  $('#settings').hidden = true; $('#editor').hidden = false; document.body.classList.add('editing');
+  if (kind === 'hud') { $('#hud').hidden = false; fillHudSample(); }
+  updateTouchUI(); applyLayout(); renderEditor();
+}
+function closeEditor() {
+  const kind = edState && edState.kind; edState = null;
+  $('#editor').hidden = true; document.body.classList.remove('editing');
+  if (kind === 'hud') { $('#hud').hidden = state !== 'playing'; if (!player) feedEl.innerHTML = ''; }
+  saveSettings(); updateTouchUI(); applyLayout(); openSettings();
+}
+function fillHudSample() {
+  if (player) return;
+  T('hpNum', '+ 100'); T('ammoNum', '30'); T('ammoRes', '90'); T('top', 'Round 1  ·  Você 0 x 0 Bot Alfa  ·  01:30');
+  H('slots').innerHTML = WEAPONS.map((w, i) => `<div class="${w.id === 'rifle' ? 'on' : ''}"><b>${i + 1}</b> &nbsp;${w.name}</div>`).join('');
+  H('slots')._cur = -1;
+  if (!feedEl.childElementCount) feedEl.innerHTML = '<div>Você <span style="color:var(--muted)">[Deagle]</span> Bot Alfa</div><div>Bot Bravo <span style="color:var(--muted)">[Faca]</span> Você</div>';
+  T('speed', '6.8 m/s'); H('speed').hidden = false; H('fps').hidden = false;
+}
+function renderEditor() {
+  const ids = edState.kind === 'hud' ? HUD_IDS : TOUCH_IDS, wrap = $('#edHandles');
+  wrap.innerHTML = Object.entries(ids).map(([id, nm]) => `<div class="edh${edState.sel === id ? ' sel' : ''}${layoutOf(edState.kind, id).hide ? ' off' : ''}" data-id="${id}"><span>${esc(nm)}</span></div>`).join('');
+  wrap.querySelectorAll('.edh').forEach(h => h.addEventListener('pointerdown', edDown));
+  positionHandles(); renderEdBar();
+}
+function positionHandles() {
+  for (const h of $('#edHandles').children) {
+    const r = $('#' + h.dataset.id).getBoundingClientRect();
+    const w = Math.max(44, r.width), hh = Math.max(32, r.height);
+    Object.assign(h.style, { left: (r.left + r.width / 2 - w / 2) + 'px', top: (r.top + r.height / 2 - hh / 2) + 'px', width: w + 'px', height: hh + 'px' });
+  }
+}
+function edDown(e) {
+  e.preventDefault();
+  const h = e.currentTarget, id = h.dataset.id, L = layoutOf(edState.kind, id);
+  if (edState.sel !== id) { edState.sel = id; renderEditor(); }
+  const start = { px: e.clientX, py: e.clientY, x: L.x, y: L.y };
+  const move = ev => {
+    const x = clamp(start.x + (ev.clientX - start.px) / innerWidth, 0, 1), y = clamp(start.y + (ev.clientY - start.py) / innerHeight, 0, 1);
+    setLayout(edState.kind, id, { x: +x.toFixed(4), y: +y.toFixed(4) }); positionHandles();
+  };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); saveSettings(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+function renderEdBar() {
+  const k = edState.kind, id = edState.sel, bar = $('#edBar');
+  bar.classList.toggle('top', edState.barTop);
+  const names = k === 'hud' ? HUD_IDS : TOUCH_IDS;
+  let h = `<div class="tabs"><button data-ek="hud" aria-selected="${k === 'hud'}">HUD</button><button data-ek="touch" aria-selected="${k === 'touch'}">Controles do celular</button></div>`;
+  if (id) {
+    const L = layoutOf(k, id);
+    h += `<div class="edrow"><b>${esc(names[id])}</b>
+      <label>Tamanho <input type="range" id="edS" min="0.4" max="2.2" step="0.05" value="${L.s}"></label>
+      <label>Opacidade <input type="range" id="edO" min="0.1" max="1" step="0.05" value="${L.o}"></label>
+      <label><input type="checkbox" id="edH" ${L.hide ? 'checked' : ''}> Esconder</label>
+      <button class="btn small" id="edReset1">Padrão deste</button></div>`;
+  } else h += `<p class="note" style="margin:0">Arraste qualquer elemento para mudar de lugar. Toque ou clique em um para ajustar tamanho, opacidade ou esconder.</p>`;
+  h += `<div class="edrow">` + (k === 'touch' ? `<label>Modelo <select id="edPreset"><option value="">Escolher…</option>${Object.keys(TOUCH_PRESETS).map(p => `<option>${esc(p)}</option>`).join('')}</select></label>` : '') +
+    `<button class="btn small" id="edResetAll">Restaurar tudo</button><button class="btn small" id="edMoveBar">Mover este painel</button><button class="btn small primary" id="edDone">Pronto</button></div>`;
+  bar.innerHTML = h;
+  const on = (sel, ev, fn) => { const n = bar.querySelector(sel); if (n) n.addEventListener(ev, fn); };
+  bar.querySelectorAll('[data-ek]').forEach(b => b.addEventListener('click', () => {
+    const nk = b.dataset.ek; if (nk === k) return;
+    if (k === 'hud') $('#hud').hidden = state !== 'playing';
+    edState.kind = nk; edState.sel = null; if (nk === 'hud') { $('#hud').hidden = false; fillHudSample(); }
+    updateTouchUI(); applyLayout(); renderEditor();
+  }));
+  on('#edS', 'input', e => { setLayout(k, id, { s: +e.target.value }); positionHandles(); });
+  on('#edO', 'input', e => setLayout(k, id, { o: +e.target.value }));
+  on('#edH', 'change', e => { setLayout(k, id, { hide: e.target.checked }); renderEditor(); });
+  on('#edReset1', 'click', () => { delete layStore(k)[id]; applyLayout(); renderEditor(); });
+  on('#edResetAll', 'click', () => { S.layout[lkey(k)] = {}; applyLayout(); renderEditor(); });
+  on('#edPreset', 'change', e => { if (!e.target.value) return; S.layout.touch = TOUCH_PRESETS[e.target.value](); applyLayout(); renderEditor(); });
+  on('#edMoveBar', 'click', () => { edState.barTop = !edState.barTop; renderEdBar(); });
+  on('#edDone', 'click', () => closeEditor());
 }
 function goFullscreen() {
   if (!touchOn()) return;
@@ -520,12 +715,36 @@ function initAudio() {
   });
 }
 function applyVolume() { if (master) master.gain.value = S.audio.master; }
+// som 3D: cada som de outro jogador sai de onde ele está (frente/trás/lados, com fones fica bem claro),
+// fica mais baixo com a distância e abafado quando tem parede no meio
+const _occRay = new THREE.Raycaster(), _occA = new THREE.Vector3(), _occB = new THREE.Vector3();
+function occluded(pos) {
+  if (!worldMeshes.length) return false;
+  _occA.copy(camera.position); _occB.set(pos.x, pos.y + 1.2, pos.z).sub(_occA);
+  const d = _occB.length(); if (d < 0.5) return false;
+  _occRay.set(_occA, _occB.multiplyScalar(1 / d)); _occRay.far = d - 0.3;
+  return _occRay.intersectObjects(worldMeshes, false).length > 0;
+}
+function updateListener() {
+  if (!actx || !S.audio.hrtf) return;
+  const L = actx.listener, p = camera.position, f = _occA.set(0, 0, -1).applyQuaternion(camera.quaternion), u = _occB.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  if (L.positionX) { L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z; L.forwardX.value = f.x; L.forwardY.value = f.y; L.forwardZ.value = f.z; L.upX.value = u.x; L.upY.value = u.y; L.upZ.value = u.z; }
+  else { L.setPosition(p.x, p.y, p.z); L.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z); }
+}
 function play(name, vol = 1, pos = null) {
   if (!actx || !buffers[name]) return;
   const src = actx.createBufferSource(); src.buffer = buffers[name];
   const g = actx.createGain(); let v = vol * S.audio.sfx;
   let node = g;
-  if (pos && player) {
+  if (pos && player && S.audio.hrtf && actx.createPanner) {
+    const pn = actx.createPanner();
+    Object.assign(pn, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 4, rolloffFactor: 1.1, maxDistance: 120 });
+    const y = name === 'step' || name === 'land' ? pos.y + 0.2 : pos.y + 1.4;
+    if (pn.positionX) { pn.positionX.value = pos.x; pn.positionY.value = y; pn.positionZ.value = pos.z; } else pn.setPosition(pos.x, y, pos.z);
+    g.connect(pn); node = pn;
+    if (occluded(pos)) { const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 850; pn.disconnect(); g.disconnect(); g.connect(lp); lp.connect(pn); v *= 0.7; }
+    src.playbackRate.value = rand(0.95, 1.05);
+  } else if (pos && player) {
     const dx = pos.x - player.pos.x, dz = pos.z - player.pos.z, d = Math.hypot(dx, dz);
     v /= 1 + d / 8;
     if (actx.createStereoPanner) {
@@ -815,19 +1034,36 @@ const WEAPONS = [
   { id: 'knife', name: 'Faca', snd: 'knife', melee: true, dmg: 34, alt: 65, altInterval: 1.0, pellets: 1, interval: 0.4, auto: true, mag: 0, reserve: 0, reload: 0, draw: 0.3,
     range: 2.1, falloff: 1, head: 1, base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1.1 },
   { id: 'pistol', name: 'Pistola', snd: 'pistol', dmg: 35, pellets: 1, interval: 0.17, auto: false, mag: 12, reserve: 48, reload: 2.2, draw: 0.45, range: 250, falloff: 0.91, head: 4,
-    base: 0.006, move: 0.035, air: 0.12, perShot: 0.012, maxShot: 0.05, recover: 0.12, recoilP: 1.6, recoilY: 0.4, speed: 1 },
+    base: 0.004, move: 0.035, air: 0.15, perShot: 0.004, maxShot: 0.025, recover: 0.12, recoilP: 1.6, recoilY: 0.4, speed: 1 },
   { id: 'deagle', name: 'Deagle', snd: 'deagle', dmg: 54, pellets: 1, interval: 0.27, auto: false, mag: 7, reserve: 35, reload: 2.2, draw: 0.55, range: 250, falloff: 0.93, head: 4,
-    base: 0.004, move: 0.06, air: 0.2, perShot: 0.03, maxShot: 0.07, recover: 0.25, recoilP: 3.2, recoilY: 0.6, speed: 0.98 },
+    base: 0.003, move: 0.08, air: 0.3, perShot: 0.01, maxShot: 0.04, recover: 0.25, recoilP: 3.2, recoilY: 0.6, speed: 0.98 },
   { id: 'smg', name: 'Submetralhadora', snd: 'smg', dmg: 26, pellets: 1, interval: 0.075, auto: true, mag: 30, reserve: 120, reload: 2.3, draw: 0.5, range: 200, falloff: 0.86, head: 4,
-    base: 0.008, move: 0.02, air: 0.05, perShot: 0.004, maxShot: 0.04, recover: 0.25, recoilP: 0.55, recoilY: 0.3, speed: 1 },
+    base: 0.006, move: 0.03, air: 0.18, perShot: 0.003, maxShot: 0.025, recover: 0.25, recoilP: 0.55, recoilY: 0.3, speed: 1 },
   { id: 'shotgun', name: 'Shotgun', snd: 'shotgun', dmg: 26, pellets: 9, interval: 0.88, auto: false, mag: 8, reserve: 32, reload: 2.6, draw: 0.7, range: 60, falloff: 0.7, head: 2,
-    base: 0.06, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 4.5, recoilY: 0.8, speed: 0.88 },
+    base: 0.06, move: 0.03, air: 0.15, perShot: 0, maxShot: 0, recover: 1, recoilP: 4.5, recoilY: 0.8, speed: 0.88 },
   { id: 'rifle', name: 'Metralhadora', snd: 'rifle', dmg: 36, pellets: 1, interval: 0.1, auto: true, mag: 30, reserve: 90, reload: 2.5, draw: 0.7, range: 250, falloff: 0.98, head: 4,
-    base: 0.003, move: 0.09, air: 0.25, perShot: 0.006, maxShot: 0.06, recover: 0.2, recoilP: 0.9, recoilY: 0.35, speed: 0.86 },
+    base: 0.002, move: 0.1, air: 0.35, perShot: 0.003, maxShot: 0.025, recover: 0.2, recoilP: 0.9, recoilY: 0.35, speed: 0.86 },
   { id: 'sniper', name: 'Sniper', snd: 'sniper', dmg: 115, pellets: 1, interval: 1.45, auto: false, mag: 5, reserve: 30, reload: 3.6, draw: 0.9, range: 300, falloff: 0.99, head: 4,
-    base: 0.002, move: 0.2, air: 0.4, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.5, recoilY: 0.5, speed: 0.8, scope: [0.45, 0.16], scoped: 0.0015, unscoped: 0.09 },
+    base: 0.002, move: 0.2, air: 0.5, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.5, recoilY: 0.5, speed: 0.8, scope: [0.45, 0.16], scoped: 0.0015, unscoped: 0.09 },
 ];
 const WI = id => WEAPONS.findIndex(w => w.id === id);
+// Recoil estilo CS: cada arma tem um padrão fixo de spray (sempre igual, dá para aprender a compensar).
+// keys = [tiro, graus para cima, graus para a direita]; a bala vai para o ponto do padrão e a câmera mostra metade dele.
+// rec (+ k × posição atual) = quantos "tiros" do padrão se recuperam por segundo depois de parar de atirar.
+const RECOIL = {
+  pistol: { rec: 7, k: 4, keys: [[0, 0, 0], [1, 1.1, 0.15], [2, 2.2, -0.2], [3, 3.1, 0.3], [5, 4.2, -0.3], [8, 4.8, 0.4], [12, 5, 0]] },
+  deagle: { rec: 2.4, k: 1, keys: [[0, 0, 0], [1, 3.8, 0.4], [2, 6.2, -0.5], [4, 8, 0.3], [7, 8.5, 0]] },
+  smg: { rec: 12, k: 5, keys: [[0, 0, 0], [1, 0.35, 0.05], [3, 1.4, 0.15], [6, 3, 0.1], [9, 4, -0.6], [13, 4.4, -1.6], [17, 4.6, 0.2], [21, 4.7, 1.5], [25, 4.8, 0.6], [30, 4.9, -0.4], [35, 5, 0]] },
+  rifle: { rec: 10, k: 5, keys: [[0, 0, 0], [1, 0.5, 0.1], [3, 2.3, 0.3], [6, 5.4, 0.5], [9, 7.2, 0.2], [12, 7.7, -2], [16, 8, -4.5], [20, 8.2, -1], [24, 8, 3.8], [27, 8.3, 2], [30, 8.1, 0]] },
+  shotgun: { rec: 1.6, k: 1, keys: [[0, 0, 0], [1, 4.5, 0.4], [2, 7, -0.4], [7, 8, 0]] },
+  sniper: { rec: 1.2, k: 0.5, keys: [[0, 0, 0], [1, 5, 0.3], [5, 6, 0]] },
+};
+function patternAt(w, n, out) {
+  const R = RECOIL[w.id]; out.x = 0; out.y = 0; if (!R || n <= 0) return out;
+  const K = R.keys; let i = 1; while (i < K.length - 1 && K[i][0] < n) i++;
+  const a = K[i - 1], b = K[i], t = clamp((n - a[0]) / Math.max(1e-6, b[0] - a[0]), 0, 1);
+  out.x = lerp(a[1], b[1], t); out.y = lerp(a[2], b[2], t); return out;
+}
 
 // =====================================================================================
 // Personagens geométricos (jogador e bots) com hitboxes
@@ -835,34 +1071,249 @@ const WI = id => WEAPONS.findIndex(w => w.id === id);
 const combatants = [];
 let player = null;
 
+// Personagens com mais partes: tronco com colete e cinto, capacete, ombros, cotoveleiras e joelheiras,
+// braços com cotovelo que seguram a arma de verdade (mão direita no cabo, esquerda na frente).
+// Ao morrer o corpo vira um ragdoll (pontos ligados por varetas, com gravidade, chão e caixas do mapa).
+const capCache = new Map();
+function capsuleGeo(r, len) {
+  // cápsula ao longo de Y, de 0 até len (a base fica na origem); r128 ainda não tem CapsuleGeometry
+  const key = r.toFixed(3) + '_' + len.toFixed(3);
+  if (capCache.has(key)) return capCache.get(key);
+  const pts = [], n = 6;
+  for (let i = 0; i <= n; i++) { const a = -Math.PI / 2 + (i / n) * Math.PI / 2; pts.push(new THREE.Vector2(Math.cos(a) * r, r + Math.sin(a) * r)); }
+  for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI / 2; pts.push(new THREE.Vector2(Math.cos(a) * r, len - r + Math.sin(a) * r)); }
+  pts[0].x = 0.0001; pts[pts.length - 1].x = 0.0001;
+  const g = new THREE.LatheGeometry(pts, 12); g.computeVertexNormals(); capCache.set(key, g); return g;
+}
+// tronco: cintura fina, peito largo e ombros arredondados
+const TORSO_GEO = (() => { const g = new THREE.LatheGeometry([[0.0001, 0], [0.15, 0.01], [0.175, 0.1], [0.185, 0.22], [0.215, 0.38], [0.225, 0.5], [0.2, 0.58], [0.13, 0.635], [0.0001, 0.65]].map(([x, y]) => new THREE.Vector2(x, y)), 14); g.computeVertexNormals(); return g; })();
+const HELMET_GEO = new THREE.SphereGeometry(0.5, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
+const UP = new THREE.Vector3(0, 1, 0), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q1 = new THREE.Quaternion();
+function aimSeg(m, from, to) { m.position.copy(from); _v1.subVectors(to, from).normalize(); m.quaternion.setFromUnitVectors(UP, _v1); }
+// IK de dois ossos: devolve o cotovelo entre o ombro e a mão, dobrando para o lado de "pole"
+function elbowPos(out, sh, hand, a, b, pole) {
+  _v1.subVectors(hand, sh); let d = _v1.length(); d = clamp(d, 0.05, a + b - 0.001); _v1.normalize();
+  hand.copy(sh).addScaledVector(_v1, d);
+  const along = (a * a - b * b + d * d) / (2 * d), h = Math.sqrt(Math.max(0, a * a - along * along));
+  _v2.copy(pole).addScaledVector(_v1, -pole.dot(_v1)).normalize();
+  return out.copy(sh).addScaledVector(_v1, along).addScaledVector(_v2, h);
+}
+const ARM_A = 0.27, ARM_B = 0.27, LEG_A = 0.44, LEG_B = 0.44, HIP_Y = 0.9;
+
+// peças do corpo, usadas tanto no boneco vivo quanto no ragdoll (mesma geometria e material)
+function bodyKit(c) {
+  const own = col => new THREE.MeshLambertMaterial({ color: col });
+  const tc = new THREE.Color(c.color);
+  const M = { shirt: own(c.color), pants: own(tc.clone().multiplyScalar(0.35).getHex()), vest: own(tc.clone().multiplyScalar(0.62).getHex()),
+    gear: own(0x34373d), skin: own(C.skin), shoe: own(0x222225), eye: mat(C.black) };
+  c.mats = [M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe];
+  return M;
+}
+const PART = {
+  torso: (M) => { const m = new THREE.Mesh(TORSO_GEO, M.shirt); m.scale.set(1.15, 1, 0.72); return m; },
+  vest: (M) => { const m = new THREE.Mesh(BOX, M.vest); m.scale.set(0.46, 0.34, 0.3); return m; },
+  belt: (M) => { const m = new THREE.Mesh(CYL, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
+  pelvis: (M) => { const m = new THREE.Mesh(SPHERE, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
+  head: (M) => {
+    const g = new THREE.Group();
+    const h = new THREE.Mesh(SPHERE, M.skin); h.scale.set(0.3, 0.32, 0.3); g.add(h); g.userData.skull = h;
+    const helmet = new THREE.Mesh(HELMET_GEO, M.gear); helmet.scale.set(0.33, 0.3, 0.34); helmet.position.set(0, 0.025, 0.008); g.add(helmet);
+    const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.3, 0.025, 0.08); brim.position.set(0, 0.03, -0.16); g.add(brim);
+    for (const x of [-0.055, 0.055]) { const e = new THREE.Mesh(SPHERE, M.eye); e.scale.set(0.04, 0.05, 0.03); e.position.set(x, -0.01, -0.14); g.add(e); }
+    const ear = new THREE.Mesh(SPHERE, M.skin); ear.scale.set(0.05, 0.08, 0.06); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
+    return g;
+  },
+  shoulder: (M) => { const m = new THREE.Mesh(SPHERE, M.shirt); m.scale.setScalar(0.17); return m; },
+  upArm: (M) => new THREE.Mesh(capsuleGeo(0.068, ARM_A), M.shirt),
+  foreArm: (M) => new THREE.Mesh(capsuleGeo(0.058, ARM_B), M.skin),
+  elbow: (M) => { const m = new THREE.Mesh(SPHERE, M.gear); m.scale.setScalar(0.13); return m; },
+  hand: (M) => { const m = new THREE.Mesh(BOX, M.shoe); m.scale.set(0.09, 0.1, 0.11); return m; },
+  thigh: (M) => new THREE.Mesh(capsuleGeo(0.1, LEG_A), M.pants),
+  shin: (M) => new THREE.Mesh(capsuleGeo(0.085, LEG_B), M.pants),
+  knee: (M) => { const m = new THREE.Mesh(BOX, M.gear); m.scale.set(0.15, 0.15, 0.1); return m; },
+  boot: (M) => { const m = new THREE.Mesh(BOX, M.shoe); m.scale.set(0.15, 0.13, 0.28); return m; },
+};
+
 function buildModel(c) {
   const g = new THREE.Group(); const vis = new THREE.Group(); g.add(vis);
-  const own = col => new THREE.MeshLambertMaterial({ color: col });
-  const body = own(c.color), dark = own(new THREE.Color(c.color).multiplyScalar(0.45).getHex()), skin = own(C.skin);
-  c.mats = [body, dark, skin];
+  const M = c.kit = bodyKit(c);
   const cs = S.video.shadows === 2;
-  const hit = (m, zone) => { m.userData = { owner: c, zone }; c.hitboxes.push(m); m.castShadow = cs; return m; };
-  const legL = new THREE.Group(); legL.position.set(-0.13, 0.86, 0); vis.add(legL);
-  const legR = new THREE.Group(); legR.position.set(0.13, 0.86, 0); vis.add(legR);
-  hit(mesh(BOX, dark, 0.19, 0.86, 0.22, 0, -0.43, 0, legL), 'legs'); hit(mesh(BOX, dark, 0.19, 0.86, 0.22, 0, -0.43, 0, legR), 'legs');
-  const torso = hit(mesh(BOX, body, 0.52, 0.72, 0.3, 0, 1.21, 0, vis), 'body');
-  const head = hit(mesh(SPHERE, skin, 0.32, 0.32, 0.32, 0, 1.69, 0, vis), 'head');
-  mesh(BOX, C.black, 0.24, 0.07, 0.08, 0, 1.72, -0.13, vis);
-  mesh(BOX, dark, 0.3, 0.08, 0.3, 0, 1.82, 0.01, vis).castShadow = cs;
-  const armL = new THREE.Group(); armL.position.set(-0.33, 1.5, 0); vis.add(armL);
-  const armR = new THREE.Group(); armR.position.set(0.33, 1.5, 0); vis.add(armR);
-  hit(mesh(BOX, body, 0.14, 0.58, 0.14, 0, -0.28, 0, armL), 'body'); hit(mesh(BOX, body, 0.14, 0.58, 0.14, 0, -0.28, 0, armR), 'body');
-  const gun = new THREE.Group(); gun.position.set(0.1, 1.33, -0.42); vis.add(gun);
-  const gunBody = mesh(BOX, C.metal, 0.08, 0.12, 0.6, 0, 0, -0.1, gun); gunBody.castShadow = cs;
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.02, -0.42); gun.add(muzzle);
-  Object.assign(c, { group: g, vis, legL, legR, armL, armR, gun, gunBody, muzzle, torso, head });
+  const add = (o, parent, zone, x = 0, y = 0, z = 0) => {
+    o.position.set(x, y, z); parent.add(o);
+    o.traverse(m => { if (m.isMesh) m.castShadow = cs; });
+    if (zone) o.traverse(m => { if (m.isMesh) { m.userData = { owner: c, zone }; c.hitboxes.push(m); } });
+    return o;
+  };
+  // pernas: coxa e canela em grupos para dobrar o joelho
+  const legs = [-0.11, 0.11].map(x => {
+    const hip = new THREE.Group(); hip.position.set(x, HIP_Y, 0); vis.add(hip);
+    add(PART.thigh(M), hip, 'legs').rotation.x = Math.PI;
+    const knee = new THREE.Group(); knee.position.y = -LEG_A; hip.add(knee);
+    add(PART.knee(M), knee, null, 0, 0, -0.06);
+    add(PART.shin(M), knee, 'legs').rotation.x = Math.PI;
+    add(PART.boot(M), knee, null, 0, -LEG_B + 0.02, -0.05);
+    return { hip, knee };
+  });
+  const upper = new THREE.Group(); vis.add(upper);
+  add(PART.pelvis(M), upper, 'body', 0, HIP_Y + 0.02, 0);
+  const torso = add(PART.torso(M), upper, 'body', 0, 0.9, 0);
+  add(PART.vest(M), upper, null, 0, 1.22, 0);
+  add(PART.belt(M), upper, null, 0, 0.95, 0);
+  const neck = add(new THREE.Mesh(CYL, M.skin), upper, null, 0, 1.54, 0); neck.scale.set(0.1, 0.08, 0.1);
+  const head = add(PART.head(M), upper, 'head', 0, 1.69, 0);
+  const arm = side => ({ sh: add(PART.shoulder(M), upper, 'body', side * 0.25, 1.44, 0), up: add(PART.upArm(M), upper, 'body'), fo: add(PART.foreArm(M), upper, 'body'),
+    el: add(PART.elbow(M), upper), hand: add(PART.hand(M), upper) });
+  const armL = arm(-1), armR = arm(1);
+  const gun = new THREE.Group(); upper.add(gun);
+  const muzzle = new THREE.Object3D(); gun.add(muzzle);
+  Object.assign(c, { group: g, vis, upper, legs, armL, armR, gun, gunParts: null, muzzle, torso, head, grip: new THREE.Vector3(0, -0.05, 0), fore: new THREE.Vector3(-0.02, -0.04, -0.3), gunCs: cs, rag: null, ragGroup: null });
   world.add(g);
 }
 function setGunShape(c, w) {
-  const len = { knife: 0.3, pistol: 0.25, deagle: 0.32, smg: 0.45, sniper: 0.95 }[w.id] || 0.62;
-  c.gunBody.scale.set(w.melee ? 0.02 : 0.08, w.melee ? 0.06 : w.id === 'pistol' || w.id === 'deagle' ? 0.14 : 0.12, len);
-  c.gunBody.material = w.melee ? mat(0xc8ccd2) : mat(C.metal);
-  c.gunBody.position.z = -(len * 0.5 - 0.2); c.muzzle.position.z = -(len - 0.2);
+  if (c.gunParts) c.gun.remove(c.gunParts);
+  const G = new THREE.Group(), cs = c.gunCs;
+  const part = (col, sx, sy, sz, x, y, z, geo = BOX) => { const m = mesh(geo, col, sx, sy, sz, x, y, z, G); m.castShadow = cs; return m; };
+  const metal = C.metal, m2 = C.metal2;
+  if (w.melee) {
+    part(C.black, 0.035, 0.035, 0.12, 0, 0, 0.0); part(0xc8ccd2, 0.012, 0.05, 0.24, 0, 0.01, -0.17);
+    c.grip.set(0, 0, 0); c.oneHand = true; c.muzzle.position.set(0, 0, -0.3);
+  } else if (w.id === 'pistol' || w.id === 'deagle') {
+    const L = w.id === 'deagle' ? 0.27 : 0.21;
+    part(metal, 0.045, 0.065, L, 0, 0.04, -L / 2 + 0.05); part(m2, 0.04, 0.11, 0.05, 0, -0.03, 0.02);
+    c.grip.set(0, -0.03, 0.02); c.fore.set(-0.03, -0.05, 0.03); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L + 0.05);
+  } else {
+    const L = { smg: 0.5, shotgun: 0.85, rifle: 0.78, sniper: 1.05 }[w.id] || 0.7;
+    const wood = w.id === 'shotgun' || w.id === 'sniper';
+    part(metal, 0.06, 0.09, L * 0.55, 0, 0.02, -L * 0.18);                                     // corpo
+    part(m2, 0.028, L * 0.45, 0.028, 0, 0.04, -L * 0.62, CYL).rotation.x = Math.PI / 2;     // cano
+    part(wood ? C.wood : metal, 0.05, 0.09, 0.2, 0, -0.01, 0.2);                             // coronha
+    part(wood ? C.wood : m2, 0.055, 0.05, L * 0.28, 0, -0.03, -L * 0.42);                    // guarda-mão
+    part(m2, 0.04, 0.1, 0.045, 0, -0.06, 0.02);                                                // cabo
+    if (w.id !== 'shotgun') part(m2, 0.035, 0.13, 0.06, 0, -0.09, -L * 0.2).rotation.x = 0.25; // pente
+    if (w.id === 'sniper') part(C.black, 0.05, 0.28, 0.05, 0, 0.11, -0.12, CYL).rotation.x = Math.PI / 2;
+    c.grip.set(0, -0.06, 0.02); c.fore.set(0, -0.05, -L * 0.42); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L * 0.85);
+  }
+  c.gun.add(G); c.gunParts = G;
+}
+
+// ---- ragdoll
+const RAG_PTS = ['head', 'neck', 'back', 'pelvis', 'shL', 'shR', 'elL', 'elR', 'haL', 'haR', 'hipL', 'hipR', 'knL', 'knR', 'ftL', 'ftR'];
+const RI = Object.fromEntries(RAG_PTS.map((n, i) => [n, i]));
+const RAG_LINKS = [['head', 'neck'], ['head', 'shL'], ['head', 'shR'], ['head', 'back'], ['neck', 'shL'], ['neck', 'shR'], ['shL', 'shR'], ['neck', 'back'], ['back', 'pelvis'],
+  ['back', 'shL'], ['back', 'shR'], ['back', 'hipL'], ['back', 'hipR'], ['neck', 'pelvis'], ['shL', 'pelvis'], ['shR', 'pelvis'], ['shL', 'hipL'], ['shR', 'hipR'], ['hipL', 'hipR'],
+  ['hipL', 'pelvis'], ['hipR', 'pelvis'], ['shL', 'hipR'], ['shR', 'hipL'],
+  ['shL', 'elL'], ['elL', 'haL'], ['shR', 'elR'], ['elR', 'haR'], ['hipL', 'knL'], ['knL', 'ftL'], ['hipR', 'knR'], ['knR', 'ftR']].map(([a, b]) => [RI[a], RI[b]]);
+// distâncias mínimas: impedem braço e perna de dobrarem por dentro do corpo
+const RAG_MIN = [['shL', 'haL', 0.3], ['shR', 'haR', 0.3], ['hipL', 'ftL', 0.62], ['hipR', 'ftR', 0.62], ['back', 'knL', 0.45], ['back', 'knR', 0.45], ['ftL', 'ftR', 0.14], ['knL', 'knR', 0.14],
+  ['haL', 'back', 0.2], ['haR', 'back', 0.2], ['head', 'pelvis', 0.7], ['elL', 'hipL', 0.15], ['elR', 'hipR', 0.15]].map(([a, b, d]) => [RI[a], RI[b], d]);
+const RAG_H = 1 / 60, RAG_R = 0.07;
+function startRagdoll(c) {
+  c.group.updateMatrixWorld(true);
+  const U = (x, y, z) => c.upper.localToWorld(new THREE.Vector3(x, y, z)), UV = v => c.upper.localToWorld(v.clone());
+  const W = o => o.getWorldPosition(new THREE.Vector3());
+  const P = { head: U(0, 1.69, 0), neck: U(0, 1.53, 0), back: U(0, 1.25, 0.17), pelvis: U(0, HIP_Y, 0), shL: U(-0.25, 1.44, 0), shR: U(0.25, 1.44, 0),
+    elL: UV(c.armL.fo.position), elR: UV(c.armR.fo.position), haL: UV(c.armL.hand.position), haR: UV(c.armR.hand.position),
+    hipL: W(c.legs[0].hip), hipR: W(c.legs[1].hip), knL: W(c.legs[0].knee), knR: W(c.legs[1].knee),
+    ftL: c.legs[0].knee.localToWorld(new THREE.Vector3(0, -LEG_B, 0)), ftR: c.legs[1].knee.localToWorld(new THREE.Vector3(0, -LEG_B, 0)) };
+  const pts = RAG_PTS.map(n => ({ x: P[n].clone(), p: P[n].clone() }));
+  const rest = RAG_LINKS.map(([a, b]) => pts[a].x.distanceTo(pts[b].x));
+  // velocidade inicial: a do corpo + o empurrão do tiro, mais forte na parte atingida
+  const base = (c.deathVel || new THREE.Vector3()).clone(); base.y = Math.max(base.y, 0) * 0.5;
+  const dir = c.deathDir ? c.deathDir.clone().normalize() : new THREE.Vector3(Math.sin(c.yaw), 0, Math.cos(c.yaw));
+  dir.y = Math.max(dir.y, -0.2);
+  const hitPts = { head: ['head', 'neck'], body: ['back', 'neck', 'shL', 'shR'], legs: ['knL', 'knR', 'hipL', 'hipR'] }[c.deathZone] || ['back', 'neck'];
+  const force = c.deathZone === 'head' ? 5 : 3.2;
+  pts.forEach((pt, i) => {
+    const v = base.clone().addScaledVector(dir, 1.3);
+    if (hitPts.includes(RAG_PTS[i])) v.addScaledVector(dir, force);
+    v.x += rand(-0.3, 0.3); v.z += rand(-0.3, 0.3);
+    pt.p.addScaledVector(v, -RAG_H);
+  });
+  c.rag = { pts, rest, acc: 0, t: 0, still: 0 };
+  // malha do ragdoll: as mesmas peças do boneco, soltas no mundo
+  if (!c.ragGroup) {
+    const M = c.kit, cs = c.gunCs, R = new THREE.Group(), mk = f => { const o = f(M); o.traverse(m => { if (m.isMesh) m.castShadow = cs; }); R.add(o); return o; };
+    c.ragMeshes = { torso: mk(PART.torso), vest: mk(PART.vest), belt: mk(PART.belt), pelvis: mk(PART.pelvis), head: mk(PART.head),
+      shL: mk(PART.shoulder), shR: mk(PART.shoulder), upL: mk(PART.upArm), upR: mk(PART.upArm), foL: mk(PART.foreArm), foR: mk(PART.foreArm),
+      elL: mk(PART.elbow), elR: mk(PART.elbow), haL: mk(PART.hand), haR: mk(PART.hand), thL: mk(PART.thigh), thR: mk(PART.thigh), shnL: mk(PART.shin), shnR: mk(PART.shin),
+      knL: mk(PART.knee), knR: mk(PART.knee), ftL: mk(PART.boot), ftR: mk(PART.boot), gun: new THREE.Group() };
+    R.add(c.ragMeshes.gun);
+    c.ragGroup = R;
+  }
+  if (c.ragGroup.parent !== world) world.add(c.ragGroup);
+  const gun = c.ragMeshes.gun; gun.clear(); if (c.gunParts) gun.add(c.gunParts.clone());
+  c.ragGroup.visible = true; c.vis.visible = false;
+}
+function endRagdoll(c) { c.rag = null; if (c.ragGroup) c.ragGroup.visible = false; c.vis.visible = true; }
+function ragCollide(q) {
+  const x = q.x;
+  if (x.y < RAG_R) { x.y = RAG_R; q.p.x += (x.x - q.p.x) * 0.35; q.p.z += (x.z - q.p.z) * 0.35; }
+  for (const b of colliders) {
+    if (x.x < b.min.x - RAG_R || x.x > b.max.x + RAG_R || x.y < b.min.y - RAG_R || x.y > b.max.y + RAG_R || x.z < b.min.z - RAG_R || x.z > b.max.z + RAG_R) continue;
+    // empurra para fora pela face mais próxima
+    const d = [x.x - (b.min.x - RAG_R), b.max.x + RAG_R - x.x, x.y - (b.min.y - RAG_R), b.max.y + RAG_R - x.y, x.z - (b.min.z - RAG_R), b.max.z + RAG_R - x.z];
+    let k = 0; for (let i = 1; i < 6; i++) if (d[i] < d[k]) k = i;
+    if (k === 0) x.x = b.min.x - RAG_R; else if (k === 1) x.x = b.max.x + RAG_R; else if (k === 2) x.y = b.min.y - RAG_R;
+    else if (k === 3) { x.y = b.max.y + RAG_R; q.p.x += (x.x - q.p.x) * 0.35; q.p.z += (x.z - q.p.z) * 0.35; }
+    else if (k === 4) x.z = b.min.z - RAG_R; else x.z = b.max.z + RAG_R;
+  }
+}
+function stepRagdoll(c, dt) {
+  const R = c.rag; if (R.still > 1) return false;
+  R.acc = Math.min(R.acc + dt, 0.1);
+  const pts = R.pts;
+  while (R.acc >= RAG_H) {
+    R.acc -= RAG_H; R.t += RAG_H;
+    let move = 0;
+    for (const q of pts) {
+      const vx = (q.x.x - q.p.x) * 0.995, vy = (q.x.y - q.p.y) * 0.995, vz = (q.x.z - q.p.z) * 0.995;
+      q.p.copy(q.x); q.x.x += vx; q.x.y += vy - 18 * RAG_H * RAG_H; q.x.z += vz;
+      move = Math.max(move, Math.abs(vx) + Math.abs(vy) + Math.abs(vz));
+    }
+    for (let it = 0; it < 8; it++) {
+      for (let i = 0; i < RAG_LINKS.length; i++) {
+        const A = pts[RAG_LINKS[i][0]].x, B = pts[RAG_LINKS[i][1]].x;
+        _v1.subVectors(B, A); const d = _v1.length() || 1e-6, k = (d - R.rest[i]) / d * 0.5;
+        A.addScaledVector(_v1, k); B.addScaledVector(_v1, -k);
+      }
+      for (const [a, b, m] of RAG_MIN) {
+        const A = pts[a].x, B = pts[b].x; _v1.subVectors(B, A); const d = _v1.length() || 1e-6;
+        if (d < m) { const k = (d - m) / d * 0.5; A.addScaledVector(_v1, k); B.addScaledVector(_v1, -k); }
+      }
+      if (it % 3 === 0 || it === 7) for (const q of pts) ragCollide(q);
+    }
+    // parado por um tempo: congela para não gastar processamento
+    R.still = move < 0.0015 ? R.still + RAG_H : 0;
+    if (R.t > 6) R.still = 2;
+  }
+  return true;
+}
+function poseRagdoll(c) {
+  const P = n => c.rag.pts[RI[n]].x, m = c.ragMeshes;
+  const pel = P('pelvis'), nk = P('neck');
+  const up = _v1.subVectors(nk, pel).normalize().clone();
+  const right = _v2.subVectors(P('shR'), P('shL')); right.addScaledVector(up, -right.dot(up)).normalize();
+  const back = _v3.crossVectors(right, up).normalize();
+  _m4.makeBasis(right, up, back); _q1.setFromRotationMatrix(_m4);
+  const at = (o, x, y, z) => { o.quaternion.copy(_q1); o.position.set(x, y, z).applyQuaternion(_q1).add(pel); };
+  at(m.torso, 0, -0.02, 0); at(m.vest, 0, 0.3, 0); at(m.belt, 0, 0.03, 0); at(m.pelvis, 0, 0, 0);
+  // cabeça: segue a direção pescoço -> cabeça
+  const hu = new THREE.Vector3().subVectors(P('head'), nk).normalize(), hr = right.clone().addScaledVector(hu, -right.dot(hu)).normalize();
+  _m4.makeBasis(hr, hu, new THREE.Vector3().crossVectors(hr, hu)); m.head.quaternion.setFromRotationMatrix(_m4); m.head.position.copy(P('head'));
+  for (const s of ['L', 'R']) {
+    m['sh' + s].position.copy(P('sh' + s)); m['el' + s].position.copy(P('el' + s));
+    aimSeg(m['up' + s], P('sh' + s), P('el' + s)); aimSeg(m['fo' + s], P('el' + s), P('ha' + s));
+    m['ha' + s].position.copy(P('ha' + s)); m['ha' + s].quaternion.copy(m['fo' + s].quaternion);
+    aimSeg(m['th' + s], P('hip' + s), P('kn' + s)); aimSeg(m['shn' + s], P('kn' + s), P('ft' + s));
+    m['kn' + s].position.copy(P('kn' + s)); m['kn' + s].quaternion.copy(m['shn' + s].quaternion);
+    // bota: em pé na canela, comprida no sentido frente-trás do corpo
+    const by = _v1.subVectors(P('kn' + s), P('ft' + s)).normalize().clone();
+    const bz = back.clone().addScaledVector(by, -back.dot(by)).normalize(), bx = new THREE.Vector3().crossVectors(by, bz);
+    _m4.makeBasis(bx, by, bz); m['ft' + s].quaternion.setFromRotationMatrix(_m4);
+    m['ft' + s].position.copy(P('ft' + s)).addScaledVector(bz, -0.05).addScaledVector(by, 0.02);
+  }
+  // arma: continua na mão direita, alinhada com o antebraço
+  m.gun.position.copy(P('haR')); m.gun.quaternion.copy(m.foR.quaternion).multiply(_q1.setFromAxisAngle(_v1.set(1, 0, 0), -Math.PI / 2));
 }
 
 function createCombatant(name, color, sp, isPlayer) {
@@ -877,25 +1328,51 @@ function eyePos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + (c.isPlayer ? l
 function chestPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.21 * (1 - c.crouch * 0.3), c.pos.z); }
 function headPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.69 * (1 - c.crouch * 0.3), c.pos.z); }
 
+const _sh = new THREE.Vector3(), _hand = new THREE.Vector3(), _el = new THREE.Vector3(), _pole = new THREE.Vector3();
+function setArm(A, sh, el, hand) { aimSeg(A.up, sh, el); aimSeg(A.fo, el, hand); A.el.position.copy(el); A.hand.position.copy(hand); A.hand.quaternion.copy(A.fo.quaternion); }
+function placeArm(c, A, side, handLocal) {
+  _sh.set(side * 0.25, 1.44, 0);
+  _hand.copy(handLocal).applyMatrix4(c.gun.matrix);
+  _pole.set(side * 0.7, -1, 0.35);
+  elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole);
+  setArm(A, _sh, _el, _hand);
+}
 function animateModel(c, dt) {
   c.group.position.copy(c.pos);
   c.group.rotation.y = c.yaw;
   if (c.flash > 0) { c.flash = Math.max(0, c.flash - dt * 8); for (const m of c.mats) m.emissive.setScalar(c.flash * 0.6); }
   if (!c.alive) {
-    c.deathT += dt; const k = Math.min(1, c.deathT / 0.45);
-    c.vis.rotation.x = k * k * 1.5; c.vis.position.y = -0.1 * k; return;
+    c.deathT += dt;
+    if (c.isPlayer || !c.gunParts) { const k = Math.min(1, c.deathT / 0.45); c.vis.rotation.x = k * k * 1.5; c.vis.position.y = -0.1 * k; return; }
+    if (!c.rag) startRagdoll(c);
+    if (stepRagdoll(c, dt)) poseRagdoll(c);
+    return;
   }
+  if (c.rag) endRagdoll(c);
+  if (!c.gunParts) return;
   const sp = Math.hypot(c.vel.x, c.vel.z), mv = clamp(sp / 5, 0, 1);
   c.walk += dt * sp * 1.8;
-  const sw = Math.sin(c.walk) * 0.66 * mv;
-  c.legL.rotation.x = sw; c.legR.rotation.x = -sw;
+  const sw = Math.sin(c.walk) * 0.6 * mv;
+  // agachar: o quadril desce e os joelhos dobram para a altura caber
+  const drop = c.crouch * 0.5, th = Math.acos(clamp((HIP_Y - drop) / HIP_Y, -1, 1));
+  const bob = Math.abs(Math.sin(c.walk)) * 0.035 * mv;
+  c.legs.forEach((L, i) => {
+    const s = i ? -sw : sw;
+    L.hip.position.y = HIP_Y - drop + bob; L.hip.rotation.x = th + s;
+    L.knee.rotation.x = -2 * th - Math.max(0, i ? sw : -sw) * 0.9;
+  });
+  c.upper.position.y = -drop + bob;
   c.recoilAnim = lerp(c.recoilAnim, 0, Math.min(1, dt * 12));
-  const p = clamp(c.pitch, -1, 1);
-  c.armR.rotation.x = 1.4 + p - c.recoilAnim * 0.2; c.armL.rotation.x = 1.3 + p - c.recoilAnim * 0.14; c.armL.rotation.y = -0.4;
-  c.gun.rotation.x = p - c.recoilAnim * 0.1; c.gun.position.z = -0.42 + c.recoilAnim * 0.06;
-  c.vis.position.y = Math.abs(Math.sin(c.walk)) * 0.04 * mv;
-  c.vis.scale.y = 1 - c.crouch * 0.3;
-  c.vis.rotation.x = 0;
+  const p = clamp(c.pitch, -1.1, 1.1);
+  // a arma acompanha a mira na altura do ombro direito; o tranco do tiro empurra para trás
+  c.gun.position.set(0.1, 1.38 + Math.sin(p) * 0.08, -0.32 * Math.cos(p) + c.recoilAnim * 0.07);
+  c.gun.rotation.set(p + c.recoilAnim * 0.12, 0, 0);
+  c.head.rotation.x = p * 0.5;
+  c.gun.updateMatrix();
+  placeArm(c, c.armR, 1, c.grip);
+  if (c.oneHand) { _hand.set(-0.22, 1.0, -0.05); _sh.set(-0.25, 1.44, 0); _pole.set(-1, -0.3, 0.5); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armL, _sh, _el, _hand); }
+  else placeArm(c, c.armL, -1, c.fore);
+  c.vis.position.y = 0; c.vis.rotation.x = 0;
 }
 
 function damage(victim, amount, attacker, weapon, zone, dir) {
@@ -908,11 +1385,14 @@ function damage(victim, amount, attacker, weapon, zone, dir) {
   if (victim.isPlayer) { hurtT = 1; hurtFrom = attacker ? attacker.pos.clone() : null; if (!victim.invuln) play('hurt', 0.8); }
   if (attacker && attacker.isPlayer && mode && mode.onPlayerHit) mode.onPlayerHit(victim, amount, zone);
   if (victim.hp <= 0) {
+    victim.deathVel = victim.vel.clone(); victim.deathDir = dir ? dir.clone() : null; victim.deathZone = zone;
     victim.alive = false; victim.deaths++; victim.deathT = 0; victim.vel.set(0, 0, 0);
     if (attacker && attacker !== victim) attacker.kills++;
     victim.lastDeath = { attacker, weapon, head: zone === 'head' };
     addFeed(attacker, victim, weapon, zone === 'head');
     if (mode) mode.onDeath(victim, attacker);
+    if (victim.isPlayer) kcStart(attacker, weapon, zone);
+    if (attacker === player && zone === 'head' && mode && mode.stats) mode.stats.hsKills++;
     return true;
   }
   return false;
@@ -920,7 +1400,7 @@ function damage(victim, amount, attacker, weapon, zone, dir) {
 
 function respawn(c, sp) {
   c.pos.copy(sp.pos); c.yaw = sp.yaw; c.pitch = 0; c.vel.set(0, 0, 0); c.hp = c.maxHp; c.alive = true; c.deathT = -1; c.lastAttacker = null; c.respawnAt = -1; c.crouch = 0; c.h = 1.8;
-  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0);
+  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) endRagdoll(c);
   if (c.isPlayer) resetPlayerWeapons(); else if (c.bot) { c.weapon.magNow = c.weapon.w.mag; c.bot.target = null; c.bot.hasWp = false; }
 }
 
@@ -947,7 +1427,7 @@ function fireWeapon(shooter, w, origin, forward, spread, tracerStart, dmgScale =
     const h = trace(origin, dir, w.range, shooter);
     const end = h ? h.point : origin.clone().addScaledVector(dir, w.range);
     if (i === 0) res.end = end;
-    if (w.pellets === 1 || i % 3 === 0) tracer(tracerStart, end);
+    if (w.pellets === 1 || i % 3 === 0) { tracer(tracerStart, end); kcShot(shooter, tracerStart, end); }
     if (!h) continue;
     const ud = h.object.userData;
     if (ud && ud.owner) {
@@ -1111,18 +1591,18 @@ function applyPhysics(cfg) {
   MV = BHOP_PRESETS[cfg && cfg.bhop != null ? cfg.bhop : 1] || BHOP_PRESETS[1];
   GRAV = 20 * (cfg && cfg.gravity || 1); SPEED_MULT = cfg && cfg.speed || 1;
 }
-const pw = { slots: [], cur: 0, prev: 0, nextFire: 0, reloadT: 0, drawT: 0, shotSpread: 0, zoom: 0, rezoom: 0, rezoomAt: 0, lastShot: -9, spread: 0, infinite: false };
+const pw = { slots: [], cur: 0, prev: 0, nextFire: 0, reloadT: 0, drawT: 0, shotSpread: 0, zoom: 0, rezoom: 0, rezoomAt: 0, lastShot: -9, spread: 0, infinite: false, spray: 0, punch: { x: 0, y: 0 }, landT: 0 };
 const pv = { recoil: { x: 0, y: 0 }, landDip: 0, bob: 0, step: 0, jumpQ: -9, god: false, noclip: false, kick: 0, sway: { x: 0, y: 0 }, vbob: 0, boltT: 1, flashT: 0,
   swing: 0, swingAlt: false, swingSide: 1, roll: 0 };
 
-const loadoutIds = () => (mode && mode.weapons) || WEAPONS.map((w, i) => i);
+const loadoutIds = () => (mode && mode.cfg && mode.cfg.duel && duelLoadout(mode, player.team)) || (mode && mode.weapons) || WEAPONS.map((w, i) => i);
 function resetPlayerWeapons() {
   const keep = pw.slots[pw.cur] && pw.slots[pw.cur].w;
   pw.slots = loadoutIds().map(i => ({ w: WEAPONS[i], wi: i, mag: WEAPONS[i].mag, reserve: WEAPONS[i].reserve }));
-  pw.reloadT = 0; pw.shotSpread = 0; pw.zoom = 0; pw.rezoom = 0;
+  pw.reloadT = 0; pw.shotSpread = 0; pw.zoom = 0; pw.rezoom = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0;
   let idx = keep ? pw.slots.findIndex(s => s.w === keep) : -1;
   if (idx < 0) idx = defaultSlot();
-  pw.prev = idx; selectWeapon(idx, true);
+  pw.prev = idx; selectWeapon(idx, true); buildSlots();
 }
 function defaultSlot() {
   for (const id of ['rifle', 'smg', 'sniper', 'deagle', 'shotgun', 'pistol', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
@@ -1131,7 +1611,7 @@ function defaultSlot() {
 function selectWeapon(i, force) {
   if (i == null || i < 0 || i >= pw.slots.length || (i === pw.cur && !force)) return;
   if (i !== pw.cur) pw.prev = pw.cur;
-  pw.cur = i; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
+  pw.cur = i; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
   vmModels.forEach((m, j) => m.g.visible = j === pw.slots[i].wi);
   if (player) setGunShape(player, pw.slots[i].w);
   play('draw', 0.6);
@@ -1237,7 +1717,7 @@ function updatePlayer(dt) {
   const was = p.grounded;
   moveBody(p, p.vel.x * dt, p.vel.y * dt, p.vel.z * dt);
   if (p.grounded && !was) {
-    pv.landDip = clamp(-fallV * 0.012, 0, 0.12);
+    pv.landDip = clamp(-fallV * 0.012, 0, 0.12); pw.landT = 0.35;
     if (MV.slide && p.crouching && p.slideReady) startSlide(p, true);
     else if (fallV < -6) play('land', 0.7);
     p.slideReady = false;
@@ -1268,7 +1748,7 @@ function updateCamera(dt) {
   } else {
     const eye = lerp(1.62, 1.08, p.crouch) - pv.landDip + by;
     camera.position.set(p.pos.x + Math.cos(p.yaw) * bx, p.pos.y + eye, p.pos.z - Math.sin(p.yaw) * bx);
-    camera.rotation.set(p.pitch + pv.recoil.x * DEG, p.yaw + pv.recoil.y * DEG, pv.roll);
+    camera.rotation.set(p.pitch + (pv.recoil.x + pw.punch.x * 0.5) * DEG, p.yaw + (pv.recoil.y - pw.punch.y * 0.5) * DEG, pv.roll);
   }
   const target = S.video.fov * zoomMult() * (1 + clamp((Math.hypot(p.vel.x, p.vel.z) - RUN * 1.2) / 40, 0, 0.12));
   camera.fov = Math.abs(camera.fov - target) < 0.5 ? target : lerp(camera.fov, target, Math.min(1, dt * 25));
@@ -1278,8 +1758,9 @@ function updateCamera(dt) {
 function computeSpread() {
   const w = active().w, p = player;
   if (w.melee) return 0;
-  const sf = clamp(Math.hypot(p.vel.x, p.vel.z) / RUN, 0, 1);
-  const mv = w.move * sf * sf, air = p.grounded ? 0 : w.air;
+  // como no CS: parado ou andando devagar (Shift / contra-strafe) é preciso; correndo, pulando ou logo depois de cair, não
+  const sf = clamp((Math.hypot(p.vel.x, p.vel.z) / RUN - 0.3) / 0.7, 0, 1);
+  const mv = w.move * sf * Math.sqrt(sf), air = p.grounded ? w.air * (pw.landT / 0.35) * 0.6 : w.air;
   let s = w.scope ? (pw.zoom ? w.scoped : w.base + w.unscoped) + mv + air : w.base + mv + air + pw.shotSpread;
   if (p.crouching && p.grounded) s *= 0.75;
   return s;
@@ -1293,6 +1774,10 @@ function updateWeapons(dt) {
     if (pw.reloadT <= 0) { pw.reloadT = 0; const need = w.mag - slot.mag, take = pw.infinite ? need : Math.min(need, slot.reserve); slot.mag += take; if (!pw.infinite) slot.reserve -= take; play('magIn', 0.8); }
   }
   pw.shotSpread = Math.max(0, pw.shotSpread - w.recover * dt);
+  pw.landT = Math.max(0, pw.landT - dt);
+  const R = RECOIL[w.id];
+  if (R && now - pw.lastShot > (w.auto ? w.interval * 1.5 : 0.04)) pw.spray = Math.max(0, pw.spray - dt * (R.rec + pw.spray * R.k));
+  patternAt(w, pw.spray, pw.punch);
   if (pw.rezoom && now >= pw.rezoomAt) { if (slot.mag > 0 && !pw.reloadT) pw.zoom = pw.rezoom; pw.rezoom = 0; }
   pw.spread = computeSpread();
   if (!player.alive || !canInput()) { wheel = 0; return; }
@@ -1333,15 +1818,18 @@ function tryFire(pressedNow) {
   if (s.mag <= 0) { if (pressedNow) play('empty', 0.8); pw.nextFire = now + 0.2; tryReload(); return; }
   if (!pw.infinite) s.mag--;
   pw.nextFire = now + w.interval; pw.lastShot = now;
-  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  // a bala sai na direção da mira + o ponto atual do padrão de recoil (a câmera só mostra metade)
+  const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch + pw.punch.x * DEG, player.yaw - pw.punch.y * DEG, 0, 'YXZ'));
   const muzzleWorld = camera.position.clone()
     .addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.18)
     .addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), -0.14)
     .addScaledVector(dir, 0.6);
   const res = fireWeapon(player, w, camera.position.clone(), dir, pw.spread, muzzleWorld);
+  if (mode && mode.stats) { mode.stats.shots++; if (res.hit) mode.stats.hits++; }
   if (mode && mode.net) Net.send({ t: 'shot', w: s.wi, a: v3a(muzzleWorld), b: v3a(res.end) });
   pw.shotSpread = Math.min(pw.shotSpread + w.perShot, w.maxShot);
-  pv.recoil.x += w.recoilP; pv.recoil.y += rand(-w.recoilY, w.recoilY);
+  if (RECOIL[w.id]) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
+  pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3;
   pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0;
   play(w.snd, 0.9);
   if (w.scope && pw.zoom) { pw.rezoom = pw.zoom; pw.rezoomAt = pw.nextFire - 0.1; pw.zoom = 0; }
@@ -1514,7 +2002,7 @@ function updateBot(c, dt) {
   if (dt > 0) { c.vel.x = (c.pos.x - ox) / dt; c.vel.z = (c.pos.z - oz) / dt; }
   if (now >= b.stuckAt) { if (desired.lengthSq() > 0.01 && b.lastPos.distanceTo(c.pos) < 0.3) { b.hasWp = false; b.strafe = -b.strafe; } b.lastPos.copy(c.pos); b.stuckAt = now + 1; }
   const hs = Math.hypot(c.vel.x, c.vel.z);
-  if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; play('step', 0.6, c.pos); } }
+  if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; play('step', 0.9, c.pos); } }
 }
 function pickWp(b) { const wps = mapInfo.waypoints; if (!wps.length) { b.hasWp = false; return; } b.wp.copy(wps[Math.floor(Math.random() * wps.length)]); b.hasWp = true; }
 function clear(c, dir) { const p = c.pos.clone().addScaledVector(dir, 1.0); return !collides(p, 1.6); }
@@ -1589,7 +2077,40 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: WEAPONS.map((w, i) => i), hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1 };
+  preset: 0, weapons: WEAPONS.map((w, i) => i), hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal' };
+// modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
+const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game']];
+const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
+function duelFix(cfg) {
+  if (cfg.duel === 'gungame') { cfg.format = 'dm'; cfg.target = GG.length; }
+  return cfg;
+}
+// armas que um time tem agora no modo de duelo (null = usa as armas normais da partida)
+function duelLoadout(m, team) {
+  const d = m.cfg.duel, K = WI('knife');
+  if (d === 'knife') return [K];
+  if (d === 'awp') return [WI('sniper'), K];
+  if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
+  if (d === 'gungame') { const id = WI(GG[Math.min(m.score[team], GG.length - 1)]); return id === K ? [K] : [id, K]; }
+  return null;
+}
+function randomGun(cfg) {
+  let g = cfgWeapons(cfg).filter(i => !WEAPONS[i].melee); if (!g.length) g = WEAPONS.map((w, i) => i).filter(i => !WEAPONS[i].melee);
+  return g[Math.floor(Math.random() * g.length)];
+}
+// aplica as armas do duelo no jogador e nos bots (troca na hora, como no gun game depois de um abate)
+function applyDuel(m) {
+  if (!m || !m.cfg || !m.cfg.duel || m.cfg.duel === 'normal') return;
+  const mine = duelLoadout(m, player.team);
+  if (mine) {
+    const want = mine.join(','), have = pw.slots.map(s => s.wi).join(',');
+    if (want !== have) { pw.slots = []; resetPlayerWeapons(); }
+  }
+  for (const c of combatants) if (c.bot) {
+    const L = duelLoadout(m, c.team); if (!L) continue;
+    const id = L[0]; if (c.cfg.weapon !== id) { c.cfg.weapon = id; applyBot(c, c.cfg); }
+  }
+}
 function loadJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null') || {}; } catch (e) { return {}; } }
 let X1 = Object.assign(clone(X1_DEFAULT), loadJSON('cs3.web.x1'));
 function saveX1() { try { localStorage.setItem('cs3.web.x1', JSON.stringify(X1)); } catch (e) {} }
@@ -1607,8 +2128,8 @@ function banner(text, sub = '', dur = 2.2) { const b = $('#banner'); b.innerHTML
 
 function startX1(cfgIn, net) {
   initAudio();
-  const cfg = Object.assign(clone(X1_DEFAULT), cfgIn);
-  const mapDef = MAPS.find(m => m.id === cfg.map) || MAPS[0];
+  const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
+  const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
   mapDef.build(); clearCombatants(); feedEl.innerHTML = '';
   applyPhysics(cfg);
   const myTeam = net && net.role === 'guest' ? 1 : 0;
@@ -1640,6 +2161,7 @@ function startX1(cfgIn, net) {
   }
   enterPlaying();
   mode.startRound(true);
+  applyDuel(mode);
 }
 
 function makeX1Mode(cfg, net, weapons, myTeam) {
@@ -1648,7 +2170,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
   const enemyBots = () => combatants.filter(c => c.team !== myTeam);
   return {
     type: 'x1', cfg, net, host, rounds, teams: true, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remote: null,
-    score: [0, 0], round: 0, live: false, nextRoundAt: -1, finishAt: -1, finishTeam: null, timeLeft: rounds ? cfg.roundTime : cfg.time * 60, sendAcc: 0,
+    stats: { shots: 0, hits: 0, hsKills: 0 }, score: [0, 0], round: 0, live: false, nextRoundAt: -1, finishAt: -1, finishTeam: null, timeLeft: rounds ? cfg.roundTime : cfg.time * 60, sendAcc: 0,
     enemies: (a, b) => a.team !== b.team,
     teamName(t) {
       if (net) return t === myTeam ? 'Você' : net.peerName;
@@ -1658,23 +2180,26 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     top() {
       const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       const ping = net ? `  ·  ping ${Net.ping} ms` : '';
+      if (cfg.duel === 'gungame') { const lv = Math.min(this.score[myTeam], GG.length - 1); return `Gun game  ·  ${sc}  ·  sua arma: ${WEAPONS[WI(GG[lv])].name} (${lv + 1}/${GG.length})  ·  ${fmtTime(this.timeLeft)}${ping}`; }
       return rounds ? `Round ${this.round}  ·  ${sc}  ·  ${fmtTime(this.timeLeft)}${ping}` : `${sc}  ·  até ${cfg.target} abates  ·  ${fmtTime(this.timeLeft)}${ping}`;
     },
     startRound(first) {
       if (!host && !first) return;
       this.live = true; this.nextRoundAt = -1;
+      if (cfg.duel === 'random' && host) this.roundGun = randomGun(cfg);
       if (rounds) {
         this.round++; this.timeLeft = cfg.roundTime;
         if (!first || !net) for (const c of combatants) if (!c.remote) respawn(c, mapInfo.teamSpawns[c.team][c.spawnIdx % mapInfo.teamSpawns[c.team].length]);
-        banner(`Round ${this.round}`, `Primeiro a vencer ${cfg.target} rounds`);
-        if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft });
-      } else banner('Mata-mata', `Primeiro a ${cfg.target} abates`);
+        banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
+        if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun });
+      } else banner(cfg.duel === 'gungame' ? 'Gun game' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : `Primeiro a ${cfg.target} abates`);
+      applyDuel(this);
       play('round', 0.7);
     },
     onRoundMsg(m) { // convidado: o anfitrião começou um round
-      this.round = m.n; this.score = m.s; this.timeLeft = m.tl; this.live = true;
+      this.round = m.n; this.score = m.s; this.timeLeft = m.tl; this.live = true; if (m.g != null) this.roundGun = m.g;
       respawn(player, mapInfo.teamSpawns[myTeam][0]);
-      banner(`Round ${m.n}`, `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
+      banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
     endRound(winner) {
       this.live = false;
@@ -1698,6 +2223,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (net && v === player) { const d = v.lastDeath || {}; Net.send({ t: 'dead', by: a && a.remote ? 1 : 0, w: d.weapon, h: d.head ? 1 : 0 }); }
       if (!rounds) {
         if (!v.remote) v.respawnAt = now + 2;
+        if (cfg.duel === 'random' && v === player) this.roundGun = randomGun(cfg);
         if (host && a && a.team !== v.team) {
           this.score[a.team]++;
           if (net) Net.send({ t: 'score', s: this.score });
@@ -1711,6 +2237,13 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     update(dt) {
       if (net) Net.update(dt);
+      if (cfg.duel === 'gungame') {
+        const key = this.score.join(',');
+        if (key !== this.ggKey) {
+          if (this.ggKey && this.score[myTeam] > +this.ggKey.split(',')[myTeam] && this.score[myTeam] < GG.length) { banner(`Nível ${this.score[myTeam] + 1}`, WEAPONS[WI(GG[this.score[myTeam]])].name, 1.4); play('round', 0.5); }
+          this.ggKey = key; applyDuel(this);
+        }
+      }
       for (const c of combatants) if (!c.remote && !c.alive && c.respawnAt > 0 && now >= c.respawnAt) respawn(c, pickSpawn(c));
       if (this.live || !rounds) this.timeLeft -= dt;
       if (host) {
@@ -1728,13 +2261,265 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     restart() { if (!net) startX1(cfg); else if (host) Net.startMatch(cfg); },
   };
 }
+// =====================================================================================
+// Mapas feitos no editor: caixas e paredes num chão retangular, com spawns dos dois times.
+// O mapa vira um código de texto para mandar ao amigo; no online o mapa vai junto com as regras.
+// =====================================================================================
+const MAP_COLORS = [C.crate, C.crateDark, C.wall, C.wallDark, C.concrete, C.olive, 0x56709a, 0x9a4f3c];
+const MAP_HEIGHTS = [[0.6, 'Baixa (pular por cima)'], [1.2, 'Caixote (agachado cobre)'], [2.4, 'Alta (cobre em pé)'], [4, 'Parede']];
+const MAPS_KEY = 'cs3.web.maps';
+function blankMap() { return { n: 'Meu mapa', w: 12, d: 18, h: 4, c: 2, b: [], a: [], B: [] }; }
+function sanitizeMap(m) {
+  const num = (v, lo, hi, def) => { v = +v; return Number.isFinite(v) ? clamp(v, lo, hi) : def; };
+  const out = { n: String(m && m.n || 'Mapa').slice(0, 24), w: num(m.w, 6, 30, 12), d: num(m.d, 6, 40, 18), h: num(m.h, 2, 8, 4), c: Math.round(num(m.c, 0, MAP_COLORS.length - 1, 2)), b: [], a: [], B: [] };
+  for (const b of (Array.isArray(m.b) ? m.b : []).slice(0, 300)) {
+    if (!Array.isArray(b)) continue;
+    out.b.push([num(b[0], -out.w, out.w, 0), num(b[1], -out.d, out.d, 0), num(b[2], 0.3, 60, 1), num(b[3], 0.2, 10, 1.2), num(b[4], 0.3, 80, 1), Math.round(num(b[5], 0, MAP_COLORS.length - 1, 0)), num(b[6], 0, 10, 0)]);
+  }
+  for (const k of ['a', 'B']) for (const s of (Array.isArray(m[k]) ? m[k] : []).slice(0, 6)) if (Array.isArray(s)) out[k].push([num(s[0], -out.w + 0.6, out.w - 0.6, 0), num(s[1], -out.d + 0.6, out.d - 0.6, 0)]);
+  return out;
+}
+function mapToCode(m) {
+  const r = v => Math.round(v * 100) / 100;
+  const slim = { n: m.n, w: m.w, d: m.d, h: m.h, c: m.c, b: m.b.map(b => b.map(r)), a: m.a.map(s => s.map(r)), B: m.B.map(s => s.map(r)) };
+  const json = JSON.stringify(slim), bytes = new TextEncoder().encode(json);
+  let bin = ''; for (const x of bytes) bin += String.fromCharCode(x);
+  return 'CS3M1.' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function codeToMap(code) {
+  const s = String(code || '').trim().replace(/\s+/g, '');
+  if (!s.startsWith('CS3M1.')) throw new Error('Esse texto não é um código de mapa do CS3 (ele começa com CS3M1.)');
+  let b64 = s.slice(6).replace(/-/g, '+').replace(/_/g, '/'); while (b64.length % 4) b64 += '=';
+  const bin = atob(b64), bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+  return sanitizeMap(JSON.parse(new TextDecoder().decode(bytes)));
+}
+function defaultSpawns(m, team) {
+  const z = (team ? -1 : 1) * (m.d - 2), xs = [0, -3, 3, -6, 6].filter(x => Math.abs(x) < m.w - 1);
+  return xs.map(x => [x, z]);
+}
+function buildCustom(raw) {
+  const m = sanitizeMap(raw);
+  newWorld();
+  walls(m.w, m.d, m.h, MAP_COLORS[m.c]);
+  decal(0, m.d - 2.5, Math.min(10, m.w * 2 - 2), 4, C.sideA); decal(0, -m.d + 2.5, Math.min(10, m.w * 2 - 2), 4, C.sideB);
+  for (const b of m.b) box(b[0], b[1], b[2], b[3], b[4], MAP_COLORS[b[5]], b[6] || 0);
+  const a = m.a.length ? m.a : defaultSpawns(m, 0), B = m.B.length ? m.B : defaultSpawns(m, 1);
+  finishSmall(m.n, m.w, m.d, a, B);
+}
+function loadMyMaps() { const v = loadJSON(MAPS_KEY); return Array.isArray(v.list) ? v.list : []; }
+function saveMyMaps(list) { try { localStorage.setItem(MAPS_KEY, JSON.stringify({ list })); } catch (e) {} }
+function refreshCustomMaps() {
+  for (let i = MAPS.length - 1; i >= 0; i--) if (MAPS[i].custom) MAPS.splice(i, 1);
+  for (const e of loadMyMaps()) MAPS.push({ id: 'c_' + e.id, name: e.map.n + ' (seu)', custom: true, data: e.map, build: () => buildCustom(e.map) });
+}
+// a partida leva o mapa junto (o amigo não precisa ter ele salvo)
+function resolveMapCfg(cfg) {
+  if (cfg.map && cfg.map.startsWith('c_') && !cfg.customMap) { const d = MAPS.find(m => m.id === cfg.map); if (d) cfg.customMap = d.data; else cfg.map = 'duelo'; }
+  if (cfg.map && !cfg.map.startsWith('c_')) delete cfg.customMap;
+  return cfg;
+}
+const mapName = cfg => cfg.customMap ? sanitizeMap(cfg.customMap).n : (MAPS.find(x => x.id === cfg.map) || MAPS[0]).name.split(' (')[0];
+
+// ---- editor (visão de cima)
+const ME = { map: null, id: null, tool: 'box', hi: 1, col: 0, mirror: true, sel: -1, undo: [], drag: null, view3d: false };
+function openMapEditor() {
+  initAudio();
+  const list = loadMyMaps();
+  if (!ME.map) { const last = list[0]; ME.map = last ? sanitizeMap(last.map) : blankMap(); ME.id = last ? last.id : null; }
+  $('#menu').hidden = true; $('#mapEd').hidden = false; ME.view3d = false; $('#mapEd').classList.remove('v3d');
+  renderMEPanel(); meRebuild(); meResize();
+}
+function closeMapEditor() { $('#mapEd').hidden = true; $('#menu').hidden = false; refreshCustomMaps(); buildArena(); }
+function mePush() { ME.undo.push(JSON.stringify(ME.map)); if (ME.undo.length > 60) ME.undo.shift(); }
+let meRebuildT = 0;
+function meRebuild() { clearTimeout(meRebuildT); meRebuildT = setTimeout(() => { if (state !== 'playing') buildCustom(ME.map); }, 120); meDraw(); }
+function meView() {
+  const cv = $('#meCanvas'), W = cv.width, Hh = cv.height, m = ME.map, pad = 16 * devicePixelRatio;
+  const s = Math.min((W - pad * 2) / (m.w * 2 + 2), (Hh - pad * 2) / (m.d * 2 + 2));
+  return { s, cx: W / 2, cy: Hh / 2, W, H: Hh };
+}
+const meToScreen = (v, x, z) => [v.cx + x * v.s, v.cy + z * v.s];
+function meToWorld(e) {
+  const cv = $('#meCanvas'), r = cv.getBoundingClientRect(), v = meView();
+  const px = (e.clientX - r.left) * (cv.width / r.width), py = (e.clientY - r.top) * (cv.height / r.height);
+  return [(px - v.cx) / v.s, (py - v.cy) / v.s];
+}
+const snap = v => Math.round(v * 2) / 2;
+function meResize() {
+  const cv = $('#meCanvas'), r = cv.parentElement.getBoundingClientRect();
+  cv.width = Math.max(100, r.width * devicePixelRatio); cv.height = Math.max(100, r.height * devicePixelRatio);
+  cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; meDraw();
+}
+addEventListener('resize', () => { if (!$('#mapEd').hidden) meResize(); });
+function hexCss(h) { return '#' + h.toString(16).padStart(6, '0'); }
+function meDraw() {
+  const cv = $('#meCanvas'); if (!cv || $('#mapEd').hidden) return;
+  const g = cv.getContext('2d'), v = meView(), m = ME.map, dpr = devicePixelRatio;
+  g.clearRect(0, 0, v.W, v.H);
+  const [x0, y0] = meToScreen(v, -m.w - 1, -m.d - 1), [x1, y1] = meToScreen(v, m.w + 1, m.d + 1);
+  g.fillStyle = hexCss(MAP_COLORS[m.c]); g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  const [fx0, fy0] = meToScreen(v, -m.w, -m.d), [fx1, fy1] = meToScreen(v, m.w, m.d);
+  g.fillStyle = hexCss(C.sand); g.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+  // grade de 1 m (linha mais forte a cada 5 m)
+  for (let x = -Math.floor(m.w); x <= m.w; x++) { const [sx] = meToScreen(v, x, 0); g.strokeStyle = x % 5 ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.18)'; g.lineWidth = dpr; g.beginPath(); g.moveTo(sx, fy0); g.lineTo(sx, fy1); g.stroke(); }
+  for (let z = -Math.floor(m.d); z <= m.d; z++) { const [, sy] = meToScreen(v, 0, z); g.strokeStyle = z % 5 ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.18)'; g.beginPath(); g.moveTo(fx0, sy); g.lineTo(fx1, sy); g.stroke(); }
+  // áreas dos times
+  g.fillStyle = 'rgba(219,133,64,0.25)'; { const [a0, b0] = meToScreen(v, -Math.min(5, m.w - 1), m.d - 4.5); g.fillRect(a0, b0, Math.min(10, m.w * 2 - 2) * v.s, 4 * v.s); }
+  g.fillStyle = 'rgba(82,128,199,0.25)'; { const [a0, b0] = meToScreen(v, -Math.min(5, m.w - 1), -m.d + 0.5); g.fillRect(a0, b0, Math.min(10, m.w * 2 - 2) * v.s, 4 * v.s); }
+  const order = m.b.map((b, i) => i).sort((i, j) => (m.b[i][3] + m.b[i][6]) - (m.b[j][3] + m.b[j][6]));
+  for (const i of order) {
+    const b = m.b[i], [bx, by] = meToScreen(v, b[0] - b[2] / 2, b[1] - b[4] / 2);
+    g.fillStyle = hexCss(MAP_COLORS[b[5]]); g.fillRect(bx, by, b[2] * v.s, b[4] * v.s);
+    g.strokeStyle = i === ME.sel ? '#ffd166' : 'rgba(0,0,0,0.45)'; g.lineWidth = (i === ME.sel ? 3 : 1.5) * dpr; g.strokeRect(bx, by, b[2] * v.s, b[4] * v.s);
+    if (b[2] * v.s > 26 * dpr && b[4] * v.s > 14 * dpr) { g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `${11 * dpr}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText((b[3] + (b[6] || 0)).toFixed(1) + ' m', bx + b[2] * v.s / 2, by + b[4] * v.s / 2); }
+  }
+  const spawnDot = (s, col, lab) => { const [sx, sy] = meToScreen(v, s[0], s[1]); g.fillStyle = col; g.beginPath(); g.arc(sx, sy, Math.max(7 * dpr, 0.5 * v.s), 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = `bold ${10 * dpr}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(lab, sx, sy); };
+  (m.a.length ? m.a : defaultSpawns(m, 0)).forEach(s => spawnDot(s, m.a.length ? '#db8540' : 'rgba(219,133,64,0.5)', 'A'));
+  (m.B.length ? m.B : defaultSpawns(m, 1)).forEach(s => spawnDot(s, m.B.length ? '#5280c7' : 'rgba(82,128,199,0.5)', 'B'));
+  if (ME.drag && ME.drag.kind === 'new') {
+    const d = ME.drag, [ax, ay] = meToScreen(v, Math.min(d.x0, d.x1), Math.min(d.z0, d.z1));
+    g.strokeStyle = '#ffd166'; g.lineWidth = 2 * dpr; g.setLineDash([6 * dpr, 4 * dpr]); g.strokeRect(ax, ay, Math.abs(d.x1 - d.x0) * v.s, Math.abs(d.z1 - d.z0) * v.s); g.setLineDash([]);
+  }
+  g.fillStyle = 'rgba(0,0,0,0.55)'; g.font = `${11 * dpr}px sans-serif`; g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText('Time A (laranja) nasce embaixo · Time B (azul) em cima', 8 * dpr, 8 * dpr);
+}
+function meHit(x, z) {
+  const m = ME.map; let best = -1, top = -1;
+  m.b.forEach((b, i) => { if (Math.abs(x - b[0]) <= b[2] / 2 && Math.abs(z - b[1]) <= b[4] / 2 && b[3] + b[6] >= top) { best = i; top = b[3] + b[6]; } });
+  return best;
+}
+function meMirrorOf(i) { const b = ME.map.b[i]; return ME.map.b.findIndex((o, j) => j !== i && Math.abs(o[0] + b[0]) < 0.01 && Math.abs(o[1] + b[1]) < 0.01 && Math.abs(o[2] - b[2]) < 0.01 && Math.abs(o[4] - b[4]) < 0.01); }
+function meDown(e) {
+  e.preventDefault(); $('#meCanvas').setPointerCapture(e.pointerId);
+  const [x, z] = meToWorld(e), m = ME.map;
+  if (ME.tool === 'box') { ME.drag = { kind: 'new', x0: snap(x), z0: snap(z), x1: snap(x), z1: snap(z) }; }
+  else if (ME.tool === 'move') {
+    const i = meHit(x, z); ME.sel = i; renderMEPanel();
+    if (i >= 0) { mePush(); ME.drag = { kind: 'move', i, mi: ME.mirror ? meMirrorOf(i) : -1, dx: m.b[i][0] - x, dz: m.b[i][1] - z }; }
+  } else if (ME.tool === 'del') {
+    const i = meHit(x, z); if (i >= 0) { mePush(); const mi = ME.mirror ? meMirrorOf(i) : -1; m.b = m.b.filter((_, j) => j !== i && j !== mi); ME.sel = -1; meRebuild(); }
+  } else if (ME.tool === 'a' || ME.tool === 'B') {
+    mePush(); const L = m[ME.tool], k = L.findIndex(s => Math.hypot(s[0] - x, s[1] - z) < 0.9);
+    if (k >= 0) L.splice(k, 1); else if (L.length < 5) L.push([snap(clamp(x, -m.w + 0.6, m.w - 0.6)), snap(clamp(z, -m.d + 0.6, m.d - 0.6))]);
+    if (ME.mirror) { const o = ME.tool === 'a' ? 'B' : 'a'; m[o] = L.map(s => [-s[0], -s[1]]); }
+    meRebuild();
+  }
+  meDraw();
+}
+function meMove(e) {
+  if (!ME.drag) return;
+  const [x, z] = meToWorld(e), m = ME.map, d = ME.drag;
+  if (d.kind === 'new') { d.x1 = snap(clamp(x, -m.w, m.w)); d.z1 = snap(clamp(z, -m.d, m.d)); }
+  else if (d.kind === 'move') {
+    const b = m.b[d.i]; b[0] = snap(clamp(x + d.dx, -m.w, m.w)); b[1] = snap(clamp(z + d.dz, -m.d, m.d));
+    if (d.mi >= 0) { m.b[d.mi][0] = -b[0]; m.b[d.mi][1] = -b[1]; }
+  }
+  meDraw();
+}
+function meUp() {
+  const d = ME.drag; ME.drag = null; if (!d) return;
+  const m = ME.map;
+  if (d.kind === 'new') {
+    let sx = Math.abs(d.x1 - d.x0), sz = Math.abs(d.z1 - d.z0);
+    const cx = (d.x0 + d.x1) / 2, cz = (d.z0 + d.z1) / 2;
+    if (sx < 0.5) sx = 1.2; if (sz < 0.5) sz = 1.2;
+    mePush();
+    const hgt = MAP_HEIGHTS[ME.hi][0];
+    m.b.push([cx, cz, sx, hgt, sz, ME.col, 0]);
+    if (ME.mirror && (Math.abs(cx) > 0.01 || Math.abs(cz) > 0.01)) m.b.push([-cx, -cz, sx, hgt, sz, ME.col, 0]);
+    ME.sel = -1;
+  }
+  meRebuild();
+}
+function renderMEPanel() {
+  const m = ME.map, list = loadMyMaps(), sel = ME.sel >= 0 ? m.b[ME.sel] : null;
+  const tools = [['box', 'Desenhar caixa'], ['move', 'Mover / escolher'], ['del', 'Apagar'], ['a', 'Spawn A'], ['B', 'Spawn B']];
+  $('#mePanel').innerHTML = `
+    <h2>Editor de mapa</h2>
+    <div class="row"><label for="meList">Meus mapas</label><select id="meList"><option value="">+ Novo mapa</option>${list.map(e => `<option value="${e.id}" ${e.id === ME.id ? 'selected' : ''}>${esc(e.map.n)}</option>`).join('')}</select><span></span></div>
+    <div class="row"><label for="meName">Nome</label><input type="text" id="meName" maxlength="24" value="${esc(m.n)}"><span></span></div>
+    <div class="row"><label for="meW">Largura</label><input type="range" id="meW" min="6" max="30" step="1" value="${m.w}"><output>${m.w * 2} m</output></div>
+    <div class="row"><label for="meD">Comprimento</label><input type="range" id="meD" min="6" max="40" step="1" value="${m.d}"><output>${m.d * 2} m</output></div>
+    <div class="row"><label for="meH">Altura das paredes</label><input type="range" id="meH" min="2" max="8" step="0.5" value="${m.h}"><output>${m.h} m</output></div>
+    <div class="row"><label for="meMir">Espelhar (lado B igual ao A)</label><input type="checkbox" id="meMir" ${ME.mirror ? 'checked' : ''}><span></span></div>
+    <div class="tabs metools">${tools.map(([k, n]) => `<button data-tool="${k}" aria-selected="${ME.tool === k}">${n}</button>`).join('')}</div>
+    <div class="row"><label for="meHi">${sel ? 'Altura desta caixa' : 'Altura da próxima caixa'}</label><select id="meHi">${MAP_HEIGHTS.map(([h, n], i) => `<option value="${i}" ${(sel ? Math.abs(sel[3] - h) < 0.01 : ME.hi === i) ? 'selected' : ''}>${n} · ${h} m</option>`).join('')}</select><span></span></div>
+    <div class="swatches meCols">${MAP_COLORS.map((c, i) => `<button style="background:${hexCss(c)}" data-col="${i}" aria-label="Cor ${i + 1}" ${(sel ? sel[5] : ME.col) === i ? 'class="on"' : ''}></button>`).join('')}</div>
+    ${sel ? `<div class="row"><label for="meUp">Em cima de (m)</label><input type="range" id="meUp" min="0" max="6" step="0.2" value="${sel[6] || 0}"><output>${(sel[6] || 0).toFixed(1)}</output></div>` : ''}
+    <p class="note" style="margin:0">${{ box: 'Arraste no mapa para desenhar uma caixa (um toque faz um caixote de 1,2 m).', move: 'Toque numa caixa para escolher e arraste para mover. Depois mude altura e cor acima.', del: 'Toque numa caixa para apagar.', a: 'Toque para pôr ou tirar um ponto de nascimento do time A (até 5).', B: 'Toque para pôr ou tirar um ponto de nascimento do time B (até 5).' }[ME.tool]}${ME.mirror ? ' Com espelhar ligado, o outro lado copia tudo invertido, para o x1 ficar justo.' : ''}</p>
+    <div class="btnrow"><button class="btn small" id="meUndo" ${ME.undo.length ? '' : 'disabled'}>Desfazer</button><button class="btn small" id="meClear">Limpar</button><button class="btn small" id="me3d">${ME.view3d ? 'Voltar à planta' : 'Ver em 3D'}</button></div>
+    <div class="btnrow"><button class="btn small primary" id="meSave">Salvar</button><button class="btn small" id="mePlay">Jogar x1 aqui</button></div>
+    <div class="btnrow"><button class="btn small" id="meCopy">Copiar código</button><button class="btn small" id="meImport">Colar código</button>${ME.id ? '<button class="btn small" id="meDel">Excluir</button>' : ''}</div>
+    <p class="note" id="meMsg" aria-live="polite" style="margin:0"></p>
+    <button class="btn" id="meBack">Voltar ao menu</button>`;
+  const q = s => $('#mePanel').querySelector(s), msg = t => { q('#meMsg').textContent = t; };
+  q('#meList').onchange = e => { const e2 = loadMyMaps().find(x => x.id === e.target.value); ME.map = e2 ? sanitizeMap(e2.map) : blankMap(); ME.id = e2 ? e2.id : null; ME.sel = -1; ME.undo = []; renderMEPanel(); meRebuild(); };
+  q('#meName').oninput = e => { m.n = e.target.value.slice(0, 24) || 'Meu mapa'; };
+  for (const [id, k, f] of [['#meW', 'w', v => v * 2 + ' m'], ['#meD', 'd', v => v * 2 + ' m'], ['#meH', 'h', v => v + ' m']]) {
+    q(id).oninput = e => { m[k] = +e.target.value; e.target.nextElementSibling.textContent = f(m[k]); meRebuild(); };
+    q(id).onchange = () => { Object.assign(m, sanitizeMap(m)); meRebuild(); };
+  }
+  q('#meMir').onchange = e => { ME.mirror = e.target.checked; renderMEPanel(); };
+  $('#mePanel').querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { ME.tool = b.dataset.tool; if (ME.tool !== 'move') ME.sel = -1; renderMEPanel(); meDraw(); });
+  q('#meHi').onchange = e => { const i = +e.target.value; if (sel) { mePush(); sel[3] = MAP_HEIGHTS[i][0]; const mi = ME.mirror ? meMirrorOf(ME.sel) : -1; if (mi >= 0) m.b[mi][3] = sel[3]; meRebuild(); } else ME.hi = i; };
+  $('#mePanel').querySelectorAll('[data-col]').forEach(b => b.onclick = () => { const i = +b.dataset.col; if (sel) { mePush(); const mi = ME.mirror ? meMirrorOf(ME.sel) : -1; sel[5] = i; if (mi >= 0) m.b[mi][5] = i; meRebuild(); } else ME.col = i; renderMEPanel(); });
+  if (q('#meUp')) q('#meUp').oninput = e => { sel[6] = +e.target.value; e.target.nextElementSibling.textContent = sel[6].toFixed(1); const mi = ME.mirror ? meMirrorOf(ME.sel) : -1; if (mi >= 0) m.b[mi][6] = sel[6]; meRebuild(); };
+  q('#meUndo').onclick = () => { const u = ME.undo.pop(); if (u) { ME.map = JSON.parse(u); ME.sel = -1; renderMEPanel(); meRebuild(); } };
+  q('#meClear').onclick = () => { mePush(); m.b = []; m.a = []; m.B = []; ME.sel = -1; renderMEPanel(); meRebuild(); };
+  q('#me3d').onclick = () => { ME.view3d = !ME.view3d; $('#mapEd').classList.toggle('v3d', ME.view3d); renderMEPanel(); if (!ME.view3d) meResize(); };
+  const save = () => {
+    const L = loadMyMaps(); if (!ME.id) ME.id = Math.random().toString(36).slice(2, 8);
+    const e = { id: ME.id, map: sanitizeMap(m) }, k = L.findIndex(x => x.id === ME.id);
+    if (k >= 0) L.splice(k, 1); L.unshift(e); saveMyMaps(L); refreshCustomMaps();
+  };
+  q('#meSave').onclick = () => { save(); renderMEPanel(); $('#meMsg').textContent = 'Salvo. Ele aparece na lista de mapas do x1.'; };
+  q('#mePlay').onclick = () => { save(); X1.map = 'c_' + ME.id; saveX1(); $('#mapEd').hidden = true; $('#menu').hidden = false; $('#bX1').onclick(); };
+  q('#meCopy').onclick = async () => {
+    const code = mapToCode(m);
+    try { await navigator.clipboard.writeText(code); msg('Código copiado. Mande para o seu amigo e ele usa "Colar código".'); }
+    catch (e) { prompt('Copie o código do mapa:', code); }
+  };
+  q('#meImport').onclick = () => {
+    const code = prompt('Cole aqui o código do mapa (começa com CS3M1.)'); if (!code) return;
+    try { mePush(); ME.map = codeToMap(code); ME.id = null; ME.sel = -1; save(); renderMEPanel(); meRebuild(); $('#meMsg').textContent = `Mapa "${ME.map.n}" importado e salvo.`; }
+    catch (e) { msg(e.message.startsWith('Esse') ? e.message : 'Não consegui ler esse código. Confira se copiou ele inteiro.'); }
+  };
+  if (q('#meDel')) q('#meDel').onclick = () => { if (!confirm(`Excluir o mapa "${m.n}"?`)) return; saveMyMaps(loadMyMaps().filter(x => x.id !== ME.id)); refreshCustomMaps(); ME.map = blankMap(); ME.id = null; ME.sel = -1; renderMEPanel(); meRebuild(); };
+  q('#meBack').onclick = closeMapEditor;
+}
+
+// ---- histórico de x1 (fica salvo neste aparelho)
+const HIST_KEY = 'cs3.web.hist';
+function loadHist() { const h = loadJSON(HIST_KEY); return { matches: h.matches || [], vs: h.vs || {} }; }
+function saveHist(h) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {} }
+function histTotals(ms) {
+  const t = { n: ms.length, w: 0, l: 0, d: 0, k: 0, de: 0, hs: 0, shots: 0, hits: 0, rw: 0, rl: 0 };
+  for (const m of ms) { if (m.res === 'w') t.w++; else if (m.res === 'l') t.l++; else t.d++; t.k += m.k; t.de += m.d; t.hs += m.hs; t.shots += m.shots; t.hits += m.hits; t.rw += m.sc[0]; t.rl += m.sc[1]; }
+  return t;
+}
+const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+const kd = (k, d) => (k / Math.max(1, d)).toFixed(2);
+function recordX1(team) {
+  const m = mode, my = m.myTeam, st = m.stats || {};
+  const opp = m.net ? m.net.peerName || 'Amigo' : `${m.cfg.enemies} bot${m.cfg.enemies > 1 ? 's' : ''} ${DIFF_NAMES[m.cfg.diff] || ''}`.trim();
+  const rec = { at: Date.now(), opp, online: !!m.net, map: mapName(m.cfg), fmt: m.rounds ? 'rounds' : 'dm', duel: m.cfg.duel || 'normal',
+    sc: [m.score[my], m.score[1 - my]], res: team == null ? 'e' : team === my ? 'w' : 'l', k: player.kills, d: player.deaths, hs: st.hsKills || 0, shots: st.shots || 0, hits: st.hits || 0 };
+  const h = loadHist(); h.matches.unshift(rec); h.matches.length = Math.min(h.matches.length, 200);
+  const v = h.vs[opp] || (h.vs[opp] = { w: 0, l: 0, e: 0 }); v[rec.res]++;
+  saveHist(h); return { rec, vs: v };
+}
 function endX1(team) {
   mode.over = true;
+  const R = recordX1(team);
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   const m = mode, my = m.myTeam;
   const sc = `${m.teamName(my)} ${m.score[my]} x ${m.score[1 - my]} ${m.teamName(1 - my)}`;
   $('#endWinner').innerHTML = (team == null ? '<b>Empate</b>' : team === my ? '<b style="color:var(--accent)">Você venceu!</b>' : `<b>${esc(m.teamName(team))} venceu</b>`) + `<br>${esc(sc)}`;
   fillScore($('#endBody'));
+  const r = R.rec;
+  $('#endStats').innerHTML = `<div class="statgrid"><div><b>${r.k}</b><span>abates</span></div><div><b>${r.d}</b><span>mortes</span></div><div><b>${kd(r.k, r.d)}</b><span>A/M</span></div>
+    <div><b>${pct(r.hs, r.k)}</b><span>abates na cabeça</span></div><div><b>${pct(r.hits, r.shots)}</b><span>precisão</span></div></div>
+    <p class="note" style="margin:6px 0 0">Contra ${esc(r.opp)} no total: <b>${R.vs.w}</b> vitória${R.vs.w === 1 ? '' : 's'}, <b>${R.vs.l}</b> derrota${R.vs.l === 1 ? '' : 's'}${R.vs.e ? `, ${R.vs.e} empate${R.vs.e === 1 ? '' : 's'}` : ''}.</p>`;
   const again = $('#eAgain'); again.disabled = !!(m.net && !m.host); again.textContent = m.net && !m.host ? 'Aguardando o anfitrião…' : 'Jogar novamente';
   $('#end').hidden = false;
 }
@@ -1753,6 +2538,19 @@ function onRemoteState(m) {
   if (m.a && !r.alive) { respawn(r, { pos: r.net.tp.clone(), yaw: m.y }); }
   if (r.alive) r.hp = m.h;
 }
+// passos (correndo; andando com Shift é silencioso, como no CS) e barulho de queda dos outros jogadores
+function updateOtherSounds(dt) {
+  for (const c of combatants) {
+    if (c.isPlayer || !c.alive) { c._airV = 0; continue; }
+    if (c.remote) {
+      const hs = Math.hypot(c.vel.x, c.vel.z), air = Math.abs(c.vel.y) > 0.6;
+      if (!air && hs > 3) { c._step = (c._step || 0) + hs * dt; if (c._step > 2.3) { c._step = 0; play('step', 0.9, c.pos); } }
+    }
+    const air = c.remote ? Math.abs(c.vel.y) > 0.6 : !c.grounded;
+    if (air) c._airV = Math.min(c._airV || 0, c.vel.y);
+    else { if ((c._airV || 0) < -5) play('land', 0.9, c.pos); c._airV = 0; }
+  }
+}
 function updateRemote(dt) {
   const r = mode && mode.remote; if (!r || !r.net.has || !r.alive) return;
   const age = Math.min(0.12, (performance.now() - r.net.at) / 1000);
@@ -1769,7 +2567,7 @@ function onNetMsg(m) {
     case 'hello':
       Net.peerName = String(m.name || 'Amigo').slice(0, 16);
       if (m.v !== VERSION) Net.versionWarn = true;
-      renderNetLobby(); if (Net.role === 'host') Net.send({ t: 'cfg', cfg: X1 });
+      renderNetLobby(); if (Net.role === 'host') Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) });
       break;
     case 'ping': Net.send({ t: 'pong', ts: m.ts }); break;
     case 'pong': Net.ping = Math.round(performance.now() - m.ts); break;
@@ -1785,8 +2583,9 @@ function onNetMsg(m) {
     case 'hit': if (inGame && !mode.over && player.alive) damage(player, +m.d || 0, mode.remote, String(m.w || ''), m.z, null); break;
     case 'dead': if (inGame && mode.remote && mode.remote.alive) {
       const r = mode.remote, killer = m.by ? player : null;
+      r.deathVel = r.vel.clone(); r.deathDir = killer ? r.pos.clone().sub(player.pos) : null; r.deathZone = m.h ? 'head' : 'body';
       r.alive = false; r.deaths++; r.deathT = 0; r.vel.set(0, 0, 0);
-      if (killer) { killer.kills++; hitT = 0.3; hitKill = true; play('kill', 0.9); }
+      if (killer) { killer.kills++; hitT = 0.3; hitKill = true; play('kill', 0.9); if (m.h && mode.stats) mode.stats.hsKills++; }
       r.lastDeath = { attacker: killer, weapon: m.w, head: !!m.h };
       addFeed(killer, r, m.w || '', !!m.h);
       mode.onDeath(r, killer);
@@ -1881,7 +2680,7 @@ const Net = {
     if (this.peer) { try { this.peer.destroy(); } catch (e) {} }
     this.peer = null; this.conn = null; this.open = false; this.role = null; this.hostCfg = null; this.versionWarn = false; this.status = '';
   },
-  startMatch(cfg) { if (!this.open) return; this.send({ t: 'start', cfg }); startX1(cfg, this); },
+  startMatch(cfg) { if (!this.open) return; cfg = resolveMapCfg(cfg); this.send({ t: 'start', cfg }); startX1(cfg, this); },
   update(dt) {
     updateRemote(dt);
     this.sendAcc += dt;
@@ -1944,7 +2743,7 @@ function enterPlaying() {
   goFullscreen();
   state = 'playing'; paused = false; devOpen = false;
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
-  $('#hud').hidden = false; dmgNums = [];
+  $('#hud').hidden = false; dmgNums = []; applyLayout();
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
   $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para os dois)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
@@ -1961,7 +2760,7 @@ function goMenu() {
   state = 'menu'; paused = false; devOpen = false; mode = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
-  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#mainButtons').hidden = false;
+  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#histPanel').hidden = true; $('#mainButtons').hidden = false;
   $('#banner').style.opacity = 0;
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   if (wasNet && Net.role) openNetPanel();
@@ -2006,6 +2805,7 @@ function addFeed(k, v, weapon, head) {
 }
 function buildSlots() {
   $('#slots').innerHTML = pw.slots.map((s, i) => `<div data-i="${i}"><b>${i < 7 ? keyLabel(S.keys['w' + (i + 1)]) : ''}</b> &nbsp;${s.w.name}${s.w.melee ? ` <span style="color:var(--muted)">(${keyLabel(S.keys.knife)})</span>` : ''}</div>`).join('');
+  H('slots')._cur = -1;
 }
 function fillScore(tbody) {
   const list = combatants.slice().sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
@@ -2047,7 +2847,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   const pxPerUnit = (innerHeight * 0.5) / Math.tan(camera.fov * 0.5 * DEG);
   const extra = showCh && S.ch.dyn ? Math.round(clamp(pw.spread * pxPerUnit * 0.6, 0, 60)) : 0;
   if (hitT > 0) hitT -= dt;
-  const hitA = hitT > 0 && player.alive ? Math.round(clamp(hitT / 0.3, 0, 1) * 20) : 0;
+  const hitA = hitT > 0 && player.alive && S.hud.hitmarker ? Math.round(clamp(hitT / 0.3, 0, 1) * 20) : 0;
   const key = `${showCh}|${extra}|${hitA}|${hitKill}|${hitHead}|${JSON.stringify(S.ch)}`;
   if (key !== chKey) {
     chKey = key; chCtx.clearRect(0, 0, 220, 220);
@@ -2063,7 +2863,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   T('hpNum', `+ ${Math.ceil(player.hp)}`);
   HT('hpTag', pv.god ? '<span style="color:var(--gold)">DEUS</span>' : '');
   ST('hpBar', 'width', Math.round(player.hp / player.maxHp * 100) + '%');
-  ST('hpBar', 'background', player.hp / player.maxHp > 0.3 ? 'var(--fg)' : 'var(--danger)');
+  ST('hpBar', 'background', player.hp / player.maxHp > 0.3 ? 'var(--hud-fg)' : 'var(--danger)');
   T('ammoNum', slot.w.melee ? '—' : String(slot.mag));
   T('ammoRes', slot.w.melee ? '—' : pw.infinite ? '∞' : String(slot.reserve));
   HT('ammoState', pw.reloadT ? '<span style="color:var(--accent)">recarregando</span>' : slot.mag === 0 && !slot.w.melee ? `<span style="color:var(--danger)">[${keyLabel(S.keys.reload)}] recarregar</span>` : '');
@@ -2080,7 +2880,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   // dano recebido
   hurtT = Math.max(0, hurtT - dt * 1.2);
   ST('hurt', 'opacity', (hurtT * 0.8).toFixed(2));
-  if (hurtFrom && hurtT > 0) {
+  if (hurtFrom && hurtT > 0 && S.hud.dmgDir) {
     const dx = hurtFrom.x - player.pos.x, dz = hurtFrom.z - player.pos.z;
     const ang = Math.atan2(-dx, -dz) - player.yaw;
     ST('hurtArrow', 'opacity', hurtT.toFixed(2));
@@ -2225,6 +3025,24 @@ $('#bDm').onclick = () => { initAudio(); $('#dmSetup').hidden = false; $('#mainB
 $('#bDmBack').onclick = () => { $('#dmSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bDmStart').onclick = () => startDeathmatch({ bots: +$('#dmBots').value, diff: +$('#dmDiff').value, kills: +$('#dmKills').value, time: +$('#dmTime').value });
 $('#bDev').onclick = () => startDev();
+function renderHist() {
+  const h = loadHist(), t = histTotals(h.matches);
+  if (!t.n) { $('#histBody').innerHTML = '<p class="note">Nenhuma partida de x1 terminada ainda. Jogue uma contra bots ou online e ela aparece aqui.</p>'; return; }
+  const ago = ts => { const d = (Date.now() - ts) / 1000; return d < 3600 ? `${Math.max(1, Math.round(d / 60))} min` : d < 86400 ? `${Math.round(d / 3600)} h` : `${Math.round(d / 86400)} d`; };
+  $('#histBody').innerHTML = `<div class="statgrid"><div><b>${t.w}</b><span>vitórias</span></div><div><b>${t.l}</b><span>derrotas</span></div><div><b>${pct(t.w, t.n)}</b><span>taxa de vitória</span></div>
+      <div><b>${kd(t.k, t.de)}</b><span>A/M (${t.k}/${t.de})</span></div><div><b>${pct(t.hs, t.k)}</b><span>abates na cabeça</span></div><div><b>${pct(t.hits, t.shots)}</b><span>precisão</span></div></div>
+    <h3>Contra cada adversário</h3>
+    <table><thead><tr><th>Adversário</th><th>V</th><th>D</th><th>E</th></tr></thead><tbody>${Object.entries(h.vs).sort((a, b) => (b[1].w + b[1].l) - (a[1].w + a[1].l)).map(([n, v]) => `<tr><td>${esc(n)}</td><td>${v.w}</td><td>${v.l}</td><td>${v.e}</td></tr>`).join('')}</tbody></table>
+    <h3>Últimas partidas</h3>
+    <table class="hist"><thead><tr><th></th><th>Adversário</th><th>Placar</th><th>A/M</th><th>Mapa</th><th>Há</th></tr></thead><tbody>${h.matches.slice(0, 20).map(m => `<tr><td><span class="res ${m.res}">${m.res === 'w' ? 'V' : m.res === 'l' ? 'D' : 'E'}</span></td><td>${esc(m.opp)}${m.online ? ' 🌐' : ''}</td><td>${m.sc[0]} x ${m.sc[1]}</td><td>${m.k}/${m.d}</td><td>${esc(m.map)}${m.duel && m.duel !== 'normal' ? ` · ${esc({ knife: 'faca', awp: 'AWP', random: 'aleatória', gungame: 'gun game' }[m.duel] || '')}` : ''}</td><td>${ago(m.at)}</td></tr>`).join('')}</tbody></table>`;
+}
+$('#bMapEd').onclick = () => openMapEditor();
+$('#meCanvas').addEventListener('pointerdown', meDown); $('#meCanvas').addEventListener('pointermove', meMove);
+$('#meCanvas').addEventListener('pointerup', meUp); $('#meCanvas').addEventListener('pointercancel', meUp);
+refreshCustomMaps();
+$('#bHist').onclick = () => { $('#mainButtons').hidden = true; $('#histPanel').hidden = false; renderHist(); };
+$('#bHistBack').onclick = () => { $('#histPanel').hidden = true; $('#mainButtons').hidden = false; };
+$('#bHistClear').onclick = () => { if (confirm('Apagar todo o histórico de x1 deste aparelho?')) { saveHist({ matches: [], vs: {} }); renderHist(); } };
 // ---- formulário do x1 (usado contra bots e na sala online)
 function renderX1Form(root, online, onChange) {
   const c = X1;
@@ -2232,10 +3050,15 @@ function renderX1Form(root, online, onChange) {
   const rng = (k, label, min, max, step, fmt = v => v) => `<div class="row"><label for="x_${k}">${label}</label><input type="range" id="x_${k}" data-x="${k}" min="${min}" max="${max}" step="${step}" value="${c[k]}"><output>${fmt(c[k])}</output></div>`;
   const chk = (k, label) => `<div class="row"><label for="x_${k}">${label}</label><input type="checkbox" id="x_${k}" data-x="${k}" ${c[k] ? 'checked' : ''}><span></span></div>`;
   const rounds = c.format === 'rounds';
-  let h = `<div class="formh">Mapa e regras</div>` +
+  const gg = c.duel === 'gungame';
+  let h = `<div class="formh">Modo de duelo</div>` + sel('duel', 'Modo', DUELS) +
+    `<p class="note" style="margin:0 0 4px">${{ normal: 'Use as armas liberadas lá embaixo.', knife: 'Todo mundo só com faca. Facada nas costas mata.', awp: 'Todo mundo de sniper (e faca).',
+      random: 'Cada round sorteia uma arma (das liberadas) e todos jogam com ela. No mata-mata, a arma muda a cada vida.',
+      gungame: `Cada abate troca sua arma: ${GG.map(g => WEAPONS[WI(g)].name).join(' → ')}. Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.` }[c.duel || 'normal']}</p>` +
+    `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
-    sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)']]) +
-    rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1) +
+    (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)']]) +
+    rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1)) +
     (rounds ? rng('roundTime', 'Tempo do round (s)', 30, 300, 15) : rng('time', 'Tempo limite (min)', 1, 30, 1)) +
     rng('hp', 'Vida', 10, 300, 10) + chk('hsOnly', 'Só vale tiro na cabeça') + chk('infinite', 'Munição infinita');
   if (!online) {
@@ -2245,9 +3068,10 @@ function renderX1Form(root, online, onChange) {
       sel('botWeapon', 'Arma dos bots', [[-1, 'Aleatória (das permitidas)']].concat(WEAPONS.map((w, i) => [i, w.name]))) +
       chk('botMove', 'Bots se movem') + chk('botShoot', 'Bots atacam');
   }
-  h += `<div class="formh">Armas</div>` + sel('preset', 'Armas liberadas', WEAPON_PRESETS.map((p, i) => [i, p[0]]));
+  const fixedW = c.duel === 'knife' || c.duel === 'awp' || gg;
+  if (!fixedW) h += `<div class="formh">Armas</div>` + sel('preset', 'Armas liberadas', WEAPON_PRESETS.map((p, i) => [i, p[0]]));
   const ids = cfgWeapons(c);
-  h += `<div class="wchecks">${WEAPONS.map((w, i) => `<label><input type="checkbox" data-w="${i}" ${ids.includes(i) ? 'checked' : ''}>${esc(w.name)}</label>`).join('')}</div>`;
+  if (!fixedW) h += `<div class="wchecks">${WEAPONS.map((w, i) => `<label><input type="checkbox" data-w="${i}" ${ids.includes(i) ? 'checked' : ''}>${esc(w.name)}</label>`).join('')}</div>`;
   h += `<div class="formh">Movimento</div>` +
     sel('bhop', 'Bunny hop / slide', BHOP_PRESETS.map((p, i) => [i, p.name])) +
     rng('speed', 'Velocidade de corrida', 0.7, 1.5, 0.05, v => (+v).toFixed(2)) + rng('gravity', 'Gravidade', 0.4, 1.5, 0.05, v => (+v).toFixed(2));
@@ -2255,12 +3079,12 @@ function renderX1Form(root, online, onChange) {
   root.querySelectorAll('[data-x]').forEach(el => {
     const upd = () => {
       const k = el.dataset.x;
-      c[k] = el.type === 'checkbox' ? el.checked : (el.tagName === 'SELECT' && (k === 'map' || k === 'format')) ? el.value : +el.value;
+      c[k] = el.type === 'checkbox' ? el.checked : (el.tagName === 'SELECT' && (k === 'map' || k === 'format' || k === 'duel')) ? el.value : +el.value;
       if (el.type === 'range') el.nextElementSibling.textContent = el.step < 1 ? (+el.value).toFixed(2) : el.value;
       if (k === 'preset' && WEAPON_PRESETS[c.preset][1] !== 'custom') c.weapons = cfgWeapons(c);
       saveX1(); onChange && onChange();
       if (k === 'map' && state === 'menu') (MAPS.find(m => m.id === c.map) || MAPS[0]).build();
-      if (k === 'format' || k === 'preset') renderX1Form(root, online, onChange);
+      if (k === 'format' || k === 'preset' || k === 'duel') renderX1Form(root, online, onChange);
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
   });
@@ -2271,9 +3095,10 @@ function renderX1Form(root, online, onChange) {
   }));
 }
 function cfgSummary(cfg) {
-  const m = (MAPS.find(x => x.id === cfg.map) || MAPS[0]).name.split(' (')[0];
+  cfg = duelFix(clone(cfg));
+  const m = mapName(cfg);
   const fmt = cfg.format === 'rounds' ? `melhor de ${cfg.target * 2 - 1} rounds` : `primeiro a ${cfg.target} abates`;
-  const ws = cfgWeapons(cfg).map(i => WEAPONS[i].name).join(', ');
+  const ws = cfg.duel && cfg.duel !== 'normal' && cfg.duel !== 'random' ? (DUELS.find(d => d[0] === cfg.duel) || ['', ''])[1] : cfgWeapons(cfg).map(i => WEAPONS[i].name).join(', ') + (cfg.duel === 'random' ? ' (uma sorteada por round)' : '');
   return `Mapa ${m}, ${fmt}, ${cfg.hp} de vida${cfg.hsOnly ? ', só cabeça' : ''}. Armas: ${ws}. Bunny hop: ${BHOP_PRESETS[cfg.bhop].name.toLowerCase()}.`;
 }
 
@@ -2307,7 +3132,7 @@ function renderNetLobby() {
   st.innerHTML = html;
   const hc = $('#netHostCfg');
   hc.hidden = role !== 'host';
-  if (role === 'host' && !hc.childElementCount) renderX1Form(hc, true, () => Net.send({ t: 'cfg', cfg: X1 }));
+  if (role === 'host' && !hc.childElementCount) renderX1Form(hc, true, () => Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }));
   if (role !== 'host') hc.innerHTML = '';
   $('#bNetStart').hidden = role !== 'host'; $('#bNetStart').disabled = !Net.open;
   $('#bNetBack').textContent = role ? 'Sair da sala' : 'Voltar';
@@ -2334,13 +3159,16 @@ $('#eAgain').onclick = () => mode.restart();
 $('#eMenu').onclick = () => goMenu();
 
 let setTab = 0;
-const TABS = ['Vídeo', 'Áudio', 'Controles', 'Mira', 'Movimento', 'Celular'];
+const TABS = ['Vídeo', 'Áudio', 'Controles', 'Mira', 'Movimento', 'Celular', 'HUD'];
 function openSettings() { initAudio(); $('#settings').hidden = false; renderSettings(); }
-function closeSettings() { capturing = null; $('#settings').hidden = true; saveSettings(); buildSlots(); }
+function closeSettings() { capturing = null; $('#settings').hidden = true; saveSettings(); buildSlots(); applyLayout(); }
 $('#sBack').onclick = closeSettings;
 $('#sReset').onclick = () => {
-  const keys = [['video'], ['audio'], ['controls', 'keys'], ['ch'], ['move'], ['touch']][setTab];
+  const keys = [['video'], ['audio'], ['controls', 'keys'], ['ch'], ['move'], ['touch'], ['hud']][setTab];
   for (const k of keys) S[k] = clone(DEFAULTS[k]);
+  if (setTab === 5) S.layout.touch = {};
+  if (setTab === 6) S.layout[lkey('hud')] = {};
+  applyLayout();
   saveSettings(); applySettings(); renderSettings();
 };
 function applyShadows() {
@@ -2363,17 +3191,37 @@ function renderSettings() {
       Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
       `<p class="note">No projeto Unity há também resolução, modo de tela, VSync, limite de FPS, qualidade, anti-aliasing e distâncias de sombra e renderização.</p>`;
   } else if (setTab === 1) {
-    h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') +
+    h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') +
+      `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
     h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') +
+      `<p class="note">Recoil estilo CS: o primeiro tiro vai exatamente na mira. Segurando o tiro, cada arma sobe sempre no mesmo desenho (a metralhadora sobe reto e depois puxa para a esquerda e para a direita); puxe o mouse para baixo e para o lado contrário para compensar. Correndo, pulando ou logo depois de cair a mira abre muito: pare ou ande com Shift para acertar.</p>` +
       `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla (ou botão do mouse). Esc cancela.</p>` +
       ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
   } else if (setTab === 5) {
-    h = Sel('touch', 'mode', 'Controles de toque', ['Automático (liga no celular)', 'Sempre ligados', 'Desligados']) +
+    h = `<div class="row"><span></span><button class="btn primary small" id="sEdTouch">Editar layout dos controles</button><span></span></div>` +
+      Sel('touch', 'mode', 'Controles de toque', ['Automático (liga no celular)', 'Sempre ligados', 'Desligados']) +
       R_('touch', 'sens', 'Sensibilidade ao arrastar', 0.2, 3, 0.05, 2) + R_('touch', 'assist', 'Assistência de mira', 0, 1, 0.05, 2) +
-      T_('touch', 'autoFire', 'Atirar sozinho quando a mira estiver no inimigo') + R_('touch', 'size', 'Tamanho dos botões', 0.7, 1.5, 0.05, 2) +
+      T_('touch', 'autoFire', 'Atirar sozinho quando a mira estiver no inimigo') +
+      `<h3 style="margin-top:10px">Layout dos botões</h3>` +
+      `<div class="row"><label for="s_tpre">Layout pronto</label><select id="s_tpre"><option value="">Escolher…</option>${Object.keys(TOUCH_PRESETS).map(n => `<option>${esc(n)}</option>`).join('')}</select><span></span></div>` +
+      R_('touch', 'size', 'Tamanho dos botões', 0.6, 1.6, 0.05, 2) + R_('touch', 'opacity', 'Opacidade dos botões', 0.2, 1, 0.05, 2) +
+      T_('touch', 'autoScale', 'Ajustar tamanho à tela automaticamente') +
+      `<div class="row"><label for="s_fire2">Segundo botão de atirar (lado esquerdo)</label><input type="checkbox" id="s_fire2" ${layoutOf('touch', 'tFire2').hide ? '' : 'checked'}><span></span></div>` +
+      T_('touch', 'stickFixed', 'Joystick fixo (não segue o dedo)') + T_('touch', 'crouchToggle', 'Agachar fica ligado com um toque') +
+      `<p class="note">No editor você arrasta cada botão para onde quiser e muda tamanho, opacidade ou esconde. O layout fica salvo neste aparelho.</p>` +
       `<p class="note">A assistência de mira só vale nos controles de toque: perto de um inimigo a mira desacelera e, enquanto você anda ou atira, puxa de leve para o peito dele. 0 desliga.</p>`;
+  } else if (setTab === 6) {
+    h = `<div class="row"><span></span><button class="btn primary small" id="sEdHud">Editar posições da HUD</button><span></span></div>` +
+      R_('hud', 'scale', 'Tamanho da HUD', 0.6, 1.6, 0.05, 2) + R_('hud', 'bg', 'Fundo das caixas', 0, 0.9, 0.05, 2) +
+      `<div class="row"><label for="s_hfg">Cor do texto</label><input type="color" id="s_hfg" data-hc="fg" value="${S.hud.fg}"><span></span></div>` +
+      `<div class="row"><label for="s_hac">Cor de destaque</label><input type="color" id="s_hac" data-hc="accent" value="${S.hud.accent}"><span></span></div>` +
+      `<div class="swatches">${[['#e9edf0', '#f2a03a'], ['#ffffff', '#3ad1f2'], ['#d9ffd9', '#3af27a'], ['#fff3e0', '#ff4d6d'], ['#e8e0ff', '#a07aff']].map(([f, a]) => `<button style="background:linear-gradient(135deg,${f} 50%,${a} 50%)" data-hfg="${f}" data-hac="${a}" aria-label="Tema ${a}"></button>`).join('')}</div>` +
+      T_('hud', 'hitmarker', 'Marcador de acerto na mira') + T_('hud', 'killcam', 'Replay da morte (killcam)') + T_('hud', 'dmgDir', 'Seta mostrando de onde veio o dano') + T_('video', 'showFps', 'Mostrar FPS') + T_('move', 'showSpeed', 'Mostrar velocidade') +
+      `<h3 style="margin-top:10px">Mostrar na tela</h3>` +
+      Object.entries(HUD_IDS).filter(([id]) => id !== 'fps' && id !== 'speed').map(([id, nm]) => `<div class="row"><label for="s_hv_${id}">${esc(nm)}</label><input type="checkbox" id="s_hv_${id}" data-hv="${id}" ${layoutOf('hud', id).hide ? '' : 'checked'}><span></span></div>`).join('') +
+      `<p class="note">${touchOn() ? 'Você está com os controles de toque: as posições da HUD no celular são guardadas separadas das do computador.' : 'As posições valem para este aparelho.'} Restaurar padrões da aba volta tudo ao original.</p>`;
   } else if (setTab === 4) {
     h = T_('move', 'autoHop', 'Pular sem parar segurando Espaço') + T_('move', 'showSpeed', 'Mostrar velocidade embaixo da mira') +
       `<p class="note">Como fazer o bunny hop: corra, pule e aperte agachar (<kbd>${keyLabel(S.keys.crouch)}</kbd>) antes de tocar o chão. Ao cair agachado você desliza com impulso; pule de novo durante o deslize e repita.
@@ -2395,6 +3243,7 @@ function renderSettings() {
       S[g][k] = el.type === 'checkbox' ? el.checked : +el.value;
       if (el.type === 'range') el.nextElementSibling.textContent = (+el.value).toFixed(el.step < 1 ? (el.step < 0.1 ? 2 : 1) : 0);
       saveSettings(); applySettingsLight(g); drawPreview(); hfov();
+      if (g === 'hud' || g === 'touch') { applyLayout(); updateTouchUI(); }
     };
     el.addEventListener('input', upd); el.addEventListener('change', upd);
   });
@@ -2409,6 +3258,14 @@ function renderSettings() {
     if (p === 'dot') Object.assign(S.ch, { style: 2, thick: 4, dyn: false });
     saveSettings(); renderSettings();
   });
+  const q = id => body.querySelector(id);
+  if (q('#sEdTouch')) q('#sEdTouch').onclick = () => openEditor('touch');
+  if (q('#sEdHud')) q('#sEdHud').onclick = () => openEditor('hud');
+  if (q('#s_tpre')) q('#s_tpre').onchange = e => { const f = TOUCH_PRESETS[e.target.value]; if (!f) return; S.layout.touch = f(); saveSettings(); applyLayout(); renderSettings(); };
+  if (q('#s_fire2')) q('#s_fire2').onchange = e => { setLayout('touch', 'tFire2', { hide: !e.target.checked }); saveSettings(); };
+  body.querySelectorAll('[data-hc]').forEach(el => el.addEventListener('input', () => { S.hud[el.dataset.hc] = el.value; saveSettings(); applyLayout(); }));
+  body.querySelectorAll('[data-hfg]').forEach(b => b.onclick = () => { S.hud.fg = b.dataset.hfg; S.hud.accent = b.dataset.hac; saveSettings(); applyLayout(); renderSettings(); });
+  body.querySelectorAll('[data-hv]').forEach(el => el.onchange = () => { setLayout('hud', el.dataset.hv, { hide: !el.checked }); saveSettings(); });
   const test = body.querySelector('#sTest'); if (test) test.onclick = () => play('rifle', 0.9);
   drawPreview(); hfov();
 }
@@ -2417,6 +3274,87 @@ function applySettingsLight(g) { if (g === 'audio') applyVolume(); if (g === 'vi
 function drawPreview() {
   const c = $('#chPreview'); if (!c) return; const g = c.getContext('2d');
   g.clearRect(0, 0, 200, 200); drawCrosshair(g, 100, 100, 0);
+}
+
+// =====================================================================================
+// Replay da morte (killcam): grava os últimos segundos de todo mundo e, quando você morre,
+// mostra o lance pelos olhos de quem te matou, com câmera lenta no final.
+// =====================================================================================
+const KC_BACK = 2.0, KC_SLOW_AT = 0.45, KC_SLOW = 0.4, KC_AFTER = 0.25;
+const KC_LEN = (KC_BACK - KC_SLOW_AT) + (KC_SLOW_AT + KC_AFTER) / KC_SLOW;
+const kc = { frames: [], shots: [], active: false, rt: 0, end: 0, killer: null, lastShotIdx: 0, saved: null, lastRec: -9 };
+function kcRecord() {
+  if (now - kc.lastRec < 1 / 60) return; kc.lastRec = now;
+  const d = new Map();
+  for (const c of combatants) if (c.alive) d.set(c, [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.pitch, c.crouch, c.vel.x, c.vel.z]);
+  kc.frames.push({ t: now, d });
+  while (kc.frames.length && kc.frames[0].t < now - KC_BACK - 1.2) kc.frames.shift();
+  while (kc.shots.length && kc.shots[0].t < now - KC_BACK - 1.2) kc.shots.shift();
+}
+function kcShot(shooter, a, b) { if (a && b) kc.shots.push({ t: now, c: shooter, a: a.clone(), b: b.clone() }); }
+function kcStart(killer, weapon, zone) {
+  if (!S.hud.killcam || !killer || killer === player || !mode || mode.type === 'dev' || kc.frames.length < 10) return;
+  kc.active = true; kc.killer = killer; kc.end = now; kc.rt = now - KC_BACK; kc.realT = 0;
+  kc.lastShotIdx = kc.shots.findIndex(s => s.t >= kc.rt); if (kc.lastShotIdx < 0) kc.lastShotIdx = kc.shots.length;
+  kc.frozenFrames = kc.frames.slice(); kc.frozenShots = kc.shots.slice();
+  // o renascimento local espera o replay acabar (nos rounds o próximo round já começa depois dele)
+  if (player.respawnAt > 0) player.respawnAt = Math.max(player.respawnAt, now + KC_LEN + 0.2);
+  const dist = killer.pos.distanceTo(player.pos);
+  T('kcInfo', `${killer.name} te matou · ${weapon || ''}${zone === 'head' ? ' · na cabeça' : ''} · ${dist.toFixed(0)} m${killer.alive ? ` · ficou com ${Math.ceil(killer.hp)} de vida` : ''}`);
+  $('#killcam').hidden = false; document.body.classList.add('kc');
+}
+function kcStop() { kc.active = false; kc.killer = null; $('#killcam').hidden = true; document.body.classList.remove('kc'); }
+addEventListener('pointerdown', () => { if (kc.active) kc.skip = true; }, true);
+function kcSample(c, t) {
+  const F = kc.frozenFrames; let i = 1;
+  while (i < F.length - 1 && F[i].t < t) i++;
+  const a = F[i - 1], b = F[i]; if (!a || !b) return null;
+  const A = a.d.get(c), B = b.d.get(c); if (!A && !B) return null; if (!A || !B) return A || B;
+  const k = clamp((t - a.t) / Math.max(1e-6, b.t - a.t), 0, 1), out = A.map((v, j) => lerp(v, B[j], k));
+  let dy = B[3] - A[3]; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); out[3] = A[3] + dy * k;
+  return out;
+}
+const KC_FIELDS = c => ({ x: c.pos.x, y: c.pos.y, z: c.pos.z, yaw: c.yaw, pitch: c.pitch, crouch: c.crouch, vx: c.vel.x, vz: c.vel.z, vy: c.vel.y, alive: c.alive, vis: c.group.visible });
+function kcPut(c, s, dt) {
+  c.pos.set(s[0], s[1], s[2]); c.yaw = s[3]; c.pitch = s[4]; c.crouch = s[5]; c.vel.set(s[6], 0, s[7]); c.alive = true;
+  animateModel(c, dt);
+}
+// aplica o replay antes de desenhar; devolve true se a câmera do replay está ativa
+function kcApply(dt) {
+  if (!kc.active) return false;
+  if (player.alive || state !== 'playing' || !mode || mode.over || kc.skip || isDown('jump') || isDown('fire')) { kc.skip = false; kcStop(); return false; }
+  const prev = kc.rt;
+  kc.rt += dt * (kc.rt > kc.end - KC_SLOW_AT ? KC_SLOW : 1);
+  if (kc.rt > kc.end + KC_AFTER) { kcStop(); return false; }
+  const K = kc.killer, sk = kcSample(K, kc.rt), sp = kcSample(player, Math.min(kc.rt, kc.end - 0.001));
+  if (!sk) { kcStop(); return false; }
+  const pd = dt * (kc.rt > kc.end - KC_SLOW_AT ? KC_SLOW : 1);
+  kc.saved = [];
+  for (const [c, s] of [[K, sk], [player, sp]]) {
+    if (!s || c.rag) continue;
+    kc.saved.push([c, KC_FIELDS(c)]);
+    kcPut(c, s, pd);
+  }
+  player.group.visible = !!sp && kc.rt < kc.end; K.group.visible = false;
+  // tiros do lance aparecem de novo na hora certa
+  const shots = kc.frozenShots;
+  while (kc.lastShotIdx < shots.length && shots[kc.lastShotIdx].t <= kc.rt) {
+    const s = shots[kc.lastShotIdx++]; if (s.t > prev && (s.c === K || s.c === player)) tracer(s.a, s.b);
+  }
+  camera.position.set(sk[0], 0, sk[2]);
+  camera.position.y = sk[1] + (K.isPlayer ? lerp(1.62, 1.08, sk[5]) : 1.62 * (1 - sk[5] * 0.3));
+  camera.rotation.set(sk[4], sk[3], 0);
+  camera.fov = S.video.fov; camera.updateProjectionMatrix();
+  $('#killcam').classList.toggle('slow', kc.rt > kc.end - KC_SLOW_AT);
+  return true;
+}
+function kcRestore() {
+  if (!kc.saved) return;
+  for (const [c, f] of kc.saved) {
+    c.pos.set(f.x, f.y, f.z); c.yaw = f.yaw; c.pitch = f.pitch; c.crouch = f.crouch; c.vel.set(f.vx, f.vy, f.vz); c.alive = f.alive; c.group.visible = f.vis;
+  }
+  player.group.visible = false; if (kc.killer && !kc.killer.isPlayer) kc.killer.group.visible = true;
+  kc.saved = null;
 }
 
 // =====================================================================================
@@ -2441,12 +3379,17 @@ function frame(t) {
       for (const c of combatants) if (c.bot) updateBot(c, sim);
       mode.update(sim);
       updateFx(sim);
+      updateOtherSounds(sim);
+      kcRecord();
     } else { look.x = look.y = 0; }
     for (const c of combatants) animateModel(c, sim);
     if (sim > 0 || !player.alive) updateCamera(0);
     updateViewModel(sim);
+    updateListener();
+    const kcOn = kcApply(dt);
     renderer.clear(); renderer.render(scene, camera);
-    if (player.alive) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
+    if (kcOn) kcRestore();
+    else if (player.alive) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
     menuOrbit += dt * 0.07;
@@ -2462,14 +3405,15 @@ function frame(t) {
 
 resize();
 buildArena();
+applyLayout();
 renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
 window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
-  held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
+  held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
-  fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
+  setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
 })();
 </script>
 </body>
