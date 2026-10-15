@@ -103,6 +103,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 #chatLog div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 3px 9px; max-width: 100%; overflow-wrap: anywhere; }
 #chatLog div.old { display: none; }
 #chat.open #chatLog div.old { display: block; }
+#cmdHint { background: rgb(0 0 0 / 0.72); color: #dfe3ea; font-size: 13px; padding: 6px 9px; border-left: 3px solid var(--hud-accent); line-height: 1.45; white-space: pre-line; }
+#cmdHint b { color: var(--hud-accent); font-weight: 600; }
 #chatIn { pointer-events: auto; font: inherit; padding: 7px 9px; background: rgb(0 0 0 / 0.65); color: #fff; border: 1px solid var(--hud-accent); border-radius: 4px; outline: none; }
 #pick { left: 50%; top: 63%; transform: translateX(-50%); font-family: var(--body); font-size: 15px; white-space: nowrap; }
 #hint { left: max(16px, env(safe-area-inset-left, 0px)); top: 44px; font-family: var(--body); font-size: 14px; }
@@ -340,7 +342,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <div class="box" id="pick" hidden></div>
   <div id="feed"></div>
   <div id="voiceList"></div>
-  <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="Mensagem: Enter envia, Esc cancela" hidden></div>
+  <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="Mensagem: Enter envia, Esc cancela. Comandos começam com /" hidden><div id="cmdHint" hidden></div></div>
   <div class="box" id="hp"><span class="ico" aria-hidden="true">+</span><span class="big" id="hpNum">100</span><span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
   <div id="slots"></div>
   <div class="box" id="ammo"><div class="wname" id="ammoName"></div><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--hud-accent)"></div></div>
@@ -2251,6 +2253,7 @@ function updateCamera(dt) {
   const target = S.video.fov * zoomMult() * (1 + clamp((Math.hypot(p.vel.x, p.vel.z) - RUN * 1.2) / 40, 0, 0.12));
   camera.fov = Math.abs(camera.fov - target) < 0.5 ? target : lerp(camera.fov, target, Math.min(1, dt * 25));
   camera.updateProjectionMatrix();
+  applyThirdCam();
 }
 
 function computeSpread() {
@@ -2662,7 +2665,7 @@ function startX1(cfgIn, net, ids) {
   initAudio();
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
-  mapDef.build(); clearCombatants(); feedEl.innerHTML = '';
+  mapDef.build(); clearCombatants(); feedEl.innerHTML = ''; Admin.watch = null;
   applyPhysics(cfg);
   // online: quem joga esta partida (quem entrou depois espera a próxima)
   const lineup = net ? net.roster.filter(p => !ids || ids.includes(p.id)) : null;
@@ -2822,6 +2825,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       }
     },
     restart() { if (!net) startX1(cfg); else if (host) Net.startMatch(cfg); },
+    setMyTeam(t) { myTeam = t; this.myTeam = t; },
   };
 }
 // =====================================================================================
@@ -3155,6 +3159,8 @@ function onNetMsg(m) {
     case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
     case 'rtc': Voice.onMsg(m); break;
+    case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': onAdminMsg(m); break;
+    case 'kicked': Net.kicked = true; break;
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
     case 'chat': { const p = Net.byId(m.f); if (inGame && p) addChat(p.name, r ? r.color : TEAM_COLORS[p.team], cleanChat(m.m)); break; }
     case 'spray': if (inGame && Net.byId(m.f)) onSprayMsg(m); break;
@@ -3234,7 +3240,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -3349,7 +3355,7 @@ const Net = {
     this.open = false; this.conns.clear(); clearInterval(this.pingTimer); this.roster = [];
     if (state === 'playing' && mode && mode.net) {
       mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
-      $('#endWinner').innerHTML = '<b>Conexão perdida</b><br>O anfitrião saiu ou a internet caiu.';
+      $('#endWinner').innerHTML = this.kicked ? '<b>Você foi expulso da sala</b><br>O admin tirou você da partida.' : '<b>Conexão perdida</b><br>O anfitrião saiu ou a internet caiu.';
       fillScore($('#endBody')); $('#eAgain').disabled = true; $('#eAgain').textContent = 'Jogar novamente'; $('#end').hidden = false;
     }
     this.setStatus(wasOpen ? 'Conexão encerrada.' : this.status);
@@ -3360,7 +3366,7 @@ const Net = {
     if (this.hub) this.hub.destroy();
     if (this.peer) { try { this.peer.destroy(); } catch (e) {} }
     this.peer = null; this.hub = null; this.conns = new Map(); this.open = false; this.role = null; this.hostCfg = null; this.versionWarn = false; this.status = '';
-    this.roster = []; this.myId = ''; this.seq = 0; this.inMatch = false;
+    this.roster = []; this.myId = ''; this.seq = 0; this.inMatch = false; Admin.me = false; Admin.admins.clear(); this.kicked = false;
   },
   canStart() { const n = this.teamSizes(); return this.role === 'host' && this.roster.length >= 2 && n[0] > 0 && n[1] > 0; },
   startMatch(cfg) {
@@ -4488,11 +4494,13 @@ function openChat() {
 }
 function closeChat() {
   if (!chatOpen) return;
+  $('#cmdHint').hidden = true;
   chatOpen = false; chatBox.classList.remove('open'); chatIn.hidden = true; chatIn.blur(); held.clear();
 }
 function sendChat() {
   const txt = cleanChat(chatIn.value); closeChat();
   if (!txt || !player) return;
+  if (txt[0] === '/') { runCommand(txt); return; }
   addChat(player.name || 'Você', player.color, txt, true);
   if (mode && mode.net) Net.send({ t: 'chat', m: txt });
   else botsAnswer(txt);
@@ -4514,6 +4522,216 @@ function botsAnswer(txt) {
   if (!say) return;
   const b = bots[Math.floor(Math.random() * bots.length)], m = mode;
   setTimeout(() => { if (mode === m && state === 'playing') addChat(b.name, b.color, say[Math.floor(Math.random() * say.length)]); }, 700 + Math.random() * 900);
+}
+// =====================================================================================
+// Comandos de admin pelo chat (/ajuda). Admin = quem joga sozinho, quem criou a sala online
+// ou quem o anfitrião liberou com /admin. Câmera, ver e ajuda rodam na hora; o resto o anfitrião
+// executa e avisa a sala.
+// =====================================================================================
+const Admin = { cam: 0, watch: null, me: false, admins: new Set() };
+const CAM_NAMES = ['1ª pessoa', '3ª pessoa de costas', '3ª pessoa de frente'];
+const CAM_WORDS = { '1': 0, '1p': 0, primeira: 0, fp: 0, normal: 0, voltar: 0, off: 0, costas: 1, tras: 1, 'trás': 1, '3': 1, '3p': 1, terceira: 1, back: 1, frente: 2, front: 2, cara: 2 };
+const TEAM_WORDS = { laranja: 0, l: 0, '0': 0, orange: 0, azul: 1, a: 1, '1': 1, blue: 1 };
+const ONOFF = { on: true, sim: true, liga: true, ligar: true, '1': true, off: false, nao: false, 'não': false, desliga: false, desligar: false, '0': false };
+const isAdmin = () => !mode || !mode.net || Net.role === 'host' || Admin.me;
+const CMD_HELP = [
+  ['cam', '/cam costas · /cam frente · /cam 1 (volta)  ·  /cam frente Ana muda a câmera da Ana'],
+  ['ver', '/ver Ana [costas|frente] assiste outro jogador  ·  /ver sozinho volta para você'],
+  ['time', '/time Ana azul (ou laranja; sem cor troca de lado)'],
+  ['mapa', '/mapa pool (duelo, aim, patio, arena, pool) reinicia no mapa novo'],
+  ['reiniciar', '/reiniciar recomeça a partida'],
+  ['gravidade', '/gravidade 0.5  ·  /velocidade 1.5  ·  /vida 200  ·  /bhop 0-3'],
+  ['municao', '/municao on|off (infinita)  ·  /hs on|off (só headshot)'],
+  ['admin', '/admin Ana libera os comandos para ela  ·  /tiraradmin Ana  ·  /kick Ana'],
+];
+const CMD_ALIAS = { help: 'ajuda', '?': 'ajuda', camera: 'cam', 'câmera': 'cam', spec: 'ver', assistir: 'ver', team: 'time', map: 'mapa', restart: 'reiniciar', rr: 'reiniciar',
+  gravity: 'gravidade', grav: 'gravidade', speed: 'velocidade', vel: 'velocidade', hp: 'vida', ammo: 'municao', 'munição': 'municao', headshot: 'hs', unadmin: 'tiraradmin', expulsar: 'kick' };
+const CFG_CMDS = { gravidade: ['gravity', 0.1, 4], velocidade: ['speed', 0.3, 3], vida: ['hp', 1, 1000], bhop: ['bhop', 0, 3], municao: ['infinite'], hs: ['hsOnly'] };
+const SERVER_CMDS = new Set(['time', 'mapa', 'reiniciar', 'admin', 'tiraradmin', 'kick', 'camoutro', ...Object.keys(CFG_CMDS)]);
+const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function sysChat(txt, err) { if (mode && mode.noFeed) return; addChat(err ? 'Comando' : 'Admin', err ? 0xd9534f : 0xf2a03a, txt, true); }
+// acha um jogador pelo nome (pedaço do nome serve); "eu" é você
+function findCombatant(name) {
+  const n = normTxt(name).trim(); if (!n) return null;
+  if (['eu', 'me', 'mim', 'voce', 'você'].includes(n)) return player;
+  const all = combatants, nm = c => normTxt(c.name);
+  return all.find(c => nm(c) === n) || all.find(c => nm(c).startsWith(n)) || all.find(c => nm(c).includes(n)) || null;
+}
+const cmdHint = $('#cmdHint');
+chatIn.addEventListener('input', () => {
+  const v = chatIn.value;
+  if (v[0] !== '/') { cmdHint.hidden = true; return; }
+  const w = normTxt(v.slice(1).split(/\s+/)[0]), c = CMD_ALIAS[w] || w;
+  const rows = CMD_HELP.filter(([k, t]) => !w || k.startsWith(c) || normTxt(t).includes('/' + w));
+  cmdHint.innerHTML = (rows.length ? rows : CMD_HELP).map(([, t]) => esc(t).replace(/(\/[a-zà-ú]+)/gi, '<b>$1</b>')).join('\n');
+  cmdHint.hidden = false;
+});
+function runCommand(txt) {
+  const parts = txt.slice(1).trim().split(/\s+/), w = normTxt(parts.shift()), cmd = CMD_ALIAS[w] || w, args = parts;
+  if (!cmd || cmd === 'ajuda') { for (const [, t] of CMD_HELP) sysChat(t); return; }
+  if (!isAdmin()) { sysChat('Só o admin usa comandos. Quem criou a sala pode liberar com /admin ' + (Net.myName || 'seu nome') + '.', true); return; }
+  if (cmd === 'cam') {
+    // /cam <modo> [nome] ou /cam [nome] <modo>
+    let m = null; const rest = [];
+    for (const a of args) { const k = CAM_WORDS[normTxt(a)]; if (m == null && k != null) m = k; else rest.push(a); }
+    if (m == null) m = Admin.cam === 1 ? 0 : 1;
+    if (!rest.length) { setCam(m); return; }
+    const c = findCombatant(rest.join(' '));
+    if (!c) { sysChat('Ninguém com esse nome: ' + rest.join(' '), true); return; }
+    if (c === player) { setCam(m); return; }
+    if (c.remote) { serverCmd('camoutro', [c.netId, m]); return; }
+    watchCombatant(c, m || 1); return;
+  }
+  if (cmd === 'ver') {
+    let m = 1; const rest = [];
+    for (const a of args) { const k = CAM_WORDS[normTxt(a)]; if (k) m = k; else if (k == null) rest.push(a); }
+    if (!rest.length || normTxt(rest.join(' ')) === 'sozinho') { watchCombatant(null); return; }
+    const c = findCombatant(rest.join(' '));
+    if (!c) { sysChat('Ninguém com esse nome: ' + rest.join(' '), true); return; }
+    watchCombatant(c === player ? null : c, m); if (c === player) setCam(m); return;
+  }
+  if (!SERVER_CMDS.has(cmd)) { sysChat(`Comando desconhecido: /${w}. Digite /ajuda.`, true); return; }
+  if (!mode || mode.type !== 'x1') { sysChat('Esse comando funciona nas partidas de x1 (sozinho ou online).', true); return; }
+  // nomes viram ids aqui, de quem digitou, para o anfitrião não precisar adivinhar
+  if (!mode.net && ['admin', 'tiraradmin', 'kick'].includes(cmd)) { sysChat('Jogando sozinho você já é o admin; esse comando é para salas online.', true); return; }
+  if (['time', 'admin', 'tiraradmin', 'kick'].includes(cmd)) {
+    let team = null; const rest = [];
+    for (const a of args) { const k = TEAM_WORDS[normTxt(a)]; if (cmd === 'time' && team == null && k != null && rest.length) team = k; else rest.push(a); }
+    const c = findCombatant(rest.join(' '));
+    if (!c) { sysChat(rest.length ? 'Ninguém com esse nome: ' + rest.join(' ') : `Use /${cmd} nome.`, true); return; }
+    const id = c === player ? (mode.net ? Net.myId : 'me') : c.remote ? c.netId : 'bot:' + combatants.indexOf(c);
+    serverCmd(cmd, [id, team]); return;
+  }
+  serverCmd(cmd, args);
+}
+function setCam(m) {
+  Admin.cam = m; Admin.watch = null;
+  sysChat('Câmera: ' + CAM_NAMES[m] + (m ? '. Volte com /cam 1.' : '.'));
+}
+function watchCombatant(c, m) {
+  Admin.watch = c; if (c) Admin.watchCam = m || 1;
+  sysChat(c ? `Assistindo ${c.name} (${CAM_NAMES[Admin.watchCam]}). Saia com /ver sozinho.` : 'Câmera de volta em você.');
+}
+// sozinho executa direto; online o convidado admin pede ao anfitrião
+function serverCmd(cmd, args) {
+  if (mode.net && Net.role !== 'host') { Net.send({ t: 'acmd', c: cmd, a: args.slice(0, 4).map(x => x == null ? null : String(x).slice(0, 24)) }, 'h'); return; }
+  const r = execServerCmd(cmd, args, mode.net ? Net.myId : 'me');
+  if (r) sysChat(r, true);
+}
+const nameOfId = id => { if (id === 'me' || (mode.net && id === Net.myId)) return player.name; const c = idCombatant(id); return c ? c.name : (mode.net && Net.nameOf(id)) || '?'; };
+function idCombatant(id) {
+  if (id === 'me' || (mode.net && id === Net.myId)) return player;
+  if (/^bot:\d+$/.test(id)) { const c = combatants[+id.slice(4)]; return c && c.bot ? c : null; }
+  return remoteOf(id);
+}
+// roda no anfitrião (ou sozinho). Devolve texto de erro para quem pediu, ou nada.
+function execServerCmd(cmd, a, by) {
+  const net = mode.net, who = nameOfId(by), note = t => { if (net) t += ` (admin ${who})`; sysChat(t); if (net) Net.send({ t: 'anote', m: t }); };
+  if (cmd === 'camoutro') {
+    const id = String(a[0]), m = clamp(Math.round(+a[1]) || 0, 0, 2);
+    if (!net || !remoteOf(id)) return 'Esse jogador não está na partida.';
+    Net.send({ t: 'acam', id, m }, id); note(`Câmera de ${nameOfId(id)}: ${CAM_NAMES[m]}.`); return;
+  }
+  if (cmd === 'time') {
+    if (a[0] == null) return 'Use /time nome azul.';
+    const id = String(a[0]), c = idCombatant(id); if (!c) return 'Esse jogador não está na partida.';
+    const tm = a[1] == null || a[1] === '' ? 1 - c.team : +a[1] ? 1 : 0;
+    if (tm === c.team) return `${c.name} já está no time ${tm ? 'azul' : 'laranja'}.`;
+    if (net) { const p = Net.byId(id); if (p) { p.team = tm; Net.pushRoster(); } Net.send({ t: 'ateam', id, tm }); }
+    applyTeam(id, tm);
+    note(`${c === player && !net ? 'Você foi' : c.name + ' foi'} para o time ${tm ? 'azul' : 'laranja'}.`); return;
+  }
+  if (cmd === 'mapa') {
+    const q = normTxt(a.join(' '));
+    const m = MAPS.find(x => x.id === q) || MAPS.find(x => normTxt(x.name).startsWith(q) || x.id.startsWith(q)) || (q && MAPS.find(x => normTxt(x.name).includes(q)));
+    if (!q || !m) return 'Mapas: ' + MAPS.map(x => x.id).join(', ') + '.';
+    const cfg = clone(mode.cfg); cfg.map = m.id; delete cfg.customMap;
+    if (net) { X1.map = m.id; Net.send({ t: 'anote', m: `Mapa: ${m.name} (admin ${who}).` }); Net.startMatch(cfg); }
+    else startX1(cfg);
+    sysChat(`Mapa: ${m.name}.`); return;
+  }
+  if (cmd === 'reiniciar') { if (net) Net.send({ t: 'anote', m: `Partida reiniciada (admin ${who}).` }); mode.restart(); sysChat('Partida reiniciada.'); return; }
+  if (cmd === 'admin' || cmd === 'tiraradmin') {
+    if (!net) return 'Sozinho você já é o admin.';
+    const id = String(a[0]); if (id === 'h' || !Net.byId(id)) return 'Esse jogador não está na sala.';
+    if (by !== 'h') return 'Só quem criou a sala libera admins.';
+    const on = cmd === 'admin'; if (on) Admin.admins.add(id); else Admin.admins.delete(id);
+    Net.send({ t: 'aadm', id, on: on ? 1 : 0 }); note(`${Net.nameOf(id)} ${on ? 'agora é admin' : 'não é mais admin'}.`); return;
+  }
+  if (cmd === 'kick') {
+    if (!net) return 'Sozinho não há quem expulsar.';
+    const id = String(a[0]), conn = Net.conns.get(id); if (id === 'h' || !conn) return 'Esse jogador não está na sala.';
+    const nm = Net.nameOf(id); Net.raw(conn, { t: 'kicked', f: 'h' }); setTimeout(() => Net.dropGuest(conn), 150);
+    note(`${nm} foi expulso.`); return;
+  }
+  const spec = CFG_CMDS[cmd];
+  if (spec) {
+    let v;
+    if (spec.length === 1) { v = ONOFF[normTxt(a[0])]; if (v == null) v = !mode.cfg[spec[0]]; }
+    else { v = parseFloat(String(a[0] || '').replace(',', '.')); if (!Number.isFinite(v)) return `Use /${cmd} número (${spec[1]} a ${spec[2]}).`; v = clamp(v, spec[1], spec[2]); if (cmd === 'vida' || cmd === 'bhop') v = Math.round(v); }
+    if (net) Net.send({ t: 'acfg', k: spec[0], v });
+    applyCfgKey(spec[0], v);
+    const shown = typeof v === 'boolean' ? (v ? 'ligado' : 'desligado') : v;
+    const lbl = { municao: 'Munição infinita', hs: 'Só headshot', gravidade: 'Gravidade', velocidade: 'Velocidade', vida: 'Vida', bhop: 'Bhop' }[cmd];
+    note(`${lbl}: ${shown}.`); return;
+  }
+  return 'Comando desconhecido.';
+}
+// configuração do servidor mudando no meio da partida (cada um aplica no próprio boneco)
+function applyCfgKey(k, v) {
+  if (!mode || !mode.cfg || !['gravity', 'speed', 'hp', 'bhop', 'infinite', 'hsOnly'].includes(k)) return;
+  if (k === 'infinite' || k === 'hsOnly') v = !!v; else { v = +v; if (!Number.isFinite(v)) return; }
+  mode.cfg[k] = v;
+  if (k === 'gravity' || k === 'speed' || k === 'bhop') applyPhysics(mode.cfg);
+  if (k === 'infinite') pw.infinite = v;
+  if (k === 'hsOnly') mode.hsOnly = v;
+  if (k === 'hp') for (const c of combatants) if (!c.remote) { c.maxHp = v; if (c.alive) c.hp = v; }
+}
+function applyTeam(id, tm) {
+  const c = idCombatant(id); if (!c) return;
+  const idx = combatants.filter(o => o !== c && o.team === tm).length;
+  c.team = tm; c.spawnIdx = idx; c.color = shade(TEAM_COLORS[tm], idx); applySkin(c, c.skin);
+  if (c === player) { mode.setMyTeam(tm); buildViewModels(sleeveColor(c.color)); }
+  if (!c.remote) respawn(c, teamSpawn(tm, idx));
+  if (c.bot) c.bot.target = null;
+}
+function onAdminMsg(m) {
+  if (!mode || !mode.net) { if (m.t === 'aadm' && m.id === Net.myId) Admin.me = !!m.on; return; }
+  switch (m.t) {
+    case 'acmd': {
+      if (Net.role !== 'host') return;
+      const err = Admin.admins.has(m.f) ? execServerCmd(String(m.c), Array.isArray(m.a) ? m.a : [], m.f) : 'Você não é admin.';
+      if (err) Net.send({ t: 'anote', m: err, e: 1 }, m.f);
+      return;
+    }
+    case 'anote': sysChat(cleanChat(m.m), !!m.e); return;
+    case 'acam': if (m.id === Net.myId) { Admin.cam = clamp(+m.m || 0, 0, 2); Admin.watch = null; } return;
+    case 'ateam': applyTeam(String(m.id), m.tm ? 1 : 0); return;
+    case 'acfg': applyCfgKey(m.k, m.v); return;
+    case 'aadm': if (m.id === Net.myId) { Admin.me = !!m.on; } return;
+  }
+}
+// ---- câmera em 3ª pessoa: de costas (por cima do ombro) ou de frente, para você ou para quem você assiste
+const _tcRay = new THREE.Raycaster(), _tcE = new THREE.Vector3(), _tcF = new THREE.Vector3(), _tcD = new THREE.Vector3();
+function thirdCam(c, m) {
+  _tcE.copy(eyePos(c)); const pitch = c.pitch || 0, cp = Math.cos(pitch);
+  _tcF.set(-Math.sin(c.yaw) * cp, Math.sin(pitch), -Math.cos(c.yaw) * cp);
+  let dist;
+  if (m === 2) { _tcD.set(-Math.sin(c.yaw), 0.12, -Math.cos(c.yaw)).normalize(); dist = 2.4; }
+  else { _tcD.copy(_tcF).negate().addScaledVector(new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)), 0.22); _tcD.y += 0.18; _tcD.normalize(); dist = 3.2; }
+  // não atravessa parede: encosta a câmera antes dela
+  if (worldMeshes.length) { _tcRay.set(_tcE, _tcD); _tcRay.far = dist; const h = _tcRay.intersectObjects(worldMeshes, false)[0]; if (h) dist = Math.max(0.35, h.distance - 0.25); }
+  camera.position.copy(_tcE).addScaledVector(_tcD, dist);
+  if (m === 2) camera.lookAt(_tcE); else camera.lookAt(_tcE.addScaledVector(_tcF, 30));
+}
+function thirdOn() { return !!(player && ((Admin.watch && combatants.includes(Admin.watch)) || (Admin.cam && player.alive))); }
+function applyThirdCam() {
+  if (Admin.watch && !combatants.includes(Admin.watch)) Admin.watch = null;
+  const on = thirdOn();
+  if (player) player.group.visible = !!(on && !Admin.watch && player.alive);
+  chCanvas.style.visibility = on && (Admin.watch || Admin.cam === 2) ? 'hidden' : '';
+  if (!on) return;
+  if (Admin.watch) thirdCam(Admin.watch, Admin.watchCam || 1); else thirdCam(player, Admin.cam);
 }
 chatIn.addEventListener('keydown', e => {
   e.stopPropagation();
@@ -5575,7 +5793,7 @@ function frame(t) {
     const kcOn = kcApply(dt);
     renderer.clear(); renderer.render(scene, camera);
     if (kcOn) kcRestore();
-    else if (player.alive) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
+    else if (player.alive && !thirdOn()) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
     if (skinView) { updateSkinView(dt); $('#heroTag').hidden = true; }
@@ -5600,7 +5818,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Admin, runCommand, get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
