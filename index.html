@@ -120,6 +120,13 @@ body.kc #death, body.kc #hp, body.kc #ammo, body.kc #slots, body.kc #speed, body
 #end .center { max-height: 92vh; overflow: auto; }
 .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; }
 .statgrid div { background: rgb(255 255 255 / 0.05); border: 1px solid var(--line, rgb(255 255 255 / 0.1)); padding: 8px; text-align: center; }
+.skgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+button.skcard { display: flex; flex-direction: column; gap: 4px; padding: 5px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); cursor: pointer; font: 12px var(--body); text-align: center; }
+button.skcard span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.skcard.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); } button.skcard:hover { border-color: var(--accent); }
+.skt { display: block; aspect-ratio: 1; background-size: cover; background-position: center; image-rendering: pixelated; }
+.skrand { display: grid; place-items: center; font: 700 28px var(--display); font-style: normal; color: var(--muted); background: #1b2026; }
+#skinBody .tabs { margin-bottom: 4px; }
 .aimlist { display: grid; gap: 6px; }
 button.aimcard { text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 12px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; font: 14px var(--body); }
 button.aimcard b { font: 600 17px var(--display); } button.aimcard span { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
@@ -131,7 +138,7 @@ button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent
 .statgrid b { display: block; font-size: 22px; color: var(--accent); } .statgrid span { font-size: 12px; color: var(--muted); }
 .res { display: inline-block; width: 20px; text-align: center; font-weight: 700; } .res.w { color: #4ade80; } .res.l { color: var(--danger); } .res.e { color: var(--muted); }
 #histPanel { flex-shrink: 0; }
-.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote, .side:has(#aimSetup:not([hidden])) #gpuWarn, .side:has(#aimSetup:not([hidden])) #controlsNote { display: none; }
+.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote, .side:has(#aimSetup:not([hidden])) #gpuWarn, .side:has(#aimSetup:not([hidden])) #controlsNote, .side:has(#skinPanel:not([hidden])) #gpuWarn, .side:has(#skinPanel:not([hidden])) #controlsNote { display: none; }
 #histPanel table { width: 100%; font-size: 14px; }
 #mapEd { position: fixed; inset: 0; display: flex; gap: 12px; padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 #mePanel { width: 340px; flex-shrink: 0; overflow-y: auto; gap: 8px; }
@@ -230,7 +237,13 @@ body.touch #death { font-size: 15px; }
       <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
       <button class="btn" id="bMapEd">Editor de mapa</button>
       <button class="btn" id="bHist">Histórico de x1</button>
+      <button class="btn" id="bSkins">Skins</button>
       <button class="btn" id="bSet">Configurações</button>
+    </div>
+    <div class="panel stack" id="skinPanel" hidden style="gap:8px">
+      <h2>Skins</h2>
+      <div id="skinBody" class="stack" style="gap:6px"></div>
+      <button class="btn primary" id="bSkinBack">Voltar</button>
     </div>
     <div class="panel stack" id="aimSetup" hidden style="gap:8px">
       <h2>Treino de mira</h2>
@@ -1121,8 +1134,8 @@ function bodyKit(c) {
   const own = col => new THREE.MeshLambertMaterial({ color: col });
   const tc = new THREE.Color(c.color);
   const M = { shirt: own(c.color), pants: own(tc.clone().multiplyScalar(0.35).getHex()), vest: own(tc.clone().multiplyScalar(0.62).getHex()),
-    gear: own(0x34373d), skin: own(C.skin), shoe: own(0x222225), eye: mat(C.black) };
-  c.mats = [M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe];
+    gear: own(0x34373d), skin: own(C.skin), shoe: own(0x222225), eye: mat(C.black), team: own(c.color) };
+  c.mats = [M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team];
   return M;
 }
 const PART = {
@@ -1139,7 +1152,7 @@ const PART = {
     const ear = new THREE.Mesh(SPHERE, M.skin); ear.scale.set(0.05, 0.08, 0.06); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
     return g;
   },
-  shoulder: (M) => { const m = new THREE.Mesh(SPHERE, M.shirt); m.scale.setScalar(0.17); return m; },
+  shoulder: (M) => { const m = new THREE.Mesh(SPHERE, M.team); m.scale.setScalar(0.17); return m; },
   upArm: (M) => new THREE.Mesh(capsuleGeo(0.068, ARM_A), M.shirt),
   foreArm: (M) => new THREE.Mesh(capsuleGeo(0.058, ARM_B), M.skin),
   elbow: (M) => { const m = new THREE.Mesh(SPHERE, M.gear); m.scale.setScalar(0.13); return m; },
@@ -1904,7 +1917,7 @@ function createBot(cfg, sp, color) {
   c.home = { pos: sp.pos.clone(), yaw: sp.yaw };
   c.bot = { target: null, visible: false, lastSeen: new THREE.Vector3(), lastSeenT: -99, react: 0, think: 0, err: new THREE.Vector3(), errAt: 0, aimHead: false,
     nextFire: 0, reloadT: 0, burst: 0, strafe: 1, strafeAt: 0, wp: new THREE.Vector3(), hasWp: false, stuckAt: 0, lastPos: sp.pos.clone(), shotSpread: 0, step: 0 };
-  applyBot(c, cfg);
+  applyBot(c, cfg); applySkin(c, botSkin());
   return c;
 }
 function applyBot(c, cfg) {
@@ -2039,8 +2052,8 @@ const NAMES = ['Alfa', 'Bravo', 'Charlie', 'Delta', 'Eco', 'Foxtrot', 'Golf', 'H
 function clearCombatants() { combatants.length = 0; player = null; mode = null; applyPhysics(null); }
 function setupPlayer(sp, color = 0x4073e6, name = 'Jogador') {
   player = createCombatant(name, color, sp, true);
-  player.group.visible = false;
-  buildViewModels(color);
+  player.group.visible = false; applySkin(player, mySkin());
+  buildViewModels(sleeveColor(color));
   pw.slots = []; pw.cur = 0; resetPlayerWeapons();
   pv.god = false; pv.noclip = false; pw.infinite = false;
 }
@@ -2160,7 +2173,7 @@ function startX1(cfgIn, net) {
     const r = createCombatant(net.peerName, TEAM_COLORS[1 - myTeam], ts[1 - myTeam][0], false);
     Object.assign(r, { remote: true, team: 1 - myTeam, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: 0, wi: weapons[0] });
     r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
-    setGunShape(r, WEAPONS[weapons[0]]);
+    setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, Net.peerSkin || null);
     mode.remote = r;
   } else {
     const d = DIFF[cfg.diff] || DIFF[1];
@@ -2582,10 +2595,11 @@ function onNetMsg(m) {
   const inGame = state === 'playing' && mode && mode.net;
   switch (m.t) {
     case 'hello':
-      Net.peerName = String(m.name || 'Amigo').slice(0, 16);
+      Net.peerName = String(m.name || 'Amigo').slice(0, 16); Net.peerSkin = cleanSkin(m.skin);
       if (m.v !== VERSION) Net.versionWarn = true;
       renderNetLobby(); if (Net.role === 'host') Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) });
       break;
+    case 'skin': Net.peerSkin = cleanSkin(m.skin); if (inGame && mode.remote) applySkin(mode.remote, Net.peerSkin); break;
     case 'ping': Net.send({ t: 'pong', ts: m.ts }); break;
     case 'pong': Net.ping = Math.round(performance.now() - m.ts); break;
     case 'cfg': if (Net.role === 'guest') { Net.hostCfg = m.cfg; renderNetLobby(); } break;
@@ -2638,13 +2652,13 @@ function localConn(code, role) {
   return c;
 }
 const Net = {
-  peer: null, conn: null, open: false, role: null, code: '', myName: 'Jogador', peerName: 'Amigo', ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0,
+  peer: null, conn: null, open: false, role: null, code: '', myName: 'Jogador', peerName: 'Amigo', peerSkin: null, ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0,
   send(m) { if (this.conn && this.open) { try { this.conn.send(m); } catch (e) {} } },
   setStatus(t) { this.status = t; renderNetLobby(); },
   attach(conn) {
     this.conn = conn;
     conn.on('open', () => {
-      this.open = true; this.send({ t: 'hello', name: this.myName, v: VERSION });
+      this.open = true; this.send({ t: 'hello', name: this.myName, v: VERSION, skin: skinPayload(mySkin()) });
       clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
       this.setStatus('');
     });
@@ -2954,6 +2968,183 @@ function renderAimSetup() {
   }));
 }
 
+// =====================================================================================
+// Skins: padrões prontos ou imagem enviada pelo jogador, aplicados na roupa do boneco
+// =====================================================================================
+const SKIN_KEY = 'cs3.web.skins';
+const SKIN_PRESETS = [
+  { id: 'urbano', name: 'Urbano', pat: 'digital', cols: ['#7d8288', '#5a5f66', '#a3a7ad', '#3e4248'], vest: '#2e3136', gear: '#3a3d42' },
+  { id: 'deserto', name: 'Deserto', pat: 'camo', cols: ['#c9b083', '#a68a5b', '#e0cfa6', '#7d6440'], vest: '#8a744f', gear: '#a08860' },
+  { id: 'floresta', name: 'Floresta', pat: 'camo', cols: ['#56663d', '#3b4a2a', '#7a8455', '#2a2f22'], vest: '#3d4630', gear: '#4a5236' },
+  { id: 'noturno', name: 'Noturno', pat: 'digital', cols: ['#22252b', '#2f333b', '#15171b', '#3b404a'], vest: '#1a1c20', gear: '#1d1f23' },
+  { id: 'artico', name: 'Ártico', pat: 'digital', cols: ['#e6ecf2', '#bcc8d4', '#ffffff', '#9aa9b8'], vest: '#c4ced8', gear: '#dfe5ea' },
+  { id: 'tigre', name: 'Tigre', pat: 'tiger', cols: ['#e8892c', '#1a1a1a'], vest: '#2a2a2a', gear: '#d07a26' },
+  { id: 'neon', name: 'Neon', pat: 'stripes', cols: ['#141518', '#39ff8f'], vest: '#202226', gear: '#39ff8f' },
+  { id: 'realeza', name: 'Realeza', pat: 'stripes', cols: ['#5b2a86', '#e5b53a'], vest: '#3d1c5a', gear: '#e5b53a' },
+  { id: 'rosa', name: 'Chiclete', pat: 'camo', cols: ['#f29bc0', '#d66b9a', '#ffd1e3', '#a84a75'], vest: '#7a3456', gear: '#f29bc0' },
+];
+const SKIN_APPLY = [['all', 'Roupa toda'], ['outfit', 'Camisa e calça'], ['shirt', 'Só a camisa']];
+let SKINS = (() => { const v = loadJSON(SKIN_KEY); return { list: Array.isArray(v.list) ? v.list : [], me: v.me || 'team', bots: v.bots || 'team' }; })();
+const saveSkins = () => { try { localStorage.setItem(SKIN_KEY, JSON.stringify(SKINS)); return true; } catch (e) { return false; } };
+const skinById = id => SKIN_PRESETS.find(s => s.id === id) || SKINS.list.find(s => s.id === id) || null;
+// imagem vinda de fora (arquivo ou do amigo no online): só aceita PNG/JPG/WebP em data URL e de tamanho razoável
+const okImg = s => typeof s === 'string' && s.length < 400000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
+const okHex = s => typeof s === 'string' && /^#[0-9a-f]{6}$/i.test(s) ? s : null;
+function cleanSkin(s) {
+  if (!s || typeof s !== 'object') return null;
+  if (typeof s.preset === 'string') return SKIN_PRESETS.find(p => p.id === s.preset) || null;
+  if (!okImg(s.img)) return null;
+  return { id: 'net_' + s.img.length + ':' + s.img.slice(-24) + ':' + s.rep, name: String(s.name || 'Skin').slice(0, 24), img: s.img,
+    apply: SKIN_APPLY.some(a => a[0] === s.apply) ? s.apply : 'all', rep: [1, 2, 3].includes(+s.rep) ? +s.rep : 1, gear: okHex(s.gear) || '#34373d', avg: okHex(s.avg) || '#777777' };
+}
+const skinPayload = sk => !sk ? null : sk.img ? { img: sk.img, name: sk.name, apply: sk.apply, rep: sk.rep, gear: sk.gear, avg: sk.avg } : { preset: sk.id };
+
+// gerador de padrões (sempre igual para o mesmo id, assim os dois jogadores veem a mesma coisa)
+function seeded(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
+function patternCanvas(sk, size = 128) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), r = seeded(sk.id), K = sk.cols;
+  g.fillStyle = K[0]; g.fillRect(0, 0, size, size);
+  // desenha com repetição nas bordas para a textura emendar sem costura
+  const wrap = f => { for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) { g.save(); g.translate(dx, dy); f(); g.restore(); } };
+  if (sk.pat === 'camo') for (let i = 0; i < 46; i++) {
+    const x = r() * size, y = r() * size, col = K[1 + Math.floor(r() * (K.length - 1))], n = 3 + Math.floor(r() * 4);
+    const blobs = Array.from({ length: n }, () => [x + (r() - 0.5) * 22, y + (r() - 0.5) * 22, 5 + r() * 10, 4 + r() * 8, r() * 3]);
+    wrap(() => { g.fillStyle = col; for (const [bx, by, rx, ry, a] of blobs) { g.beginPath(); g.ellipse(bx, by, rx, ry, a, 0, Math.PI * 2); g.fill(); } });
+  } else if (sk.pat === 'digital') { const q = size / 16; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const v = r(); if (v < 0.6) { g.fillStyle = K[1 + Math.floor(r() * (K.length - 1))]; g.fillRect(x * q, y * q, q, q); } } }
+  else if (sk.pat === 'tiger') {
+    g.fillStyle = K[1];
+    for (let i = 0; i < 9; i++) { const y0 = (i + 0.3 * r()) * size / 9, ph = r() * 6, w = 2 + r() * 4, len = 0.4 + r() * 0.5, x0 = r() * size;
+      wrap(() => { g.beginPath(); for (let t = 0; t <= 1; t += 0.05) { const x = x0 + t * size * len; g.lineTo(x, y0 + Math.sin(t * 8 + ph) * 4 - w * Math.sin(t * Math.PI)); }
+        for (let t = 1; t >= 0; t -= 0.05) { const x = x0 + t * size * len; g.lineTo(x, y0 + Math.sin(t * 8 + ph) * 4 + w * Math.sin(t * Math.PI)); } g.fill(); }); }
+  } else if (sk.pat === 'stripes') { g.fillStyle = K[1]; for (let i = 0; i < 4; i++) g.fillRect(0, i * size / 4 + size / 16, size, size / 22); g.fillRect(size * 0.47, 0, size * 0.06, size); }
+  return c;
+}
+const texCache = new Map();
+function skinTex(sk) {
+  if (texCache.has(sk.id)) return texCache.get(sk.id);
+  let tex;
+  if (sk.img) { tex = new THREE.Texture(); const im = new Image(); im.onload = () => { tex.image = im; tex.needsUpdate = true; }; im.src = sk.img; }
+  else tex = new THREE.CanvasTexture(patternCanvas(sk));
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; const rep = sk.rep || 2; tex.repeat.set(rep, rep);
+  texCache.set(sk.id, tex); return tex;
+}
+function applySkin(c, sk) {
+  const M = c.kit; if (!M) return;
+  const tc = new THREE.Color(c.color);
+  const set = (m, col, map = null) => { m.color.set(col); if (m.map !== map) { m.map = map; m.needsUpdate = true; } };
+  c.skin = sk || null;
+  if (!sk) { set(M.shirt, c.color); set(M.pants, tc.clone().multiplyScalar(0.35)); set(M.vest, tc.clone().multiplyScalar(0.62)); set(M.gear, 0x34373d); return; }
+  const tex = skinTex(sk);
+  if (sk.img) {
+    set(M.shirt, 0xffffff, tex);
+    if (sk.apply === 'shirt') set(M.pants, 0x2b2d31); else set(M.pants, 0xbdbdbd, tex);
+    if (sk.apply === 'all') set(M.vest, 0x9a9a9a, tex); else set(M.vest, 0x3a3d44);
+    set(M.gear, sk.gear || 0x34373d);
+  } else { set(M.shirt, 0xffffff, tex); set(M.pants, 0xa8a8a8, tex); set(M.vest, sk.vest); set(M.gear, sk.gear); }
+}
+const mySkin = () => skinById(SKINS.me);
+const sleeveColor = color => { const sk = mySkin(); return sk ? new THREE.Color(sk.img ? sk.avg : sk.cols[0]).getHex() : color; };
+function botSkin() {
+  if (SKINS.bots === 'team') return null;
+  if (SKINS.bots === 'random') { const all = SKIN_PRESETS.concat(SKINS.list); return all[Math.floor(Math.random() * all.length)]; }
+  return skinById(SKINS.bots);
+}
+
+// imagem enviada: corta no centro, reduz para 256x256 e guarda como JPG (cabe no armazenamento e passa rápido no online)
+function readSkinFile(file) {
+  return new Promise((ok, fail) => {
+    if (!file || !/^image\/(png|jpeg|webp|gif|bmp)$/.test(file.type)) { fail(new Error('Use uma imagem PNG ou JPG.')); return; }
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const S2 = 256, cv = document.createElement('canvas'); cv.width = cv.height = S2; const g = cv.getContext('2d');
+      const s = Math.min(im.width, im.height); g.fillStyle = '#808080'; g.fillRect(0, 0, S2, S2);
+      g.drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, S2, S2); URL.revokeObjectURL(url);
+      const px = g.getImageData(0, 0, S2, S2).data; let rr = 0, gg = 0, bb = 0; for (let i = 0; i < px.length; i += 64) { rr += px[i]; gg += px[i + 1]; bb += px[i + 2]; }
+      const n = px.length / 64, avg = '#' + [rr, gg, bb].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+      ok({ img: cv.toDataURL('image/jpeg', 0.85), avg });
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); fail(new Error('Não consegui abrir essa imagem.')); };
+    im.src = url;
+  });
+}
+
+// ---- tela de skins (com um boneco girando à direita do menu)
+let skinView = null, skinFor = 'me';
+function openSkins() {
+  $('#mainButtons').hidden = true; $('#skinPanel').hidden = false;
+  if (!skinView) {
+    // fora do mapa, num pedestal próprio, para nada do cenário ficar na frente
+    const sp = { pos: new THREE.Vector3(0, 0.3, 400), yaw: Math.PI };
+    const c = createCombatant('Prévia', TEAM_COLORS[0], sp, false); setGunShape(c, WEAPONS[WI('rifle')]);
+    const base = mesh(CYL, 0x2a2f36, 2.2, 0.3, 2.2, 0, 0.15, 400, world);
+    skinView = { c, base, spin: Math.PI * 0.85 };
+  }
+  renderSkins();
+}
+function closeSkins() {
+  $('#skinPanel').hidden = true; $('#mainButtons').hidden = false;
+  if (skinView) { world.remove(skinView.c.group); world.remove(skinView.base); const i = combatants.indexOf(skinView.c); if (i >= 0) combatants.splice(i, 1); skinView = null; }
+}
+function skinThumb(sk) {
+  if (!sk) return `<i class="skt" style="background:linear-gradient(135deg, ${hex(TEAM_COLORS[0])} 50%, ${hex(TEAM_COLORS[1])} 50%)"></i>`;
+  if (sk.img) return `<i class="skt" style="background-image:url(${sk.img})"></i>`;
+  if (!sk._thumb) sk._thumb = patternCanvas(sk, 64).toDataURL();
+  return `<i class="skt" style="background-image:url(${sk._thumb})"></i>`;
+}
+function renderSkins() {
+  const cur = skinFor === 'me' ? SKINS.me : SKINS.bots;
+  const card = (id, name, sk, extra = '') => `<button class="skcard ${cur === id ? 'on' : ''}" data-sk="${esc(id)}">${extra || skinThumb(sk)}<span>${esc(name)}</span></button>`;
+  let h = `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button></div>`;
+  h += `<div class="skgrid">${card('team', 'Cores do time', null)}${skinFor === 'bots' ? card('random', 'Sorteada', null, '<i class="skt skrand">?</i>') : ''}` +
+    SKIN_PRESETS.map(s => card(s.id, s.name, s)).join('') + SKINS.list.map(s => card(s.id, s.name, s)).join('') + `</div>`;
+  h += `<button class="btn small" id="skUp">Enviar imagem (PNG ou JPG)</button><input type="file" id="skFile" accept="image/png,image/jpeg,image/webp" hidden><p class="note" id="skMsg" style="margin:0"></p>`;
+  const sel = skinById(cur);
+  if (sel && sel.img && SKINS.list.includes(sel)) {
+    h += `<div class="formh">Sua imagem</div>
+      <div class="row"><label for="sk_name">Nome</label><input type="text" id="sk_name" maxlength="24" value="${esc(sel.name)}"><span></span></div>
+      <div class="row"><label for="sk_apply">Onde aplicar</label><select id="sk_apply">${SKIN_APPLY.map(([v, t]) => `<option value="${v}" ${sel.apply === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span></span></div>
+      <div class="row"><label for="sk_rep">Repetir a imagem</label><select id="sk_rep">${[[1, 'Uma vez (grande)'], [2, '2 vezes'], [3, '3 vezes (pequena)']].map(([v, t]) => `<option value="${v}" ${sel.rep === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span></span></div>
+      <div class="row"><label for="sk_gear">Cor do capacete</label><input type="color" id="sk_gear" value="${sel.gear}"><span></span></div>
+      <button class="btn small" id="skDel">Apagar esta skin</button>`;
+  }
+  h += `<p class="note" style="margin:4px 0 0">As ombreiras continuam na cor do time, para não confundir aliado e inimigo. No x1 online, o seu amigo vê a sua skin.</p>`;
+  $('#skinBody').innerHTML = h;
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-sk]').forEach(b => b.onclick = () => { SKINS[skinFor] = b.dataset.sk; saveSkins(); skinChanged(); renderSkins(); });
+  $('#skUp').onclick = () => $('#skFile').click();
+  $('#skFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const { img, avg } = await readSkinFile(f);
+      const sk = { id: 'u' + Date.now().toString(36), name: f.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'Minha skin', img, avg, apply: 'all', rep: 1, gear: '#34373d' };
+      SKINS.list.push(sk); if (SKINS.list.length > 12) SKINS.list.shift();
+      SKINS[skinFor] = sk.id;
+      if (!saveSkins()) { SKINS.list.pop(); SKINS[skinFor] = 'team'; saveSkins(); $('#skMsg').textContent = 'Sem espaço no navegador para mais imagens. Apague alguma skin enviada.'; return; }
+      skinChanged(); renderSkins();
+    } catch (err) { $('#skMsg').textContent = err.message; }
+  };
+  if (sel && sel.img && SKINS.list.includes(sel)) {
+    const upd = () => { sel.name = $('#sk_name').value.trim() || 'Minha skin'; sel.apply = $('#sk_apply').value; sel.rep = +$('#sk_rep').value; sel.gear = $('#sk_gear').value;
+      texCache.delete(sel.id); saveSkins(); skinChanged(); };
+    ['#sk_apply', '#sk_rep', '#sk_gear'].forEach(q => $(q).addEventListener(q === '#sk_gear' ? 'input' : 'change', upd));
+    $('#sk_name').addEventListener('change', () => { upd(); renderSkins(); });
+    $('#skDel').onclick = () => { SKINS.list.splice(SKINS.list.indexOf(sel), 1); texCache.delete(sel.id); if (SKINS.me === sel.id) SKINS.me = 'team'; if (SKINS.bots === sel.id) SKINS.bots = 'team'; saveSkins(); skinChanged(); renderSkins(); };
+  }
+  if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : SKINS.bots === 'random' ? SKIN_PRESETS[Math.floor(Math.random() * SKIN_PRESETS.length)] : botSkin());
+}
+function skinChanged() {
+  if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : botSkin());
+  if (Net.open) Net.send({ t: 'skin', skin: skinPayload(mySkin()) });
+}
+function updateSkinView(dt) {
+  const v = skinView, c = v.c; v.spin += dt * 0.6;
+  c.yaw = v.spin; c.pitch = 0;
+  animateModel(c, dt);
+  camera.fov = 40; camera.updateProjectionMatrix();
+  const w = innerWidth > innerHeight * 1.1 ? 1.25 : 0;
+  camera.position.set(c.pos.x, c.pos.y + 1.2, c.pos.z + 4.8); camera.lookAt(c.pos.x - w, c.pos.y + 0.95, c.pos.z);
+}
+
 function enterPlaying() {
   goFullscreen();
   state = 'playing'; paused = false; devOpen = false;
@@ -2973,10 +3164,10 @@ function enterPlaying() {
 function goMenu() {
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') Net.send({ t: 'lobby' });
-  state = 'menu'; paused = false; devOpen = false; mode = null;
+  state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
-  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#histPanel').hidden = true; $('#aimSetup').hidden = true; $('#mainButtons').hidden = false;
+  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#histPanel').hidden = true; $('#aimSetup').hidden = true; $('#skinPanel').hidden = true; $('#mainButtons').hidden = false;
   $('#banner').style.opacity = 0;
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   if (wasNet && Net.role) openNetPanel();
@@ -3245,6 +3436,8 @@ $('#bDev').onclick = () => startDev();
 $('#bAim').onclick = () => { initAudio(); $('#mainButtons').hidden = true; $('#aimSetup').hidden = false; renderAimSetup(); };
 $('#bAimBack').onclick = () => { $('#aimSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bAimStart').onclick = () => startAim();
+$('#bSkins').onclick = () => openSkins();
+$('#bSkinBack').onclick = () => closeSkins();
 function renderHist() {
   const h = loadHist(), t = histTotals(h.matches);
   if (!t.n) { $('#histBody').innerHTML = '<p class="note">Nenhuma partida de x1 terminada ainda. Jogue uma contra bots ou online e ela aparece aqui.</p>'; return; }
@@ -3612,10 +3805,13 @@ function frame(t) {
     else if (player.alive) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
-    menuOrbit += dt * 0.07;
-    camera.fov = 55; camera.updateProjectionMatrix();
-    camera.position.set(Math.sin(menuOrbit) * 46, 22, Math.cos(menuOrbit) * 46);
-    camera.lookAt(0, 0, 0);
+    if (skinView) updateSkinView(dt);
+    else {
+      menuOrbit += dt * 0.07;
+      camera.fov = 55; camera.updateProjectionMatrix();
+      camera.position.set(Math.sin(menuOrbit) * 46, 22, Math.cos(menuOrbit) * 46);
+      camera.lookAt(0, 0, 0);
+    }
     renderer.clear(); renderer.render(scene, camera);
   }
   updateTouchUI();
@@ -3630,7 +3826,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, applySkin, get SKINS() { return SKINS; }, openSkins, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
