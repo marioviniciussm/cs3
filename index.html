@@ -1370,8 +1370,10 @@ function animateModel(c, dt) {
   c.group.position.copy(c.pos);
   c.group.rotation.y = c.yaw;
   if (c.flash > 0) { c.flash = Math.max(0, c.flash - dt * 8); for (const m of c.mats) m.emissive.setScalar(c.flash * 0.6); }
+  if (c.mdl) animateCustom(c, dt);
   if (!c.alive) {
     c.deathT += dt;
+    if (c.mdl) return;
     if (c.isPlayer || !c.gunParts) { const k = Math.min(1, c.deathT / 0.45); c.vis.rotation.x = k * k * 1.5; c.vis.position.y = -0.1 * k; return; }
     if (!c.rag) startRagdoll(c);
     if (stepRagdoll(c, dt)) poseRagdoll(c);
@@ -2599,6 +2601,7 @@ function onNetMsg(m) {
       if (m.v !== VERSION) Net.versionWarn = true;
       renderNetLobby(); if (Net.role === 'host') Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) });
       break;
+    case 'mdl': onModelChunk(m); break;
     case 'skin': Net.peerSkin = cleanSkin(m.skin); if (inGame && mode.remote) applySkin(mode.remote, Net.peerSkin); break;
     case 'ping': Net.send({ t: 'pong', ts: m.ts }); break;
     case 'pong': Net.ping = Math.round(performance.now() - m.ts); break;
@@ -2658,7 +2661,7 @@ const Net = {
   attach(conn) {
     this.conn = conn;
     conn.on('open', () => {
-      this.open = true; this.send({ t: 'hello', name: this.myName, v: VERSION, skin: skinPayload(mySkin()) });
+      this.open = true; sendMySkin('hello');
       clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
       this.setStatus('');
     });
@@ -2993,11 +2996,12 @@ const okHex = s => typeof s === 'string' && /^#[0-9a-f]{6}$/i.test(s) ? s : null
 function cleanSkin(s) {
   if (!s || typeof s !== 'object') return null;
   if (typeof s.preset === 'string') return SKIN_PRESETS.find(p => p.id === s.preset) || null;
+  if (s.model && typeof s.id === 'string') return { id: 'net_m_' + s.id.slice(0, 40), name: String(s.name || 'Modelo').slice(0, 24), model: true, rot: s.rot ? 1 : 0, h: clamp(+s.h || 1, 0.8, 1.2), gun: !!s.gun };
   if (!okImg(s.img)) return null;
   return { id: 'net_' + s.img.length + ':' + s.img.slice(-24) + ':' + s.rep, name: String(s.name || 'Skin').slice(0, 24), img: s.img,
     apply: SKIN_APPLY.some(a => a[0] === s.apply) ? s.apply : 'all', rep: [1, 2, 3].includes(+s.rep) ? +s.rep : 1, gear: okHex(s.gear) || '#34373d', avg: okHex(s.avg) || '#777777' };
 }
-const skinPayload = sk => !sk ? null : sk.img ? { img: sk.img, name: sk.name, apply: sk.apply, rep: sk.rep, gear: sk.gear, avg: sk.avg } : { preset: sk.id };
+const skinPayload = sk => !sk ? null : sk.model ? { model: true, id: sk.id, name: sk.name, rot: sk.rot, h: sk.h, gun: sk.gun } : sk.img ? { img: sk.img, name: sk.name, apply: sk.apply, rep: sk.rep, gear: sk.gear, avg: sk.avg } : { preset: sk.id };
 
 // gerador de padrões (sempre igual para o mesmo id, assim os dois jogadores veem a mesma coisa)
 function seeded(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
@@ -3033,6 +3037,8 @@ function applySkin(c, sk) {
   const tc = new THREE.Color(c.color);
   const set = (m, col, map = null) => { m.color.set(col); if (m.map !== map) { m.map = map; m.needsUpdate = true; } };
   c.skin = sk || null;
+  if (!sk || !sk.model) detachModel(c);
+  if (sk && sk.model) { if (!c.isPlayer) attachModel(c, sk); sk = null; }
   if (!sk) { set(M.shirt, c.color); set(M.pants, tc.clone().multiplyScalar(0.35)); set(M.vest, tc.clone().multiplyScalar(0.62)); set(M.gear, 0x34373d); return; }
   const tex = skinTex(sk);
   if (sk.img) {
@@ -3043,7 +3049,7 @@ function applySkin(c, sk) {
   } else { set(M.shirt, 0xffffff, tex); set(M.pants, 0xa8a8a8, tex); set(M.vest, sk.vest); set(M.gear, sk.gear); }
 }
 const mySkin = () => skinById(SKINS.me);
-const sleeveColor = color => { const sk = mySkin(); return sk ? new THREE.Color(sk.img ? sk.avg : sk.cols[0]).getHex() : color; };
+const sleeveColor = color => { const sk = mySkin(); return sk && !sk.model ? new THREE.Color(sk.img ? sk.avg : sk.cols[0]).getHex() : color; };
 function botSkin() {
   if (SKINS.bots === 'team') return null;
   if (SKINS.bots === 'random') { const all = SKIN_PRESETS.concat(SKINS.list); return all[Math.floor(Math.random() * all.length)]; }
@@ -3068,6 +3074,158 @@ function readSkinFile(file) {
   });
 }
 
+// ---- modelos 3D enviados (GLB, glTF com tudo embutido, OBJ) usados como personagem
+// O boneco normal continua lá, invisível, servindo de hitbox; o modelo só substitui o visual.
+const MODEL_MAX = 30 * 1024 * 1024, MODEL_NET_MAX = 8 * 1024 * 1024;
+const T3 = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/';
+let modelLibs = null;
+function loadModelLibs() {
+  if (modelLibs) return modelLibs;
+  const one = src => new Promise((ok, fail) => { const s = document.createElement('script'); s.src = T3 + src; s.onload = ok; s.onerror = () => fail(new Error('Não deu para carregar o leitor de modelos 3D. Confira a internet.')); document.head.appendChild(s); });
+  modelLibs = Promise.all([one('loaders/GLTFLoader.js'), one('loaders/OBJLoader.js'), one('utils/SkeletonUtils.js')]);
+  modelLibs.catch(() => { modelLibs = null; });
+  return modelLibs;
+}
+// arquivos ficam no IndexedDB (o localStorage é pequeno demais para modelos)
+const idb = (() => { let p = null; return () => p || (p = new Promise((ok, fail) => { const r = indexedDB.open('cs3', 1); r.onupgradeneeded = () => r.result.createObjectStore('models'); r.onsuccess = () => ok(r.result); r.onerror = () => fail(r.error); })); })();
+const idbDo = (mode, f) => idb().then(db => new Promise((ok, fail) => { const tx = db.transaction('models', mode), st = tx.objectStore('models'); const r = f(st); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => fail(tx.error); }));
+const modelPut = (id, buf) => idbDo('readwrite', st => st.put(buf, id));
+const modelGet = id => idbDo('readonly', st => st.get(id));
+const modelDel = id => idbDo('readwrite', st => st.delete(id)).catch(() => {});
+const modelBufs = new Map();   // id -> ArrayBuffer (modelos recebidos do amigo ficam só na memória)
+
+// GLB/glTF não pode apontar para arquivos externos (evita o jogo baixar coisas de outros sites)
+function modelKind(buf) {
+  const u8 = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+  if (u8[0] === 0x67 && u8[1] === 0x6c && u8[2] === 0x54 && u8[3] === 0x46) return 'glb';
+  const head = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(2048, buf.byteLength))).trimStart();
+  return head[0] === '{' ? 'gltf' : 'obj';
+}
+function gltfJson(buf, kind) {
+  if (kind === 'gltf') return JSON.parse(new TextDecoder().decode(buf));
+  const dv = new DataView(buf); const len = dv.getUint32(12, true);
+  if (dv.getUint32(16, true) !== 0x4e4f534a) throw new Error('GLB inválido');
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, len)));
+}
+function checkModel(buf) {
+  if (!buf || !(buf instanceof ArrayBuffer) || buf.byteLength < 16) throw new Error('Arquivo vazio ou corrompido.');
+  const kind = modelKind(buf);
+  if (kind !== 'obj') {
+    let j; try { j = gltfJson(buf, kind); } catch (e) { throw new Error('Não consegui ler esse arquivo como modelo 3D. Ele pode estar corrompido.'); }
+    for (const k of ['buffers', 'images']) for (const b of j[k] || []) if (b.uri && !/^data:/.test(b.uri)) throw new Error('Esse glTF usa arquivos separados (texturas ou .bin). Exporte como GLB, que junta tudo num arquivo só.');
+    if ((j.extensionsRequired || []).some(e => e !== 'KHR_materials_unlit' && e !== 'KHR_texture_transform')) throw new Error('Esse modelo usa compressão (' + j.extensionsRequired.join(', ') + ') que o jogo não lê. Exporte sem Draco/Meshopt.');
+  }
+  return kind;
+}
+const modelTpl = new Map();     // id -> Promise<{ root, clips, tris }>
+function modelTemplate(sk) {
+  if (modelTpl.has(sk.id)) return modelTpl.get(sk.id);
+  const p = (async () => {
+    await loadModelLibs();
+    let buf = modelBufs.get(sk.id); if (!buf) { buf = await modelGet(sk.id); if (buf) modelBufs.set(sk.id, buf); }
+    if (!buf) throw new Error('Arquivo do modelo não encontrado neste navegador.');
+    const kind = checkModel(buf);
+    const mgr = new THREE.LoadingManager(); mgr.setURLModifier(u => /^(data|blob):/.test(u) ? u : 'data:,');
+    let scene, clips = [];
+    if (kind === 'obj') {
+      scene = new THREE.OBJLoader(mgr).parse(new TextDecoder().decode(buf));
+      scene.traverse(m => { if (m.isMesh) m.material = new THREE.MeshLambertMaterial({ color: 0xc9c9c9 }); });
+    } else {
+      const g = await new Promise((ok, fail) => new THREE.GLTFLoader(mgr).parse(buf, '', ok, e => fail(new Error('Não consegui ler o modelo: ' + (e && e.message || e)))));
+      scene = g.scene || g.scenes[0]; clips = g.animations || [];
+    }
+    // normaliza: altura de um jogador, pés no chão, centralizado e de frente para o mesmo lado do boneco
+    const root = new THREE.Group(), fix = new THREE.Group(); fix.add(scene); root.add(fix);
+    scene.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(scene), size = bb.getSize(new THREE.Vector3());
+    if (!isFinite(size.y) || size.y <= 0) throw new Error('O modelo não tem nada para desenhar.');
+    const k = 1.8 / size.y;
+    fix.scale.setScalar(k); fix.position.set(-(bb.min.x + bb.max.x) / 2 * k, -bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k);
+    let tris = 0;
+    scene.traverse(m => { if (m.isMesh) { m.frustumCulled = false; const g = m.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+    return { root, fix, clips, tris: Math.round(tris), kind };
+  })();
+  modelTpl.set(sk.id, p); p.catch(() => modelTpl.delete(sk.id));
+  return p;
+}
+const pickClip = (clips, re) => clips.find(c => re.test(c.name));
+function detachModel(c) {
+  if (!c.mdl) return;
+  c.group.remove(c.mdl.root); if (c.mdl.mixer) c.mdl.mixer.stopAllAction();
+  c.vis.traverse(m => { if (m.isMesh) m.visible = true; });
+  c.gun.visible = true; c.mdl = null;
+}
+async function attachModel(c, sk) {
+  let T;
+  try { T = await modelTemplate(sk); } catch (e) { c.mdlErr = e.message; return; }
+  if (c.skin !== sk || !c.group.parent) return;    // trocou de skin ou saiu do jogo enquanto carregava
+  detachModel(c);
+  const root = THREE.SkeletonUtils.clone(T.root);
+  const inner = root.children[0]; inner.scale.multiplyScalar(sk.h || 1); inner.position.multiplyScalar(sk.h || 1);
+  root.rotation.y = sk.rot ? 0 : Math.PI;   // a maioria dos modelos olha para +z; o boneco olha para -z
+  const cs = S.video.shadows === 2; root.traverse(m => { if (m.isMesh) m.castShadow = cs; });
+  c.group.add(root);
+  c.vis.traverse(m => { if (m.isMesh && !(sk.gun && isGunMesh(c, m))) m.visible = false; });
+  const mdl = c.mdl = { root, mixer: null, idle: null, run: null, die: null, cur: null, sk };
+  if (T.clips.length) {
+    const mx = mdl.mixer = new THREE.AnimationMixer(root);
+    const run = pickClip(T.clips, /run|sprint|jog/i) || pickClip(T.clips, /walk/i), idle = pickClip(T.clips, /idle|stand|breath|rest/i), die = pickClip(T.clips, /death|die|dead/i);
+    mdl.run = run && mx.clipAction(run); mdl.idle = mx.clipAction(idle || (run ? T.clips.find(c => c !== run && c !== die) : null) || T.clips[0]);
+    if (die) { mdl.die = mx.clipAction(die); mdl.die.setLoop(THREE.LoopOnce); mdl.die.clampWhenFinished = true; }
+    mdl.cur = mdl.idle; mdl.idle.play();
+  }
+}
+function isGunMesh(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun) return true; if (o === c.vis) return false; } return false; }
+function animateCustom(c, dt) {
+  const d = c.mdl, sp = Math.hypot(c.vel.x, c.vel.z);
+  if (d.mixer) {
+    const want = !c.alive ? (d.die || d.cur) : sp > 1.5 && d.run ? d.run : d.idle;
+    if (want !== d.cur) { want.reset().play(); if (d.cur) d.cur.crossFadeTo(want, 0.18, false); d.cur = want; }
+    if (d.run) d.run.timeScale = clamp(sp / 5, 0.6, 1.6);
+    d.mixer.update(dt);
+  }
+  if (!c.alive) {
+    if (!d.die) { const k = Math.min(1, c.deathT / 0.45); d.root.rotation.x = k * k * 1.5; d.root.position.y = -0.05 * k; }
+    c.gun.visible = false; return;
+  }
+  d.root.rotation.x = 0; c.gun.visible = !!d.sk.gun;
+  // modelo sem animação: um balanço simples ao andar
+  if (!d.mixer) d.root.position.y = Math.abs(Math.sin(c.walk)) * 0.04 * clamp(sp / 5, 0, 1);
+  else d.root.position.y = 0;
+  d.root.position.y -= c.crouch * 0.35; d.root.scale.y = 1 - c.crouch * 0.12;
+}
+
+// ---- envio pelo online: em pedaços, junto da skin
+function sendModelTo(sk) {
+  const buf = modelBufs.get(sk.id); if (!buf || buf.byteLength > MODEL_NET_MAX) return;
+  const CH = 192 * 1024, n = Math.ceil(buf.byteLength / CH);
+  for (let i = 0; i < n; i++) Net.send({ t: 'mdl', id: sk.id, i, n, d: buf.slice(i * CH, (i + 1) * CH) });
+}
+const netModelParts = new Map();
+function onModelChunk(m) {
+  const n = +m.n, i = +m.i; if (!(n > 0 && n <= 64 && i >= 0 && i < n) || typeof m.id !== 'string') return;
+  const d = m.d instanceof ArrayBuffer ? m.d : m.d && m.d.buffer instanceof ArrayBuffer ? m.d.buffer.slice(m.d.byteOffset, m.d.byteOffset + m.d.byteLength) : null; if (!d) return;
+  const key = 'net_m_' + m.id.slice(0, 40);
+  let p = netModelParts.get(key); if (!p || p.n !== n) { p = { n, got: 0, parts: [] }; netModelParts.set(key, p); }
+  if (!p.parts[i]) { p.parts[i] = d; p.got++; }
+  if (p.got < n) return;
+  netModelParts.delete(key);
+  const total = p.parts.reduce((a, b) => a + b.byteLength, 0); if (total > MODEL_NET_MAX) return;
+  const out = new Uint8Array(total); let o = 0; for (const b of p.parts) { out.set(new Uint8Array(b), o); o += b.byteLength; }
+  try { checkModel(out.buffer); } catch (e) { return; }
+  modelBufs.set(key, out.buffer); modelTpl.delete(key);
+  const ps = Net.peerSkin; if (ps && ps.model && ps.id === key) { const r = state === 'playing' && mode && mode.remote; if (r) applySkin(r, ps); }
+}
+// lê o arquivo escolhido, confere e mede o modelo
+async function readModelFile(file) {
+  if (!file) throw new Error('Nenhum arquivo.');
+  if (file.size > MODEL_MAX) throw new Error('Modelo grande demais (máximo 30 MB).');
+  if (!/\.(glb|gltf|obj)$/i.test(file.name)) throw new Error('Use um arquivo .glb (recomendado), .gltf com tudo embutido ou .obj.');
+  const buf = await file.arrayBuffer();
+  checkModel(buf);
+  return buf;
+}
+
 // ---- tela de skins (com um boneco girando à direita do menu)
 let skinView = null, skinFor = 'me';
 function openSkins() {
@@ -3088,6 +3246,7 @@ function closeSkins() {
 function skinThumb(sk) {
   if (!sk) return `<i class="skt" style="background:linear-gradient(135deg, ${hex(TEAM_COLORS[0])} 50%, ${hex(TEAM_COLORS[1])} 50%)"></i>`;
   if (sk.img) return `<i class="skt" style="background-image:url(${sk.img})"></i>`;
+  if (sk.model) return `<i class="skt skrand">3D</i>`;
   if (!sk._thumb) sk._thumb = patternCanvas(sk, 64).toDataURL();
   return `<i class="skt" style="background-image:url(${sk._thumb})"></i>`;
 }
@@ -3097,7 +3256,8 @@ function renderSkins() {
   let h = `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button></div>`;
   h += `<div class="skgrid">${card('team', 'Cores do time', null)}${skinFor === 'bots' ? card('random', 'Sorteada', null, '<i class="skt skrand">?</i>') : ''}` +
     SKIN_PRESETS.map(s => card(s.id, s.name, s)).join('') + SKINS.list.map(s => card(s.id, s.name, s)).join('') + `</div>`;
-  h += `<button class="btn small" id="skUp">Enviar imagem (PNG ou JPG)</button><input type="file" id="skFile" accept="image/png,image/jpeg,image/webp" hidden><p class="note" id="skMsg" style="margin:0"></p>`;
+  h += `<div class="btnrow"><button class="btn small" id="skUp">Enviar imagem (PNG ou JPG)</button><button class="btn small" id="skMdl">Enviar modelo 3D</button></div>` +
+    `<input type="file" id="skFile" accept="image/png,image/jpeg,image/webp" hidden><input type="file" id="skModel" accept=".glb,.gltf,.obj" hidden><p class="note" id="skMsg" style="margin:0"></p>`;
   const sel = skinById(cur);
   if (sel && sel.img && SKINS.list.includes(sel)) {
     h += `<div class="formh">Sua imagem</div>
@@ -3106,6 +3266,16 @@ function renderSkins() {
       <div class="row"><label for="sk_rep">Repetir a imagem</label><select id="sk_rep">${[[1, 'Uma vez (grande)'], [2, '2 vezes'], [3, '3 vezes (pequena)']].map(([v, t]) => `<option value="${v}" ${sel.rep === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span></span></div>
       <div class="row"><label for="sk_gear">Cor do capacete</label><input type="color" id="sk_gear" value="${sel.gear}"><span></span></div>
       <button class="btn small" id="skDel">Apagar esta skin</button>`;
+  }
+  if (sel && sel.model && SKINS.list.includes(sel)) {
+    const mb = sel.size < 1048576 ? Math.max(1, Math.round(sel.size / 1024)) + ' KB' : (sel.size / 1048576).toFixed(1) + ' MB';
+    h += `<div class="formh">Seu modelo 3D</div>
+      <div class="row"><label for="sk_name">Nome</label><input type="text" id="sk_name" maxlength="24" value="${esc(sel.name)}"><span></span></div>
+      <div class="row"><label for="sk_rot">Virar o modelo (se ficar de costas)</label><input type="checkbox" id="sk_rot" ${sel.rot ? 'checked' : ''}><span></span></div>
+      <div class="row"><label for="sk_h">Tamanho</label><select id="sk_h">${[[0.9, 'Menor'], [1, 'Normal (1,80 m)'], [1.1, 'Maior']].map(([v, t]) => `<option value="${v}" ${sel.h === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span></span></div>
+      <div class="row"><label for="sk_gun">Mostrar a arma do jogo</label><input type="checkbox" id="sk_gun" ${sel.gun ? 'checked' : ''}><span></span></div>
+      <p class="note" style="margin:0" id="skInfo">${mb}${sel.tris ? ` · ${sel.tris.toLocaleString('pt-BR')} triângulos` : ''}${sel.anims ? ` · animações: ${esc(sel.anims)}` : sel.tris ? ' · sem animação (o modelo desliza e balança)' : ''}${sel.tris > 60000 ? '<br><b style="color:var(--danger)">Modelo pesado: pode derrubar o FPS com muitos bots.</b>' : ''}${sel.size > MODEL_NET_MAX ? '<br>Grande demais para mandar ao amigo no online (máximo 8 MB): ele vai ver o boneco normal.' : ''}</p>
+      <button class="btn small" id="skDel">Apagar este modelo</button>`;
   }
   h += `<p class="note" style="margin:4px 0 0">As ombreiras continuam na cor do time, para não confundir aliado e inimigo. No x1 online, o seu amigo vê a sua skin.</p>`;
   $('#skinBody').innerHTML = h;
@@ -3117,24 +3287,56 @@ function renderSkins() {
     try {
       const { img, avg } = await readSkinFile(f);
       const sk = { id: 'u' + Date.now().toString(36), name: f.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'Minha skin', img, avg, apply: 'all', rep: 1, gear: '#34373d' };
-      SKINS.list.push(sk); if (SKINS.list.length > 12) SKINS.list.shift();
+      SKINS.list.push(sk); if (SKINS.list.length > 12) dropSkin(SKINS.list[0]);
       SKINS[skinFor] = sk.id;
       if (!saveSkins()) { SKINS.list.pop(); SKINS[skinFor] = 'team'; saveSkins(); $('#skMsg').textContent = 'Sem espaço no navegador para mais imagens. Apague alguma skin enviada.'; return; }
       skinChanged(); renderSkins();
     } catch (err) { $('#skMsg').textContent = err.message; }
   };
+  $('#skMdl').onclick = () => $('#skModel').click();
+  $('#skModel').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    $('#skMsg').textContent = 'Carregando o modelo…';
+    try {
+      const buf = await readModelFile(f);
+      const sk = { id: 'm' + Date.now().toString(36), name: f.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'Meu modelo', model: true, rot: 0, h: 1, gun: true, size: buf.byteLength };
+      modelBufs.set(sk.id, buf);
+      try { await modelPut(sk.id, buf); } catch (err) { throw new Error('Sem espaço no navegador para guardar esse modelo.'); }
+      const T = await modelTemplate(sk);
+      sk.tris = T.tris; sk.anims = T.clips.map(c => c.name).slice(0, 6).join(', ');
+      SKINS.list.push(sk); if (SKINS.list.length > 12) dropSkin(SKINS.list[0]);
+      SKINS[skinFor] = sk.id; saveSkins(); skinChanged(); renderSkins();
+    } catch (err) { $('#skMsg').textContent = err.message; }
+  };
+  if (sel && sel.model && SKINS.list.includes(sel)) {
+    const upd = () => { sel.name = $('#sk_name').value.trim() || 'Meu modelo'; sel.rot = $('#sk_rot').checked ? 1 : 0; sel.h = +$('#sk_h').value; sel.gun = $('#sk_gun').checked; saveSkins(); skinChanged(); };
+    ['#sk_rot', '#sk_h', '#sk_gun'].forEach(q => $(q).addEventListener('change', upd));
+    $('#sk_name').addEventListener('change', () => { upd(); renderSkins(); });
+    $('#skDel').onclick = () => { dropSkin(sel); saveSkins(); skinChanged(); renderSkins(); };
+  }
   if (sel && sel.img && SKINS.list.includes(sel)) {
     const upd = () => { sel.name = $('#sk_name').value.trim() || 'Minha skin'; sel.apply = $('#sk_apply').value; sel.rep = +$('#sk_rep').value; sel.gear = $('#sk_gear').value;
       texCache.delete(sel.id); saveSkins(); skinChanged(); };
     ['#sk_apply', '#sk_rep', '#sk_gear'].forEach(q => $(q).addEventListener(q === '#sk_gear' ? 'input' : 'change', upd));
     $('#sk_name').addEventListener('change', () => { upd(); renderSkins(); });
-    $('#skDel').onclick = () => { SKINS.list.splice(SKINS.list.indexOf(sel), 1); texCache.delete(sel.id); if (SKINS.me === sel.id) SKINS.me = 'team'; if (SKINS.bots === sel.id) SKINS.bots = 'team'; saveSkins(); skinChanged(); renderSkins(); };
+    $('#skDel').onclick = () => { dropSkin(sel); saveSkins(); skinChanged(); renderSkins(); };
   }
   if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : SKINS.bots === 'random' ? SKIN_PRESETS[Math.floor(Math.random() * SKIN_PRESETS.length)] : botSkin());
 }
+function dropSkin(sk) {
+  const i = SKINS.list.indexOf(sk); if (i >= 0) SKINS.list.splice(i, 1);
+  texCache.delete(sk.id); if (sk.model) { modelDel(sk.id); modelBufs.delete(sk.id); modelTpl.delete(sk.id); }
+  if (SKINS.me === sk.id) SKINS.me = 'team'; if (SKINS.bots === sk.id) SKINS.bots = 'team';
+}
 function skinChanged() {
   if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : botSkin());
-  if (Net.open) Net.send({ t: 'skin', skin: skinPayload(mySkin()) });
+  sendMySkin('skin');
+}
+// manda a skin (e o arquivo do modelo, se for um) para o amigo
+async function sendMySkin(t) {
+  if (!Net.open) return;
+  const sk = mySkin(); Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk) } : { t: 'skin', skin: skinPayload(sk) });
+  if (sk && sk.model) { if (!modelBufs.has(sk.id)) { const b = await modelGet(sk.id).catch(() => null); if (b) modelBufs.set(sk.id, b); } sendModelTo(sk); }
 }
 function updateSkinView(dt) {
   const v = skinView, c = v.c; v.spin += dt * 0.6;
@@ -3826,7 +4028,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, applySkin, get SKINS() { return SKINS; }, openSkins, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
