@@ -118,6 +118,7 @@ body.kc #death, body.kc #hp, body.kc #ammo, body.kc #slots, body.kc #speed, body
 #killcam b { color: var(--danger); letter-spacing: 0.12em; margin-right: 8px; }
 #killcam.slow b::after { content: ' · câmera lenta'; color: var(--muted); letter-spacing: 0; font-weight: 400; }
 #end .center { max-height: 92vh; overflow: auto; }
+#uw { position: fixed; inset: 0; pointer-events: none; background: rgb(25 110 170 / 0.5); opacity: 0; }
 .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; }
 .statgrid div { background: rgb(255 255 255 / 0.05); border: 1px solid var(--line, rgb(255 255 255 / 0.1)); padding: 8px; text-align: center; }
 .skgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
@@ -201,6 +202,7 @@ body.touch #death { font-size: 15px; }
   <canvas id="ch" width="220" height="220"></canvas>
   <div id="scope"></div>
   <div id="hurt"></div>
+  <div id="uw"></div>
   <div id="hurtArrow"></div>
   <div class="box" id="fps"></div>
   <div class="box" id="top"></div>
@@ -972,11 +974,115 @@ function buildPatio() {
   finishSmall('Pátio', 17, 17, [[0, 15.5], [-4, 15.5], [4, 15.5], [-8, 15.5], [8, 15.5]], [[0, -15.5], [4, -15.5], [-4, -15.5], [8, -15.5], [-8, -15.5]]);
 }
 
+// fy_pool_day (de memória, inspirado no mapa do CS 1.6): piscina no meio, uma casa com varanda em cada ponta
+// (spawns), banheiros dos dois lados, espreguiçadeiras, guarda-sóis e coqueiros.
+const POOL_C = { tile: 0xcfc7b4, tile2: 0xbdb49f, wall: 0xf2efe6, trim: 0x2f6fb0, pool: 0x5fb6e0, poolDeep: 0x3d8fc4, roof: 0xa0522d,
+  wc: 0xdfe8ee, wcTile: 0x9fc3d6, porcelain: 0xfafafa, wood: 0x9b6a3c, green: 0x3f8f3a, trunk: 0x8b6a45, red: 0xc8463c, blue: 0x3c6fc8 };
+function buildPoolDay() {
+  newWorld();
+  const K = POOL_C, hx = 20, hz = 30;
+  // chão com o buraco da piscina (x -7..7, z -10..10)
+  box(0, -20, hx * 2, 1, 20, K.tile, -1); box(0, 20, hx * 2, 1, 20, K.tile, -1);
+  box(-13.5, 0, 13, 1, 20, K.tile, -1); box(13.5, 0, 13, 1, 20, K.tile, -1);
+  for (let x = -18; x <= 18; x += 4) for (let z = -28; z <= 28; z += 4) if (((x + z) / 4) % 2 === 0 && !(Math.abs(x) < 8 && Math.abs(z) < 11)) decal(x, z, 4, 4, K.tile2, 0.008);
+  // paredes de fora
+  const H = 7;
+  box(0, hz + 0.5, hx * 2 + 2, H, 1, K.wall); box(0, -hz - 0.5, hx * 2 + 2, H, 1, K.wall);
+  box(hx + 0.5, 0, 1, H, hz * 2, K.wall); box(-hx - 0.5, 0, 1, H, hz * 2, K.wall);
+  // piscina: fundo, paredes de azulejo, borda branca, escadas nos cantos e trampolins
+  box(0, 0, 14, 1, 20, K.poolDeep, -3.6);
+  box(-6.75, 0, 0.5, 2.6, 20, K.pool, -2.6); box(6.75, 0, 0.5, 2.6, 20, K.pool, -2.6);
+  box(0, -9.75, 14, 2.6, 0.5, K.pool, -2.6); box(0, 9.75, 14, 2.6, 0.5, K.pool, -2.6);
+  decal(0, -10.25, 15, 0.5, K.porcelain, 0.012); decal(0, 10.25, 15, 0.5, K.porcelain, 0.012);
+  decal(-7.25, 0, 0.5, 21, K.porcelain, 0.012); decal(7.25, 0, 0.5, 21, K.porcelain, 0.012);
+  for (let z = -8; z <= 8; z += 4) decal(0, z, 0.3, 2.2, K.trim, -2.59);    // faixas no fundo
+  for (const s of [1, -1]) for (let i = 0; i < 6; i++) {
+    const top = -2.6 + 0.433 * (i + 1);
+    box(4.6 * s, s * (9.1 - (5 - i) * 0.8), 2.4, top + 2.6, 0.8, K.porcelain, -2.6);
+  }
+  // pé da escada e para onde subir
+  const exits = [{ p: new THREE.Vector3(4.6, 0, 4.2), d: new THREE.Vector3(0, 0, 1) }, { p: new THREE.Vector3(-4.6, 0, -4.2), d: new THREE.Vector3(0, 0, -1) }];
+  for (const s of [1, -1]) {
+    box(0, s * 11.4, 0.9, 0.7, 1.2, K.trim, 0);                    // base do trampolim
+    box(0, s * 10.1, 0.8, 0.12, 2.8, K.porcelain, 0.7, true);       // prancha (dá para subir)
+  }
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(13, 19), new THREE.MeshLambertMaterial({ color: 0x47b4ea, transparent: true, opacity: 0.55, depthWrite: false }));
+  water.rotation.x = -Math.PI / 2; water.position.set(0, -0.35, 0); world.add(water);
+  // casas com varanda nas pontas (spawns)
+  for (const s of [1, -1]) {
+    const col = s > 0 ? C.sideA : C.sideB, z0 = s * 26;
+    box(0, z0, 25, 0.4, 8, K.roof, 3.6, false);
+    for (const x of [-11.8, -4, 4, 11.8]) pillar(x, s * 22.5, 3.6, K.wall);
+    box(-13, s * 26.3, 1, 3.6, 7.4, K.wall); box(13, s * 26.3, 1, 3.6, 7.4, K.wall);
+    decal(0, s * 27.5, 22, 4, col, 0.012);
+    box(-7, s * 21, 5, 0.9, 0.8, K.green); box(7, s * 21, 5, 0.9, 0.8, K.green);   // floreiras na frente
+    box(-16.5, s * 25, 2.4, 1.2, 2.4, C.crate); box(16.5, s * 23.5, 1.2, 1.2, 1.2, C.crateDark);
+    label(s > 0 ? 'TR' : 'CT', 0, 4.6, s * 22.2, 0.9);
+  }
+  // banheiros dos dois lados, com porta, cabines, privadas, pias e espelho
+  for (const s of [1, -1]) {
+    const xi = s * 14, xm = s * 17;
+    box(xi, -3.7, 0.4, 3.2, 4.6, K.wc); box(xi, 3.7, 0.4, 3.2, 4.6, K.wc); box(xi, 0, 0.4, 0.8, 2.8, K.wc, 2.4);
+    box(xm, 6.2, 6, 3.2, 0.4, K.wc); box(xm, -6.2, 6, 3.2, 0.4, K.wc);
+    box(xm, 0, 6.4, 0.3, 12.8, 0xc9d2d8, 3.2, false);
+    for (let x = s * 14.5; Math.abs(x) < 20; x += s * 1.5) for (let z = -5.5; z < 6; z += 1.5) if ((Math.round(Math.abs(x) / 1.5) + Math.round(z / 1.5)) % 2 === 0) decal(x, z, 1.5, 1.5, K.wcTile, 0.012);
+    for (const z of [-4.6, -1.6, 1.6, 4.6]) box(s * 18.6, z, 2.8, 2.2, 0.15, K.wcTile);
+    for (const z of [-3.1, 3.1, 0]) {
+      if (z === 0) continue;
+      box(s * 19.3, z, 0.7, 0.45, 0.55, K.porcelain); box(s * 19.8, z, 0.3, 0.9, 0.7, K.porcelain);
+    }
+    box(s * 19.3, 0, 0.7, 0.45, 0.55, K.porcelain); box(s * 19.8, 0, 0.3, 0.9, 0.7, K.porcelain);
+    for (const z of [-4.4, 4.4]) { box(s * 14.55, z, 0.7, 0.9, 1.0, K.porcelain); mesh(BOX, 0x9fd6f0, 0.05, 0.9, 1.4, s * 14.23, 1.7, z, world); }
+    label('WC', s * 13.6, 3.8, 0, 0.7);
+  }
+  // espreguiçadeiras, guarda-sóis, coqueiros e coberturas
+  for (const s of [1, -1]) {
+    for (const z of [-6, -2, 2, 6]) box(s * 9.4, z, 0.9, 0.45, 2.1, K.wood);
+    for (const z of [-4, 4]) {
+      const pole = mesh(CYL, 0xdddddd, 0.08, 2.6, 0.08, s * 10.6, 1.3, z, world); pole.castShadow = true;
+      const top = mesh(CYL, z > 0 ? K.red : K.blue, 2.6, 0.18, 2.6, s * 10.6, 2.6, z, world); top.castShadow = true;
+      colliders.push({ min: new THREE.Vector3(s * 10.6 - 0.1, 0, z - 0.1), max: new THREE.Vector3(s * 10.6 + 0.1, 2.6, z + 0.1) });
+    }
+    for (const z of [-16, 16]) {
+      const x = s * 17.5;
+      const tr = mesh(CYL, K.trunk, 0.4, 5.5, 0.4, x, 2.75, z, world); tr.castShadow = true; worldMeshes.push(tr);
+      colliders.push({ min: new THREE.Vector3(x - 0.25, 0, z - 0.25), max: new THREE.Vector3(x + 0.25, 5.5, z + 0.25) });
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, l = mesh(BOX, K.green, 0.5, 0.08, 2.4, x + Math.sin(a) * 1.0, 5.4, z + Math.cos(a) * 1.0, world); l.rotation.y = a; l.rotation.x = 0.35; l.castShadow = true; }
+    }
+    box(s * 10, 14, 1.2, 1.2, 1.2, C.crate); box(-s * 10, -14, 1.2, 1.2, 1.2, C.crate);
+    box(s * 4, 15.5, 2.4, 1.1, 0.6, K.wc); box(-s * 4, -15.5, 2.4, 1.1, 0.6, K.wc);
+  }
+  const ta = teamLine([[0, 25], [-4, 25], [4, 25], [-8, 25], [8, 25]]), tb = teamLine([[0, -25], [4, -25], [-4, -25], [8, -25], [-8, -25]]);
+  const inPoolXZ = p => Math.abs(p.x) < 7.2 && Math.abs(p.z) < 10.2;
+  mapInfo = { name: 'fy_pool_day', spawns: ta.concat(tb), teamSpawns: [ta, tb], playerSpawn: ta[0], targets: [],
+    waypoints: gridWaypoints(-18, 18, -27, 27, 3).filter(p => !inPoolXZ(p)),
+    pool: { x: 0, z: 0, hx: 6.5, hz: 9.5, y: -0.35, exits } };
+  shadowSize(34);
+}
+// nadar: dentro da piscina com a água acima da cintura
+const inWater = p => { const P = mapInfo && mapInfo.pool; return !!P && Math.abs(p.pos.x - P.x) < P.hx && Math.abs(p.pos.z - P.z) < P.hz && p.pos.y < P.y - 0.9; };
+function swim(p, wish, wishS, input, dt) {
+  const P = mapInfo.pool;
+  if (!p.wet) { p.wet = true; if (p.vel.y < -4) play('land', 0.6); }
+  const up = input && isHeld('jump'), down = input && isHeld('crouch');
+  const ty = up ? 3.2 : down ? -3 : 0.8;
+  p.vel.y += clamp(ty - p.vel.y, -12 * dt, 12 * dt);
+  // perto da superfície, pular sai da piscina (como subir pela borda)
+  if (up && p.pos.y > P.y - 1.75) p.vel.y = 8.6;
+  const d = Math.exp(-dt * 2.5); p.vel.x *= d; p.vel.z *= d;
+  accel(p.vel, wish, wishS * 0.55, 6 * wishS * dt);
+  moveBody(p, p.vel.x * dt, p.vel.y * dt, p.vel.z * dt);
+  if (p.vel.y < 4 && p.pos.y > P.y - 1.3 && inWaterXZ(p)) { p.pos.y = P.y - 1.3; p.vel.y = Math.min(p.vel.y, 0); }
+  p.grounded = false;
+}
+const inWaterXZ = p => { const P = mapInfo.pool; return Math.abs(p.pos.x - P.x) < P.hx && Math.abs(p.pos.z - P.z) < P.hz; };
+
 const MAPS = [
   { id: 'duelo', name: 'Duelo', build: buildDuelo },
   { id: 'aim', name: 'Aim', build: buildAim },
   { id: 'patio', name: 'Pátio', build: buildPatio },
   { id: 'arena', name: 'Arena (grande)', build: () => buildArena() },
+  { id: 'pool', name: 'fy_pool_day (piscina)', build: buildPoolDay },
 ];
 
 function buildTestRange() {
@@ -1719,6 +1825,8 @@ function updatePlayer(dt) {
   // slide no chão: correndo e apertando agachar (sem impulso, só mantém o embalo)
   if (MV.slide && p.grounded && input && isDown('crouch') && hs > RUN * SPEED_MULT * 0.85 && now - (p.lastSlide || -9) > 0.6) startSlide(p, false);
   if (p.slideT > 0 && (!p.crouching || hs < 2.5)) p.slideT = 0;
+  if (inWater(p)) { swim(p, wish, wishS, input, dt); return; }
+  p.wet = false;
   if (p.grounded) {
     const wantJump = now - pv.jumpQ < 0.12 || (S.move.autoHop && input && isHeld('jump'));
     if (wantJump) {
@@ -2025,6 +2133,12 @@ function updateBot(c, dt) {
     }
     if (desired.lengthSq() > 0.01) desired = avoid(c, desired.normalize());
   }
+  // caiu na piscina: vai até a escada mais perto
+  if (mapInfo.pool && (c.pos.y < -0.4 || (Math.abs(c.pos.x - mapInfo.pool.x) < mapInfo.pool.hx && Math.abs(c.pos.z - mapInfo.pool.z) < mapInfo.pool.hz))) {
+    const ex = mapInfo.pool.exits.reduce((a, e) => e.p.distanceToSquared(c.pos) < a.p.distanceToSquared(c.pos) ? e : a);
+    const onStair = Math.abs(c.pos.x - ex.p.x) < 0.8 && (c.pos.z - ex.p.z) * ex.d.z > -0.4;
+    if (onStair) desired.copy(ex.d); else desired.set(ex.p.x - c.pos.x, 0, ex.p.z - c.pos.z).normalize();
+  }
   const spd = cfg.speed * w.speed * SPEED_MULT, a = 30 * dt;
   const tx = desired.x * spd, tz = desired.z * spd;
   c.vel.x += clamp(tx - c.vel.x, -a, a); c.vel.z += clamp(tz - c.vel.z, -a, a);
@@ -2037,7 +2151,11 @@ function updateBot(c, dt) {
   if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; play('step', 0.9, c.pos); } }
 }
 function pickWp(b) { const wps = mapInfo.waypoints; if (!wps.length) { b.hasWp = false; return; } b.wp.copy(wps[Math.floor(Math.random() * wps.length)]); b.hasWp = true; }
-function clear(c, dir) { const p = c.pos.clone().addScaledVector(dir, 1.0); return !collides(p, 1.6); }
+function clear(c, dir) {
+  const p = c.pos.clone().addScaledVector(dir, 1.0), P = mapInfo.pool;
+  if (P && c.pos.y > -0.4 && Math.abs(p.x - P.x) < P.hx + 0.6 && Math.abs(p.z - P.z) < P.hz + 0.6) return false; // não pula na piscina
+  return !collides(p, 1.6);
+}
 function avoid(c, dir) {
   if (clear(c, dir)) return dir;
   for (const ang of [45, -45, 90, -90, 135, -135]) { const d = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ang * DEG); if (clear(c, d)) return d; }
@@ -3487,6 +3605,8 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   HID('speed', !showSp);
   if (showSp) { T('speed', Math.hypot(player.vel.x, player.vel.z).toFixed(1) + ' m/s'); const sl = player.slideT > 0; if (H('speed')._sl !== sl) { H('speed')._sl = sl; H('speed').classList.toggle('slide', sl); } }
   if (bannerUntil && performance.now() > bannerUntil) { H('banner').style.opacity = 0; bannerUntil = 0; }
+  const P = mapInfo && mapInfo.pool, under = !!P && camera.position.y < P.y && Math.abs(camera.position.x - P.x) < P.hx && Math.abs(camera.position.z - P.z) < P.hz;
+  ST('uw', 'opacity', under ? '1' : '0');
   // dano recebido
   hurtT = Math.max(0, hurtT - dt * 1.2);
   ST('hurt', 'opacity', (hurtT * 0.8).toFixed(2));
