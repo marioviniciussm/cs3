@@ -85,6 +85,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 #feed { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); top: 64px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-family: var(--body); font-weight: 600; }
 #feed div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 4px 10px; white-space: nowrap; }
 #fps { left: max(16px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); font-size: 13px; color: var(--muted); padding: 4px 8px; white-space: nowrap; }
+#netRoster { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#netRoster .team { display: flex; flex-direction: column; gap: 4px; background: rgb(255 255 255 / 0.04); padding: 8px; border-radius: 6px; min-height: 60px; }
+#netRoster .pl { font: inherit; text-align: left; padding: 5px 8px; border-radius: 4px; border: 1px solid rgb(255 255 255 / 0.12); background: rgb(0 0 0 / 0.25); color: inherit; cursor: pointer; }
+#netRoster .pl:disabled { cursor: default; opacity: 1; }
+#netRoster .pl:not(:disabled):hover { border-color: var(--accent); }
 #chat { position: absolute; width: min(440px, 62vw); display: flex; flex-direction: column; gap: 3px; font-family: var(--body); font-size: 15px; pointer-events: none; }
 #chatLog { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
 #chatLog div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 3px 9px; max-width: 100%; overflow-wrap: anywhere; }
@@ -243,7 +248,7 @@ body.touch #death { font-size: 15px; }
     </div>
     <div class="stack" id="mainButtons">
       <button class="btn primary" id="bX1">X1 contra bots (personalizado)</button>
-      <button class="btn" id="bNet">X1 online com um amigo</button>
+      <button class="btn" id="bNet">Online com amigos (até 8)</button>
       <button class="btn" id="bDm">Mata-mata na Arena</button>
       <button class="btn" id="bAim">Treino de mira</button>
       <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
@@ -277,8 +282,8 @@ body.touch #death { font-size: 15px; }
       <button class="btn" id="bX1Back">Voltar</button>
     </div>
     <div class="panel stack" id="netSetup" hidden style="gap:8px">
-      <h2>X1 online</h2>
-      <p class="note">Um de vocês cria a sala e passa o código; o outro entra com o código. Quem cria a sala escolhe as regras. A conexão é direta entre os dois navegadores.</p>
+      <h2>Online</h2>
+      <p class="note">Um de vocês cria a sala e passa o código; os outros entram com o código (até 8 jogadores, em dois times). Quem cria a sala escolhe as regras e monta os times.</p>
       <div class="row"><label for="netName">Seu nome</label><input type="text" id="netName" maxlength="16"><span></span></div>
       <div class="stack" id="netChoose">
         <button class="btn primary" id="bHost">Criar sala</button>
@@ -286,6 +291,7 @@ body.touch #death { font-size: 15px; }
         <button class="btn" id="bJoin">Entrar na sala</button>
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
+      <div id="netRoster" hidden></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
       <button class="btn" id="bNetBack">Voltar</button>
@@ -1604,7 +1610,7 @@ function animateModel(c, dt) {
 function damage(victim, amount, attacker, weapon, zone, dir) {
   if (!victim.alive) return false;
   if (attacker && attacker !== victim && mode && mode.teams && attacker.team === victim.team) return false;
-  if (victim.remote) { if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }); victim.flash = 1; return false; }
+  if (victim.remote) { if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }, victim.netId); victim.flash = 1; return false; }
   if (!victim.invuln) victim.hp = Math.max(0, victim.hp - amount);
   victim.flash = 1; victim.lastHurt = now;
   if (attacker && attacker !== victim) victim.lastAttacker = attacker;
@@ -2375,26 +2381,44 @@ const fmtTime = s => { const t = Math.ceil(Math.max(0, s)); return `${String(Mat
 let bannerUntil = 0;
 function banner(text, sub = '', dur = 2.2) { const b = $('#banner'); b.innerHTML = esc(text) + (sub ? `<small>${esc(sub)}</small>` : ''); b.style.opacity = 1; bannerUntil = performance.now() + dur * 1000; }
 
-function startX1(cfgIn, net) {
+// ponto de nascimento idx do time; com mais gente que pontos, os extras nascem um pouco ao lado
+function teamSpawn(team, idx) {
+  const L = mapInfo.teamSpawns[team], base = L[idx % L.length], k = Math.floor(idx / L.length);
+  if (!k) return base;
+  for (const off of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]]) {
+    const p = base.pos.clone().add(new THREE.Vector3(off[0] * 1.1 * k, 0, off[1] * 1.1 * k));
+    if (!collides(p, 1.8, 0.4)) return { pos: p, yaw: base.yaw };
+  }
+  return base;
+}
+function startX1(cfgIn, net, ids) {
   initAudio();
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
   mapDef.build(); clearCombatants(); feedEl.innerHTML = '';
   applyPhysics(cfg);
-  const myTeam = net && net.role === 'guest' ? 1 : 0;
+  // online: quem joga esta partida (quem entrou depois espera a próxima)
+  const lineup = net ? net.roster.filter(p => !ids || ids.includes(p.id)) : null;
+  const meP = net && (net.me() || { id: net.myId, team: 0 });
+  const myTeam = net ? meP.team : 0;
+  const tIdx = id => lineup.filter(p => p.team === lineup.find(q => q.id === id).team).findIndex(p => p.id === id);
   const weapons = cfgWeapons(cfg);
   mode = makeX1Mode(cfg, net, weapons, myTeam);
   mode.pickup = (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
-  const ts = mapInfo.teamSpawns;
-  setupPlayer(ts[myTeam][0], TEAM_COLORS[myTeam], net ? net.myName : 'Você');
-  player.team = myTeam; player.maxHp = player.hp = cfg.hp; player.spawnIdx = 0;
+  const ts = mapInfo.teamSpawns, myIdx = net ? Math.max(0, tIdx(meP.id)) : 0;
+  setupPlayer(teamSpawn(myTeam, myIdx), TEAM_COLORS[myTeam], net ? net.myName : 'Você');
+  player.team = myTeam; player.maxHp = player.hp = cfg.hp; player.spawnIdx = myIdx;
   pw.infinite = !!cfg.infinite;
   if (net) {
-    const r = createCombatant(net.peerName, TEAM_COLORS[1 - myTeam], ts[1 - myTeam][0], false);
-    Object.assign(r, { remote: true, team: 1 - myTeam, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: 0, wi: weapons[0] });
-    r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
-    setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, Net.peerSkin || null);
-    mode.remote = r;
+    mode.remotes = new Map();
+    for (const p of lineup) {
+      if (p.id === net.myId) continue;
+      const i = tIdx(p.id), r = createCombatant(p.name, shade(TEAM_COLORS[p.team], i), teamSpawn(p.team, i), false);
+      Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: i, wi: weapons[0] });
+      r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+      setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, p.skin || null);
+      mode.remotes.set(p.id, r);
+    }
   } else {
     const d = DIFF[cfg.diff] || DIFF[1];
     const guns = weapons.filter(i => !WEAPONS[i].melee);
@@ -2420,11 +2444,15 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
   const host = !net || net.role === 'host';
   const enemyBots = () => combatants.filter(c => c.team !== myTeam);
   return {
-    type: 'x1', cfg, net, host, rounds, teams: true, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remote: null,
+    type: 'x1', cfg, net, host, rounds, teams: true, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remotes: null,
     stats: { shots: 0, hits: 0, hsKills: 0 }, score: [0, 0], round: 0, live: false, nextRoundAt: -1, finishAt: -1, finishTeam: null, timeLeft: rounds ? cfg.roundTime : cfg.time * 60, sendAcc: 0,
     enemies: (a, b) => a.team !== b.team,
     teamName(t) {
-      if (net) return t === myTeam ? 'Você' : net.peerName;
+      if (net) {
+        const on = combatants.filter(c => c.team === t);
+        if (t === myTeam) return on.length > 1 ? 'Seu time' : 'Você';
+        return on.length === 1 ? on[0].name : 'Inimigos';
+      }
       if (t === myTeam) return cfg.allies ? 'Seu time' : 'Você';
       const e = enemyBots(); return e.length === 1 ? e[0].name : 'Inimigos';
     },
@@ -2441,7 +2469,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (rounds) {
         this.round++; this.timeLeft = cfg.roundTime;
         const keep = this.pickup && !first && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
-        if (!first || !net) for (const c of combatants) if (!c.remote) respawn(c, mapInfo.teamSpawns[c.team][c.spawnIdx % mapInfo.teamSpawns[c.team].length]);
+        if (!first || !net) for (const c of combatants) if (!c.remote) respawn(c, teamSpawn(c.team, c.spawnIdx));
         if (this.pickup && !first) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
         banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
         if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun });
@@ -2452,7 +2480,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     onRoundMsg(m) { // convidado: o anfitrião começou um round
       this.round = m.n; this.score = m.s; this.timeLeft = m.tl; this.live = true; if (m.g != null) this.roundGun = m.g;
       const keep = this.pickup && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
-      respawn(player, mapInfo.teamSpawns[myTeam][0]);
+      respawn(player, teamSpawn(myTeam, player.spawnIdx));
       if (this.pickup) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
       banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
@@ -2460,7 +2488,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       this.live = false;
       if (winner != null) this.score[winner]++;
       const won = winner === myTeam;
-      banner(winner == null ? 'Round empatado' : won ? (net || !cfg.allies ? 'Você venceu o round' : 'Seu time venceu o round') : `${this.teamName(winner)} venceu o round`,
+      banner(winner == null ? 'Round empatado' : won ? (this.teamName(myTeam) === 'Você' ? 'Você venceu o round' : 'Seu time venceu o round') : `${this.teamName(winner)} venceu o round`,
         `${this.score[myTeam]} x ${this.score[1 - myTeam]}`, 2.6);
       play(won ? 'kill' : 'round', 0.7);
       if (!host) return;
@@ -2475,7 +2503,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     onDeath(v, a) {
       if (this.over) return;
-      if (net && v === player) { const d = v.lastDeath || {}; Net.send({ t: 'dead', by: a && a.remote ? 1 : 0, w: d.weapon, h: d.head ? 1 : 0 }); }
+      if (net && v === player) { const d = v.lastDeath || {}; Net.send({ t: 'dead', by: a ? (a === player ? '' : a.netId || '') : '', w: d.weapon, h: d.head ? 1 : 0 }); }
       if (!rounds) {
         if (!v.remote) v.respawnAt = now + 2;
         if (cfg.duel === 'random' && v === player) this.roundGun = randomGun(cfg);
@@ -2756,7 +2784,7 @@ const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
 const kd = (k, d) => (k / Math.max(1, d)).toFixed(2);
 function recordX1(team) {
   const m = mode, my = m.myTeam, st = m.stats || {};
-  const opp = m.net ? m.net.peerName || 'Amigo' : `${m.cfg.enemies} bot${m.cfg.enemies > 1 ? 's' : ''} ${DIFF_NAMES[m.cfg.diff] || ''}`.trim();
+  const opp = m.net ? combatants.filter(c => c.remote && c.team !== m.myTeam).map(c => c.name).join(', ') || 'Amigo' : `${m.cfg.enemies} bot${m.cfg.enemies > 1 ? 's' : ''} ${DIFF_NAMES[m.cfg.diff] || ''}`.trim();
   const rec = { at: Date.now(), opp, online: !!m.net, map: mapName(m.cfg), fmt: m.rounds ? 'rounds' : 'dm', duel: m.cfg.duel || 'normal',
     sc: [m.score[my], m.score[1 - my]], res: team == null ? 'e' : team === my ? 'w' : 'l', k: player.kills, d: player.deaths, hs: st.hsKills || 0, shots: st.shots || 0, hits: st.hits || 0 };
   const h = loadHist(); h.matches.unshift(rec); h.matches.length = Math.min(h.matches.length, 200);
@@ -2785,8 +2813,18 @@ function netState() {
   return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp) };
 }
 const a2v = a => new THREE.Vector3(a[0], a[1], a[2]);
-function onRemoteState(m) {
-  const r = mode.remote; if (!r) return;
+const remoteOf = id => (id && mode && mode.remotes && mode.remotes.get(id)) || null;
+function removeRemote(r) {
+  mode.remotes.delete(r.netId); r.alive = false;
+  const i = combatants.indexOf(r); if (i >= 0) combatants.splice(i, 1); if (r.group.parent) r.group.parent.remove(r.group);
+  const sp = sprays.get('r_' + r.netId); if (sp) { world.remove(sp); sprays.delete('r_' + r.netId); }
+  if (!mode.over && !mode.remotes.size) {
+    mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
+    $('#endWinner').innerHTML = '<b>Todos os outros jogadores saíram</b>';
+    fillScore($('#endBody')); $('#eAgain').disabled = true; $('#end').hidden = false;
+  } else if (mode.host && mode.rounds && mode.live) mode.onDeath(r, null);
+}
+function onRemoteState(r, m) {
   r.net.tp.copy(a2v(m.p)); r.net.tv.copy(a2v(m.v)); r.net.ty = m.y; r.pitch = m.x; r.crouch = m.c; r.net.at = performance.now();
   if (!r.net.has) { r.pos.copy(r.net.tp); r.yaw = m.y; r.net.has = true; }
   if (m.w !== r.wi && WEAPONS[m.w]) { r.wi = m.w; setGunShape(r, WEAPONS[m.w]); }
@@ -2807,7 +2845,10 @@ function updateOtherSounds(dt) {
   }
 }
 function updateRemote(dt) {
-  const r = mode && mode.remote; if (!r || !r.net.has || !r.alive) return;
+  if (mode && mode.remotes) for (const r of mode.remotes.values()) updateOneRemote(r, dt);
+}
+function updateOneRemote(r, dt) {
+  if (!r.net.has || !r.alive) return;
   const age = Math.min(0.12, (performance.now() - r.net.at) / 1000);
   const tgt = r.net.tp.clone().addScaledVector(r.net.tv, age);
   if (r.pos.distanceTo(tgt) > 3) r.pos.copy(tgt); else r.pos.lerp(tgt, Math.min(1, dt * 18));
@@ -2817,37 +2858,48 @@ function updateRemote(dt) {
 }
 function onNetMsg(m) {
   if (!m || typeof m !== 'object') return;
-  const inGame = state === 'playing' && mode && mode.net;
+  const inGame = state === 'playing' && mode && mode.net, r = inGame ? remoteOf(m.f) : null;
   switch (m.t) {
-    case 'hello':
-      Net.peerName = String(m.name || 'Amigo').slice(0, 16); Net.peerSkin = cleanSkin(m.skin);
-      if (m.v !== VERSION) Net.versionWarn = true;
-      renderNetLobby(); if (Net.role === 'host') Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) });
-      break;
+    case 'welcome': Net.myId = String(m.id || ''); Net.inMatch = !!m.inMatch; renderNetLobby(); break;
+    case 'full': Net.setStatus('A sala está cheia (máximo ' + NET_MAX + ' jogadores).'); break;
+    case 'roster':
+      if (!Array.isArray(m.ro)) break;
+      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, skin: cleanSkin(p.skin) }));
+      renderNetLobby(); break;
+    case 'resend': sendMySkin('skin'); break;
+    case 'gone': {
+      const g = remoteOf(m.id); if (!inGame || !g) break;
+      addChat('Sala', null, `${g.name} saiu.`, true);
+      removeRemote(g); break;
+    }
+    case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
-    case 'chat': if (inGame) addChat(Net.peerName, mode.remote && mode.remote.color, cleanChat(m.m)); break;
-    case 'spray': if (inGame) onSprayMsg(m); break;
-    case 'skin': Net.peerSkin = cleanSkin(m.skin); if (inGame && mode.remote) applySkin(mode.remote, Net.peerSkin); break;
-    case 'ping': Net.send({ t: 'pong', ts: m.ts }); break;
-    case 'pong': Net.ping = Math.round(performance.now() - m.ts); break;
+    case 'chat': { const p = Net.byId(m.f); if (inGame && p) addChat(p.name, r ? r.color : TEAM_COLORS[p.team], cleanChat(m.m)); break; }
+    case 'spray': if (inGame && Net.byId(m.f)) onSprayMsg(m); break;
+    case 'skin': { const p = Net.byId(m.f); if (!p) break; p.skin = cleanSkin(m.skin); if (r) applySkin(r, p.skin); break; }
     case 'cfg': if (Net.role === 'guest') { Net.hostCfg = m.cfg; renderNetLobby(); } break;
-    case 'start': if (Net.role === 'guest') startX1(m.cfg, Net); break;
-    case 'lobby': if (inGame) { goMenu(); openNetPanel(); } break;
-    case 's': if (inGame) onRemoteState(m); break;
-    case 'shot': if (inGame && mode.remote) {
-      const r = mode.remote, w = WEAPONS[m.w]; if (!w) break;
+    case 'start':
+      if (Net.role !== 'guest') break;
+      if (Array.isArray(m.ro)) for (const q of m.ro) { const p = Net.byId(q.id); if (p) p.team = q.team ? 1 : 0; }
+      if (!Net.me() || !m.ro.some(q => q.id === Net.myId)) { Net.inMatch = true; renderNetLobby(); break; }   // entrou com a partida já rolando
+      Net.inMatch = true; startX1(m.cfg, Net, m.ro.map(q => q.id)); break;
+    case 'lobby': Net.inMatch = false; if (inGame) { goMenu(); openNetPanel(); } else renderNetLobby(); break;
+    case 's': if (r) onRemoteState(r, m); break;
+    case 'shot': if (r) {
+      const w = WEAPONS[m.w]; if (!w) break;
       r.recoilAnim = 1; play(w.melee ? 'knife' : w.snd, 1, r.pos);
       if (m.a && m.b) tracer(a2v(m.a), a2v(m.b));
     } break;
-    case 'hit': if (inGame && !mode.over && player.alive) damage(player, +m.d || 0, mode.remote, String(m.w || ''), m.z, null); break;
-    case 'dead': if (inGame && mode.remote && mode.remote.alive) {
-      const r = mode.remote, killer = m.by ? player : null;
-      r.deathVel = r.vel.clone(); r.deathDir = killer ? r.pos.clone().sub(player.pos) : null; r.deathZone = m.h ? 'head' : 'body';
+    case 'hit': if (r && !mode.over && player.alive) damage(player, +m.d || 0, r, String(m.w || ''), m.z, null); break;
+    case 'dead': if (r && r.alive) {
+      const killer = m.by && m.by === Net.myId ? player : remoteOf(m.by) || null;
+      r.deathVel = r.vel.clone(); r.deathDir = killer ? r.pos.clone().sub(killer.pos) : null; r.deathZone = m.h ? 'head' : 'body';
       r.alive = false; r.deaths++; r.deathT = 0; r.vel.set(0, 0, 0);
-      if (killer) { killer.kills++; hitT = 0.3; hitKill = true; play('kill', 0.9); if (m.h && mode.stats) mode.stats.hsKills++; }
+      if (killer) killer.kills++;
+      if (killer === player) { hitT = 0.3; hitKill = true; play('kill', 0.9); if (m.h && mode.stats) mode.stats.hsKills++; }
       r.lastDeath = { attacker: killer, weapon: m.w, head: !!m.h };
-      addFeed(killer, r, m.w || '', !!m.h);
+      addFeed(killer, r, String(m.w || ''), !!m.h);
       mode.onDeath(r, killer);
     } break;
     case 'round': if (inGame && !mode.host) mode.onRoundMsg(m); break;
@@ -2867,44 +2919,129 @@ function loadPeerJS() {
     document.head.appendChild(s);
   });
 }
-function localConn(code, role) {
-  const ch = new BroadcastChannel('cs3-' + code), h = {};
-  const c = { on(ev, fn) { h[ev] = fn; }, send(m) { ch.postMessage({ from: role, m }); }, close() { try { ch.postMessage({ from: role, bye: 1 }); ch.close(); } catch (e) {} } };
+// ?net=local: várias abas do mesmo navegador conversam por um BroadcastChannel (para testes)
+function localHub(code, onConn) {
+  const ch = new BroadcastChannel('cs3-' + code), conns = new Map();
   ch.onmessage = e => {
-    const d = e.data; if (d.from === role) return;
+    const d = e.data; if (!d || d.from === 'host' || !d.from) return;
+    if (d.join) {
+      const h = {}, lid = d.from;
+      const c = { on(ev, fn) { h[ev] = fn; }, send(m) { ch.postMessage({ from: 'host', to: lid, m }); }, close() { conns.delete(lid); try { ch.postMessage({ from: 'host', to: lid, bye: 1 }); } catch (e) {} }, h };
+      conns.set(lid, c); onConn(c); ch.postMessage({ from: 'host', to: lid, joined: 1 }); h.open && h.open(); return;
+    }
+    const c = conns.get(d.from); if (!c) return;
+    if (d.bye) { conns.delete(d.from); c.h.close && c.h.close(); return; }
+    if (d.m) c.h.data && c.h.data(d.m);
+  };
+  return { destroy() { for (const c of conns.values()) c.close(); try { ch.close(); } catch (e) {} } };
+}
+function localGuest(code) {
+  const ch = new BroadcastChannel('cs3-' + code), h = {}, lid = 'L' + Math.random().toString(36).slice(2, 9);
+  const c = { on(ev, fn) { h[ev] = fn; }, send(m) { ch.postMessage({ from: lid, m }); }, close() { try { ch.postMessage({ from: lid, bye: 1 }); ch.close(); } catch (e) {} } };
+  ch.onmessage = e => {
+    const d = e.data; if (!d || d.from !== 'host' || d.to !== lid) return;
     if (d.bye) { h.close && h.close(); return; }
-    if (d.join && role === 'host') { ch.postMessage({ from: role, joined: 1 }); h.open && h.open(); return; }
-    if (d.joined && role === 'guest') { h.open && h.open(); return; }
+    if (d.joined) { h.open && h.open(); return; }
     if (d.m) h.data && h.data(d.m);
   };
-  if (role === 'guest') setTimeout(() => ch.postMessage({ from: role, join: 1 }), 50);
+  setTimeout(() => ch.postMessage({ from: lid, join: 1 }), 50);
   return c;
 }
+// Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
+// Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
+const NET_MAX = 8;
+const HOST_ONLY = new Set(['welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
 const Net = {
-  peer: null, conn: null, open: false, role: null, code: '', myName: 'Jogador', peerName: 'Amigo', peerSkin: null, ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0,
-  send(m) { if (this.conn && this.open) { try { this.conn.send(m); } catch (e) {} } },
+  peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
+  ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0, sendAcc: 0,
+  me() { return this.roster.find(p => p.id === this.myId) || null; },
+  byId(id) { return this.roster.find(p => p.id === id) || null; },
+  others() { return this.roster.filter(p => p.id !== this.myId); },
+  nameOf(id) { const p = this.byId(id); return p ? p.name : 'Jogador'; },
+  raw(c, m) { try { c.send(m); } catch (e) {} },
+  // manda uma mensagem minha: para todos, ou só para "to"
+  send(m, to) {
+    if (!this.role) return;
+    m.f = this.myId;
+    if (this.role === 'host') { for (const [id, c] of this.conns) if (!to || id === to) this.raw(c, m); }
+    else { if (to) m.to = to; const c = this.conns.get('h'); if (c && this.open) this.raw(c, m); }
+  },
   setStatus(t) { this.status = t; renderNetLobby(); },
-  attach(conn) {
-    this.conn = conn;
+  // ---- anfitrião
+  teamSizes() { const n = [0, 0]; for (const p of this.roster) n[p.team]++; return n; },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin })) }); renderNetLobby(); },
+  hostConn(conn) {
+    conn.on('data', m => this.hostData(conn, m));
+    conn.on('close', () => this.dropGuest(conn));
+    conn.on('error', () => this.dropGuest(conn));
+  },
+  hostData(conn, m) {
+    if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+    if (m.t === 'hello') {
+      if (conn.netId) return;
+      if (this.roster.length >= NET_MAX) { this.raw(conn, { t: 'full', f: 'h' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 300); return; }
+      const id = 'g' + (++this.seq), n = this.teamSizes();
+      conn.netId = id; this.conns.set(id, conn);
+      this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin) });
+      if (m.v !== VERSION) this.versionWarn = true;
+      this.open = true;
+      this.raw(conn, { t: 'welcome', f: 'h', id, inMatch: this.inMatch });
+      this.pushRoster();
+      this.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }, id);
+      this.send({ t: 'resend' }); sendMySkin('skin', true);   // modelos 3D: cada um manda de novo para quem chegou
+      if (state === 'playing' && mode && mode.net) addChat('Sala', null, `${this.nameOf(id)} entrou na sala (joga a partir da próxima).`, true);
+      return;
+    }
+    const id = conn.netId; if (!id) return;
+    m.f = id;
+    if (m.t === 'ping') { this.raw(conn, { t: 'pong', ts: m.ts, f: 'h' }); return; }
+    if (m.t === 'pong') { conn.ping = Math.round(performance.now() - m.ts); this.ping = Math.max(0, ...[...this.conns.values()].map(c => c.ping || 0)); return; }
+    if (m.t === 'bye') { this.dropGuest(conn); return; }
+    if (HOST_ONLY.has(m.t)) return;
+    if (m.to && m.to !== 'h') { const c = this.conns.get(m.to); if (c) this.raw(c, m); return; }
+    if (!m.to && !NO_RELAY.has(m.t)) for (const [cid, c] of this.conns) if (cid !== id) this.raw(c, m);
+    onNetMsg(m);
+  },
+  dropGuest(conn) {
+    const id = conn.netId; if (!id || !this.conns.has(id)) return;
+    this.conns.delete(id); try { conn.close(); } catch (e) {}
+    const name = this.nameOf(id);
+    this.roster = this.roster.filter(p => p.id !== id);
+    this.open = this.conns.size > 0;
+    this.send({ t: 'gone', id }); onNetMsg({ t: 'gone', id, f: 'h', name });
+    this.pushRoster();
+  },
+  // ---- convidado
+  guestConn(conn) {
+    this.conns.set('h', conn);
     conn.on('open', () => {
       this.open = true; sendMySkin('hello');
       clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
       this.setStatus('');
     });
-    conn.on('data', onNetMsg);
+    conn.on('data', m => {
+      if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+      if (HOST_ONLY.has(m.t) && m.f !== 'h') return;
+      if (m.t === 'pong') { this.ping = Math.round(performance.now() - m.ts); return; }
+      if (m.t === 'ping') { this.raw(conn, { t: 'pong', ts: m.ts, f: this.myId }); return; }
+      onNetMsg(m);
+    });
     conn.on('close', () => this.lost());
     conn.on('error', () => this.lost());
   },
   newCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)]; return s; },
   async host(name) {
-    this.leave(); this.role = 'host'; this.myName = name; this.code = this.newCode();
-    if (LOCAL_NET) { this.attach(localConn(this.code, 'host')); this.setStatus('waiting'); return; }
+    this.leave(); this.role = 'host'; this.myName = name; this.myId = 'h'; this.code = this.newCode();
+    this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()) }];
+    clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
+    if (LOCAL_NET) { this.hub = localHub(this.code, c => this.hostConn(c)); this.setStatus('waiting'); return; }
     this.setStatus('Criando a sala…');
     try { await loadPeerJS(); } catch (e) { this.setStatus(e.message); return; }
     const tryOpen = () => {
       const peer = this.peer = new Peer('cs3x1-' + this.code);
       peer.on('open', () => this.setStatus('waiting'));
-      peer.on('connection', conn => { if (this.conn) { conn.close(); return; } this.attach(conn); });
+      peer.on('connection', conn => this.hostConn(conn));
       peer.on('error', err => {
         if (err.type === 'unavailable-id') { peer.destroy(); this.code = this.newCode(); tryOpen(); }
         else if (!this.open) this.setStatus('Erro na conexão (' + err.type + '). Tente criar a sala de novo.');
@@ -2913,40 +3050,47 @@ const Net = {
     tryOpen();
   },
   async join(name, code) {
-    this.leave(); this.role = 'guest'; this.myName = name; this.code = code;
+    this.leave(); this.role = 'guest'; this.myName = name; this.code = code; this.myId = '';
     this.setStatus('Conectando…');
-    if (LOCAL_NET) { this.attach(localConn(code, 'guest')); return; }
+    if (LOCAL_NET) { this.guestConn(localGuest(code)); return; }
     try { await loadPeerJS(); } catch (e) { this.setStatus(e.message); return; }
     const peer = this.peer = new Peer();
-    peer.on('open', () => this.attach(peer.connect('cs3x1-' + code, { reliable: true })));
+    peer.on('open', () => this.guestConn(peer.connect('cs3x1-' + code, { reliable: true })));
     peer.on('error', err => this.setStatus(err.type === 'peer-unavailable' ? 'Sala não encontrada. Confira o código (e se a sala ainda está aberta).' : 'Erro na conexão (' + err.type + ').'));
   },
+  // convidado perdeu o anfitrião
   lost() {
-    if (!this.conn) return;
+    if (!this.conns.has('h')) return;
     const wasOpen = this.open;
-    this.open = false; this.conn = null; clearInterval(this.pingTimer);
+    this.open = false; this.conns.clear(); clearInterval(this.pingTimer); this.roster = [];
     if (state === 'playing' && mode && mode.net) {
       mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
-      $('#endWinner').innerHTML = '<b>Conexão perdida</b><br>O outro jogador saiu ou a internet caiu.';
+      $('#endWinner').innerHTML = '<b>Conexão perdida</b><br>O anfitrião saiu ou a internet caiu.';
       fillScore($('#endBody')); $('#eAgain').disabled = true; $('#eAgain').textContent = 'Jogar novamente'; $('#end').hidden = false;
     }
-    if (this.role === 'host' && this.peer && !this.peer.destroyed) this.setStatus(wasOpen ? 'O amigo saiu. A sala continua aberta com o mesmo código.' : 'waiting');
-    else this.setStatus(wasOpen ? 'Conexão encerrada.' : this.status);
-    if (this.role === 'host' && LOCAL_NET) { this.attach(localConn(this.code, 'host')); }
+    this.setStatus(wasOpen ? 'Conexão encerrada.' : this.status);
   },
   leave() {
     clearInterval(this.pingTimer);
-    if (this.conn) { try { this.conn.close(); } catch (e) {} }
+    for (const c of this.conns.values()) { try { c.close(); } catch (e) {} }
+    if (this.hub) this.hub.destroy();
     if (this.peer) { try { this.peer.destroy(); } catch (e) {} }
-    this.peer = null; this.conn = null; this.open = false; this.role = null; this.hostCfg = null; this.versionWarn = false; this.status = '';
+    this.peer = null; this.hub = null; this.conns = new Map(); this.open = false; this.role = null; this.hostCfg = null; this.versionWarn = false; this.status = '';
+    this.roster = []; this.myId = ''; this.seq = 0; this.inMatch = false;
   },
-  startMatch(cfg) { if (!this.open) return; cfg = resolveMapCfg(cfg); this.send({ t: 'start', cfg }); startX1(cfg, this); },
+  canStart() { const n = this.teamSizes(); return this.role === 'host' && this.roster.length >= 2 && n[0] > 0 && n[1] > 0; },
+  startMatch(cfg) {
+    if (!this.canStart()) return;
+    cfg = resolveMapCfg(cfg); this.inMatch = true;
+    this.send({ t: 'start', cfg, ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team })) });
+    startX1(cfg, this);
+  },
+  setTeam(id, team) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.team = team ? 1 : 0; this.pushRoster(); },
   update(dt) {
     updateRemote(dt);
     this.sendAcc += dt;
     if (this.sendAcc >= 1 / 30 && player) { this.sendAcc = 0; this.send(netState()); }
   },
-  sendAcc: 0,
 };
 
 let devTemplate = botDefaults(), devSelected = null, devCounter = 0, devTimeScale = 1, devLastHit = '—', dmgNums = [];
@@ -3440,7 +3584,7 @@ function onModelChunk(m) {
   const out = new Uint8Array(total); let o = 0; for (const b of p.parts) { out.set(new Uint8Array(b), o); o += b.byteLength; }
   try { checkModel(out.buffer); } catch (e) { return; }
   modelBufs.set(key, out.buffer); modelTpl.delete(key);
-  const ps = Net.peerSkin; if (ps && ps.model && ps.id === key) { const r = state === 'playing' && mode && mode.remote; if (r) applySkin(r, ps); }
+  for (const p of Net.roster) if (p.skin && p.skin.model && p.skin.id === key) { const r = state === 'playing' && remoteOf(p.id); if (r) applySkin(r, p.skin); }
 }
 // lê o arquivo escolhido, confere e mede o modelo
 async function readModelFile(file) {
@@ -3587,7 +3731,8 @@ function skinChanged() {
 // manda a skin (e o arquivo do modelo, se for um) para o amigo
 async function sendMySkin(t) {
   if (!Net.open) return;
-  const sk = mySkin(); Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk) } : { t: 'skin', skin: skinPayload(sk) });
+  const sk = mySkin(), me = Net.me(); if (me) me.skin = skinPayload(sk);
+  Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk) } : { t: 'skin', skin: skinPayload(sk) });
   if (sk && sk.model) { if (!modelBufs.has(sk.id)) { const b = await modelGet(sk.id).catch(() => null); if (b) modelBufs.set(sk.id, b); } sendModelTo(sk); }
 }
 function updateSkinView(dt) {
@@ -3615,7 +3760,7 @@ function itemMesh(w) {
 }
 function spawnItem(wi, pos, o = {}) {
   const w = WEAPONS[wi]; if (!w) return null;
-  const it = { id: o.id || ('l' + (mode && mode.net && !mode.host ? 'g' : 'h') + (++ground.seq)), wi, mag: o.mag ?? w.mag, reserve: o.reserve ?? w.reserve, pos: pos.clone(),
+  const it = { id: o.id || ('l' + (mode && mode.net ? Net.myId : 'h') + (++ground.seq)), wi, mag: o.mag ?? w.mag, reserve: o.reserve ?? w.reserve, pos: pos.clone(),
     vel: o.vel ? o.vel.clone() : new THREE.Vector3(), rest: !o.vel, home: o.home || null, born: now, noPick: o.noPick || null, spin: Math.random() * 6 };
   it.mesh = itemMesh(w); it.mesh.position.copy(it.pos).add(new THREE.Vector3(0, 0.08, 0)); it.mesh.rotation.y = it.spin; world.add(it.mesh);
   ground.items.push(it); return it;
@@ -3807,7 +3952,7 @@ function onGroundMsg(m) {
   if (!pickupOn()) return;
   if (m.t === 'pick') { const it = ground.items.find(x => x.id === m.id); if (it) { removeItem(it); if (it.home && !mode.rounds) mode._respawnItems = (mode._respawnItems || []).concat([{ at: now + 20, it }]); } }
   if (m.t === 'drop' && WEAPONS[m.w] && !ground.items.some(x => x.id === m.id)) spawnItem(m.w, a2v(m.p), { id: String(m.id).slice(0, 16), mag: +m.m || 0, reserve: +m.r || 0, vel: a2v(m.v) });
-  if (m.t === 'nade' && mode.remote) spawnNade(a2v(m.p), a2v(m.v), mode.remote, 1.6);
+  if (m.t === 'nade' && remoteOf(m.f)) spawnNade(a2v(m.p), a2v(m.v), remoteOf(m.f), 1.6);
 }
 // =====================================================================================
 // Chat e spray na partida
@@ -3948,7 +4093,7 @@ function trySpray() {
 function onSprayMsg(m) {
   if (!okImg(m.img) || m.img.length > 120000) return;
   const p = a2v(m.p), n = a2v(m.n); if (!isFinite(p.x + p.y + p.z + n.x + n.y + n.z) || n.lengthSq() < 0.5 || p.length() > 500) return;
-  placeSpray('remote', p, n.normalize(), m.img, +m.y || 0);
+  placeSpray('r_' + m.f, p, n.normalize(), m.img, +m.y || 0);
 }
 function clearSprays() { for (const m of sprays.values()) m.material.dispose(); sprays.clear(); sprayNext = 0; }
 function updateSocial() {
@@ -3963,7 +4108,7 @@ function enterPlaying() {
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
   $('#hud').hidden = false; dmgNums = []; document.body.classList.toggle('pickup', !!(mode && mode.pickup)); applyLayout();
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
-  $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para os dois)' : 'Reiniciar';
+  $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para todos)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
   $('#eMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
   $('#banner').style.opacity = 0;
@@ -3975,7 +4120,7 @@ function enterPlaying() {
 }
 function goMenu() {
   const wasNet = mode && mode.net;
-  if (wasNet && state === 'playing') Net.send({ t: 'lobby' });
+  if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
@@ -4346,26 +4491,37 @@ function netName() {
 }
 function renderNetLobby() {
   if ($('#netSetup').hidden) return;
-  const st = $('#netStatus'), role = Net.role;
+  const st = $('#netStatus'), role = Net.role, host = role === 'host';
   $('#netChoose').hidden = !!role;
   $('#netName').disabled = !!role;
   let html = '';
-  if (role === 'host') {
+  if (host) {
     if (Net.status === 'waiting' || Net.open) {
       html = `Código da sala:<br><span class="code">${esc(Net.code)}</span><br>`;
-      html += Net.open ? `<b style="color:var(--accent)">${esc(Net.peerName)} entrou na sala.</b> Ajuste as regras e inicie.` : 'Passe o código para o seu amigo e espere ele entrar.';
+      html += Net.open ? 'Monte os times e inicie. Clique num nome para trocar de time.' : 'Passe o código para os seus amigos (até ' + NET_MAX + ' jogadores).';
     } else html = esc(Net.status);
     if (Net.status && Net.status !== 'waiting' && Net.open) html += '<br>' + esc(Net.status);
   } else if (role === 'guest') {
-    html = Net.open ? `Conectado à sala de <b>${esc(Net.peerName)}</b>. Aguardando o anfitrião iniciar.` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
+    const h = Net.byId('h');
+    html = Net.open ? `Conectado à sala de <b>${esc(h ? h.name : 'anfitrião')}</b>. ${Net.inMatch ? 'Tem uma partida rolando: você entra na próxima.' : 'Aguardando o anfitrião iniciar.'}` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
   } else html = esc(Net.status);
-  if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Vocês estão com versões diferentes do jogo. Recarreguem a página (Ctrl+F5).</span>';
+  if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Tem gente com versão diferente do jogo. Recarreguem a página (Ctrl+F5).</span>';
   st.innerHTML = html;
+  // times
+  const ro = $('#netRoster');
+  ro.hidden = !(role && Net.roster.length);
+  if (!ro.hidden) {
+    const col = t => `<div class="team"><b style="color:${hex(TEAM_COLORS[t])}">${t ? 'Time azul' : 'Time laranja'}</b>` +
+      Net.roster.filter(p => p.team === t).map(p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Trocar de time' : ''}">${esc(p.name)}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>`).join('') + '</div>';
+    ro.innerHTML = col(0) + col(1);
+    ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
+  }
   const hc = $('#netHostCfg');
-  hc.hidden = role !== 'host';
-  if (role === 'host' && !hc.childElementCount) renderX1Form(hc, true, () => Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }));
-  if (role !== 'host') hc.innerHTML = '';
-  $('#bNetStart').hidden = role !== 'host'; $('#bNetStart').disabled = !Net.open;
+  hc.hidden = !host;
+  if (host && !hc.childElementCount) renderX1Form(hc, true, () => Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }));
+  if (!host) hc.innerHTML = '';
+  $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
+  $('#bNetStart').textContent = Net.open && !Net.canStart() ? 'Precisa de alguém em cada time' : 'Iniciar partida';
   $('#bNetBack').textContent = role ? 'Sair da sala' : 'Voltar';
 }
 $('#bNet').onclick = () => { initAudio(); openNetPanel(); };
