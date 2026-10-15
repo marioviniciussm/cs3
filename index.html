@@ -387,7 +387,7 @@ body:not(.canpick) #tUse { display: none !important; }
         <button class="link" id="bDev"><svg><use href="#i-dev"/></svg>Mapa de testes</button>
       </div>
     </div>
-    <div id="heroTag" hidden><span><b id="heroName"></b><small id="heroSkin"></small></span><button class="btn small" id="heroSkinBtn">Trocar skin</button></div>
+    <div id="heroTag" hidden><span><b id="heroName"></b><small id="heroSkin"></small></span><button class="btn small" id="heroCosBtn">Acessórios</button><button class="btn small" id="heroSkinBtn">Trocar skin</button></div>
     <div class="panel stack" id="helpPanel" hidden style="gap:10px">
       <h2>Como jogar</h2>
       <div id="controlsNote"></div>
@@ -1479,9 +1479,11 @@ const PART = {
   head: (M) => {
     const g = new THREE.Group();
     const h = new THREE.Mesh(SPHERE, M.skin); h.scale.set(0.3, 0.32, 0.3); g.add(h); g.userData.skull = h;
-    const helmet = new THREE.Mesh(HELMET_GEO, M.gear); helmet.scale.set(0.33, 0.3, 0.34); helmet.position.set(0, 0.025, 0.008); g.add(helmet);
-    const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.3, 0.025, 0.08); brim.position.set(0, 0.03, -0.16); g.add(brim);
+    const helmet = new THREE.Mesh(HELMET_GEO, M.gear); helmet.scale.set(0.33, 0.3, 0.34); helmet.position.set(0, 0.025, 0.008); g.add(helmet); helmet.userData.helm = 1;
+    const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.3, 0.025, 0.08); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
     for (const x of [-0.055, 0.055]) { const e = new THREE.Mesh(SPHERE, M.eye); e.scale.set(0.04, 0.05, 0.03); e.position.set(x, -0.01, -0.14); g.add(e); }
+    const nose = new THREE.Mesh(SPHERE, M.skin); nose.scale.set(0.045, 0.06, 0.05); nose.position.set(0, -0.05, -0.15); g.add(nose);
+    const mouth = new THREE.Mesh(BOX, M.eye); mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
     const ear = new THREE.Mesh(SPHERE, M.skin); ear.scale.set(0.05, 0.08, 0.06); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
     return g;
   },
@@ -1503,7 +1505,7 @@ function buildModel(c) {
   const add = (o, parent, zone, x = 0, y = 0, z = 0) => {
     o.position.set(x, y, z); parent.add(o);
     o.traverse(m => { if (m.isMesh) m.castShadow = cs; });
-    if (zone) o.traverse(m => { if (m.isMesh) { m.userData = { owner: c, zone }; c.hitboxes.push(m); } });
+    if (zone) o.traverse(m => { if (m.isMesh) { Object.assign(m.userData, { owner: c, zone }); c.hitboxes.push(m); } });
     return o;
   };
   // pernas: coxa e canela em grupos para dobrar o joelho
@@ -1605,6 +1607,7 @@ function startRagdoll(c) {
     R.add(c.ragMeshes.gun);
     c.ragGroup = R;
   }
+  if (c.cos) cosOnHead(c.ragMeshes.head, c.cos);
   if (c.ragGroup.parent !== world) world.add(c.ragGroup);
   const gun = c.ragMeshes.gun; gun.clear(); if (c.gunParts) gun.add(c.gunParts.clone());
   c.ragGroup.visible = true; c.vis.visible = false;
@@ -2267,7 +2270,7 @@ function createBot(cfg, sp, color) {
   c.home = { pos: sp.pos.clone(), yaw: sp.yaw };
   c.bot = { target: null, visible: false, lastSeen: new THREE.Vector3(), lastSeenT: -99, react: 0, think: 0, err: new THREE.Vector3(), errAt: 0, aimHead: false,
     nextFire: 0, reloadT: 0, burst: 0, strafe: 1, strafeAt: 0, wp: new THREE.Vector3(), hasWp: false, stuckAt: 0, lastPos: sp.pos.clone(), shotSpread: 0, step: 0 };
-  applyBot(c, cfg); applySkin(c, botSkin());
+  applyBot(c, cfg); applySkin(c, botSkin()); if (SKINS.bots === 'random') applyCos(c, randomCos());
   return c;
 }
 function applyBot(c, cfg) {
@@ -2412,7 +2415,7 @@ const NAMES = ['Alfa', 'Bravo', 'Charlie', 'Delta', 'Eco', 'Foxtrot', 'Golf', 'H
 function clearCombatants() { combatants.length = 0; player = null; mode = null; applyPhysics(null); }
 function setupPlayer(sp, color = 0x4073e6, name = 'Jogador') {
   player = createCombatant(name, color, sp, true);
-  player.group.visible = false; applySkin(player, mySkin());
+  player.group.visible = false; applySkin(player, mySkin()); applyCos(player, myCos());
   buildViewModels(sleeveColor(color));
   pw.slots = []; pw.cur = 0; resetPlayerWeapons();
   pv.god = false; pv.noclip = false; pw.infinite = false;
@@ -2551,7 +2554,7 @@ function startX1(cfgIn, net, ids) {
       const i = tIdx(p.id), r = createCombatant(p.name, shade(TEAM_COLORS[p.team], i), teamSpawn(p.team, i), false);
       Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: i, wi: weapons[0] });
       r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
-      setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, p.skin || null);
+      setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, p.skin || null); applyCos(r, p.cos);
       mode.remotes.set(p.id, r);
     }
   } else {
@@ -3004,7 +3007,7 @@ function onNetMsg(m) {
     case 'full': Net.setStatus('A sala está cheia (máximo ' + NET_MAX + ' jogadores).'); break;
     case 'roster':
       if (!Array.isArray(m.ro)) break;
-      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, skin: cleanSkin(p.skin) }));
+      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
       renderNetLobby(); break;
     case 'resend': sendMySkin('skin'); break;
     case 'gone': {
@@ -3017,7 +3020,7 @@ function onNetMsg(m) {
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
     case 'chat': { const p = Net.byId(m.f); if (inGame && p) addChat(p.name, r ? r.color : TEAM_COLORS[p.team], cleanChat(m.m)); break; }
     case 'spray': if (inGame && Net.byId(m.f)) onSprayMsg(m); break;
-    case 'skin': { const p = Net.byId(m.f); if (!p) break; p.skin = cleanSkin(m.skin); if (r) applySkin(r, p.skin); break; }
+    case 'skin': { const p = Net.byId(m.f); if (!p) break; p.skin = cleanSkin(m.skin); p.cos = cleanCos(m.cos); if (r) { applySkin(r, p.skin); applyCos(r, p.cos); } break; }
     case 'cfg': if (Net.role === 'guest') { Net.hostCfg = m.cfg; renderNetLobby(); } break;
     case 'start':
       if (Net.role !== 'guest') break;
@@ -3110,7 +3113,7 @@ const Net = {
   setStatus(t) { this.status = t; renderNetLobby(); },
   // ---- anfitrião
   teamSizes() { const n = [0, 0]; for (const p of this.roster) n[p.team]++; return n; },
-  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin })) }); renderNetLobby(); },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos })) }); renderNetLobby(); },
   hostConn(conn) {
     conn.on('data', m => this.hostData(conn, m));
     conn.on('close', () => this.dropGuest(conn));
@@ -3123,7 +3126,7 @@ const Net = {
       if (this.roster.length >= NET_MAX) { this.raw(conn, { t: 'full', f: 'h' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 300); return; }
       const id = 'g' + (++this.seq), n = this.teamSizes();
       conn.netId = id; this.conns.set(id, conn);
-      this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin) });
+      this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin), cos: cleanCos(m.cos) });
       if (m.v !== VERSION) this.versionWarn = true;
       this.open = true;
       this.raw(conn, { t: 'welcome', f: 'h', id, inMatch: this.inMatch });
@@ -3173,7 +3176,7 @@ const Net = {
   newCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)]; return s; },
   async host(name) {
     this.leave(); this.role = 'host'; this.myName = name; this.myId = 'h'; this.code = this.newCode();
-    this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()) }];
+    this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()), cos: myCos() }];
     clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
     if (LOCAL_NET) { this.hub = localHub(this.code, c => this.hostConn(c)); this.setStatus('waiting'); return; }
     this.setStatus('Criando a sala…');
@@ -3497,7 +3500,7 @@ const SKIN_PRESETS = [
   { id: 'rosa', name: 'Chiclete', pat: 'camo', cols: ['#f29bc0', '#d66b9a', '#ffd1e3', '#a84a75'], vest: '#7a3456', gear: '#f29bc0' },
 ];
 const SKIN_APPLY = [['all', 'Roupa toda'], ['outfit', 'Camisa e calça'], ['shirt', 'Só a camisa']];
-let SKINS = (() => { const v = loadJSON(SKIN_KEY); return { list: Array.isArray(v.list) ? v.list : [], me: v.me || 'team', bots: v.bots || 'team' }; })();
+let SKINS = (() => { const v = loadJSON(SKIN_KEY); return { list: Array.isArray(v.list) ? v.list : [], me: v.me || 'team', bots: v.bots || 'team', cos: v.cos || null }; })();
 const saveSkins = () => { try { localStorage.setItem(SKIN_KEY, JSON.stringify(SKINS)); return true; } catch (e) { return false; } };
 const skinById = id => SKIN_PRESETS.find(s => s.id === id) || SKINS.list.find(s => s.id === id) || null;
 // imagem vinda de fora (arquivo ou do amigo no online): só aceita PNG/JPG/WebP em data URL e de tamanho razoável
@@ -3512,6 +3515,71 @@ function cleanSkin(s) {
     apply: SKIN_APPLY.some(a => a[0] === s.apply) ? s.apply : 'all', rep: [1, 2, 3].includes(+s.rep) ? +s.rep : 1, gear: okHex(s.gear) || '#34373d', avg: okHex(s.avg) || '#777777' };
 }
 const skinPayload = sk => !sk ? null : sk.model ? { model: true, id: sk.id, name: sk.name, rot: sk.rot, h: sk.h, gun: sk.gun } : sk.img ? { img: sk.img, name: sk.name, apply: sk.apply, rep: sk.rep, gear: sk.gear, avg: sk.avg } : { preset: sk.id };
+
+// ---- acessórios: chapéus e máscaras presos na cabeça do boneco (não mudam a hitbox)
+const HATS = [
+  { id: 'none', name: 'Capacete', ic: '⛑️' }, { id: 'cap', name: 'Boné', ic: '🧢' }, { id: 'top', name: 'Cartola', ic: '🎩' }, { id: 'cowboy', name: 'Caubói', ic: '🤠' },
+  { id: 'beanie', name: 'Gorro', ic: '🧶' }, { id: 'crown', name: 'Coroa', ic: '👑' }, { id: 'viking', name: 'Viking', ic: '🐂' }, { id: 'party', name: 'Festa', ic: '🥳' },
+  { id: 'headset', name: 'Fone', ic: '🎧' }, { id: 'ninja', name: 'Faixa ninja', ic: '🥷' }, { id: 'bare', name: 'Sem nada', ic: '👤' },
+];
+const MASKS = [
+  { id: 'none', name: 'Nenhuma', ic: '🙂' }, { id: 'shades', name: 'Óculos escuros', ic: '🕶️' }, { id: 'hockey', name: 'Hóquei', ic: '🏒' }, { id: 'gas', name: 'Contra gás', ic: '😷' },
+  { id: 'bandit', name: 'Bandido', ic: '🤠' }, { id: 'ski', name: 'Balaclava', ic: '🎿' }, { id: 'skull', name: 'Caveira', ic: '💀' }, { id: 'visor', name: 'Visor neon', ic: '🥽' },
+  { id: 'clown', name: 'Palhaço', ic: '🤡' },
+];
+const cleanCos = o => ({ hat: o && HATS.some(h => h.id === o.hat) ? o.hat : 'none', mask: o && MASKS.some(h => h.id === o.mask) ? o.mask : 'none' });
+const myCos = () => cleanCos(SKINS.cos);
+function randomCos() { const r = a => a[Math.floor(Math.random() * a.length)].id; return { hat: Math.random() < 0.6 ? r(HATS) : 'none', mask: Math.random() < 0.5 ? r(MASKS) : 'none' }; }
+const CONE = new THREE.ConeGeometry(0.5, 1, 14), TORUS = new THREE.TorusGeometry(0.5, 0.12, 8, 20);
+// monta o acessório num grupo no espaço da cabeça (centro da cabeça na origem, rosto para -z, raio ~0.15)
+function buildCos(cos) {
+  const g = new THREE.Group(), P = (geo, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = mesh(geo, col, sx, sy, sz, x, y, z, g); m.rotation.set(rx, ry, rz); return m; };
+  const glow = col => new THREE.MeshBasicMaterial({ color: col });
+  switch (cos.hat) {
+    case 'cap': P(HELMET_GEO, 0xc8302c, 0.32, 0.26, 0.33, 0, 0.03, 0.005); P(BOX, 0xc8302c, 0.24, 0.018, 0.16, 0, 0.035, -0.2); P(SPHERE, 0xffffff, 0.03, 0.02, 0.03, 0, 0.16, 0); break;
+    case 'top': P(CYL, 0x1a1a1d, 0.4, 0.02, 0.4, 0, 0.09, 0); P(CYL, 0x1a1a1d, 0.26, 0.28, 0.26, 0, 0.23, 0); P(CYL, 0xb3242a, 0.265, 0.05, 0.265, 0, 0.125, 0); break;
+    case 'cowboy': P(CYL, 0x7a4e2a, 0.5, 0.02, 0.5, 0, 0.085, 0, 0.08); P(CYL, 0x7a4e2a, 0.27, 0.14, 0.29, 0, 0.16, 0); P(CYL, 0x3b2414, 0.275, 0.03, 0.295, 0, 0.11, 0); P(BOX, 0x6a4224, 0.04, 0.03, 0.2, 0, 0.235, 0); break;
+    case 'beanie': P(HELMET_GEO, 0x2f8f6a, 0.32, 0.36, 0.33, 0, 0.0, 0.005); P(CYL, 0x247055, 0.325, 0.05, 0.335, 0, 0.02, 0.005); P(SPHERE, 0xf2f2f2, 0.08, 0.08, 0.08, 0, 0.19, 0); break;
+    case 'crown': { P(CYL, 0xe5b53a, 0.3, 0.07, 0.3, 0, 0.12, 0); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; P(CONE, 0xe5b53a, 0.05, 0.08, 0.05, Math.sin(a) * 0.13, 0.19, Math.cos(a) * 0.13); }
+      P(SPHERE, 0xd0283a, 0.04, 0.04, 0.02, 0, 0.12, -0.15); break; }
+    case 'viking': P(HELMET_GEO, 0x8a8f96, 0.33, 0.3, 0.34, 0, 0.025, 0.008); P(CYL, 0x6b5030, 0.335, 0.035, 0.345, 0, 0.035, 0.008);
+      for (const s of [-1, 1]) { P(CONE, 0xefe6d2, 0.06, 0.2, 0.06, s * 0.19, 0.13, 0, 0, 0, -s * 0.7); } break;
+    case 'party': { P(CONE, 0x8e44ad, 0.2, 0.3, 0.2, 0.02, 0.24, 0, 0, 0, -0.15); P(CYL, 0xf1c40f, 0.17, 0.025, 0.17, 0.0, 0.14, 0, 0, 0, -0.15); P(SPHERE, 0xf1c40f, 0.06, 0.06, 0.06, 0.045, 0.39, 0); break; }
+    case 'headset': P(TORUS, 0x202226, 0.33, 0.33, 0.25, 0, 0.0, 0, 0, Math.PI / 2, 0); for (const s of [-1, 1]) { P(CYL, 0x202226, 0.1, 0.06, 0.1, s * 0.16, -0.02, 0, 0, 0, Math.PI / 2); P(CYL, 0x39ff8f, 0.06, 0.01, 0.06, s * 0.19, -0.02, 0, 0, 0, Math.PI / 2); }
+      P(CYL, 0x202226, 0.015, 0.14, 0.015, 0.15, -0.08, -0.07, 1.2); break;
+    case 'ninja': P(CYL, 0xc0262d, 0.31, 0.05, 0.31, 0, 0.05, 0); P(BOX, 0xc0262d, 0.03, 0.12, 0.02, 0.03, 0.0, 0.16, 0.5); P(BOX, 0xc0262d, 0.03, 0.12, 0.02, -0.02, -0.01, 0.16, 0.3); break;
+  }
+  switch (cos.mask) {
+    case 'shades': for (const x of [-0.055, 0.055]) P(BOX, 0x0d0d10, 0.085, 0.045, 0.02, x, -0.005, -0.155); P(BOX, 0x0d0d10, 0.32, 0.015, 0.015, 0, 0.012, -0.12); break;
+    case 'hockey': { P(SPHERE, 0xf0ede4, 0.27, 0.29, 0.14, 0, -0.03, -0.1); for (const x of [-0.055, 0.055]) P(SPHERE, 0x141416, 0.05, 0.035, 0.03, x, -0.005, -0.168);
+      for (const [x, y] of [[-0.03, -0.09], [0, -0.1], [0.03, -0.09], [-0.09, 0.03], [0.09, 0.03]]) P(SPHERE, 0x141416, 0.012, 0.012, 0.01, x, y, -0.165);
+      P(BOX, 0xc0262d, 0.02, 0.07, 0.01, -0.09, -0.07, -0.155, 0, 0, 0.4); P(BOX, 0xc0262d, 0.02, 0.07, 0.01, 0.09, -0.07, -0.155, 0, 0, -0.4); break; }
+    case 'gas': P(SPHERE, 0x2e3328, 0.29, 0.3, 0.16, 0, -0.03, -0.09); for (const x of [-0.06, 0.06]) { P(CYL, 0xa9d6e5, 0.07, 0.015, 0.07, x, 0.0, -0.163, Math.PI / 2); P(TORUS, 0x111111, 0.075, 0.075, 0.06, x, 0, -0.163); }
+      P(CYL, 0x444a3d, 0.09, 0.1, 0.09, 0, -0.1, -0.19, Math.PI / 2 - 0.3); P(CYL, 0x222222, 0.095, 0.02, 0.095, 0, -0.115, -0.24, Math.PI / 2 - 0.3); break;
+    case 'bandit': P(CONE, 0xb3242a, 0.3, 0.13, 0.22, 0, -0.125, -0.06, 0, 0, Math.PI); P(CYL, 0xb3242a, 0.31, 0.035, 0.31, 0, -0.068, 0); break;
+    case 'ski': P(SPHERE, 0x1c1d21, 0.31, 0.33, 0.31, 0, 0, 0); P(BOX, C.skin, 0.17, 0.05, 0.03, 0, -0.008, -0.145); for (const x of [-0.055, 0.055]) P(SPHERE, C.black, 0.04, 0.05, 0.03, x, -0.01, -0.152); break;
+    case 'skull': P(SPHERE, 0xf2f0ea, 0.28, 0.3, 0.15, 0, -0.02, -0.095); for (const x of [-0.055, 0.055]) P(SPHERE, 0x0d0d10, 0.06, 0.065, 0.03, x, -0.005, -0.165);
+      P(CONE, 0x0d0d10, 0.03, 0.035, 0.02, 0, -0.06, -0.168, 0, 0, Math.PI); for (let x = -0.04; x <= 0.041; x += 0.02) P(BOX, 0x0d0d10, 0.006, 0.03, 0.01, x, -0.1, -0.16); break;
+    case 'visor': { const v = new THREE.Mesh(new THREE.CylinderGeometry(0.162, 0.162, 0.05, 20, 1, true, Math.PI * 0.62, Math.PI * 0.76), glow(0x2de1ff)); v.material.side = THREE.DoubleSide; v.position.y = -0.005; v.rotation.y = Math.PI; g.add(v);
+      P(BOX, 0x222428, 0.33, 0.02, 0.02, 0, 0.022, -0.04); break; }
+    case 'clown': P(SPHERE, 0xe0202c, 0.065, 0.065, 0.065, 0, -0.05, -0.17); break;
+  }
+  return g;
+}
+// coloca os acessórios num boneco; o capacete some quando há chapéu
+function cosOnHead(head, cos) {
+  if (head.userData.cos) { head.remove(head.userData.cos); head.userData.cos = null; }
+  const hide = cos.hat !== 'none';
+  head.children.forEach(m => { if (m.userData.helm) m.visible = !hide; });
+  if (cos.hat === 'none' && cos.mask === 'none') return;
+  const g = buildCos(cos); g.traverse(m => { if (m.isMesh) m.castShadow = S.video.shadows === 2; });
+  head.add(g); head.userData.cos = g;
+}
+function applyCos(c, cos) {
+  c.cos = cleanCos(cos); if (!c.head) return;
+  cosOnHead(c.head, c.cos);
+  if (c.ragMeshes) cosOnHead(c.ragMeshes.head, c.cos);
+}
 
 // gerador de padrões (sempre igual para o mesmo id, assim os dois jogadores veem a mesma coisa)
 function seeded(str) { let h = 2166136261; for (const ch of str) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
@@ -3760,7 +3828,7 @@ function skinThumb(sk) {
   if (!sk._thumb) sk._thumb = patternCanvas(sk, 64).toDataURL();
   return `<i class="skt" style="background-image:url(${sk._thumb})"></i>`;
 }
-const skinTabs = () => `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button><button role="tab" data-for="spray" aria-selected="${skinFor === 'spray'}">Spray</button></div>`;
+const skinTabs = () => `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="cos" aria-selected="${skinFor === 'cos'}">Acessórios</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button><button role="tab" data-for="spray" aria-selected="${skinFor === 'spray'}">Spray</button></div>`;
 function renderSpray() {
   const card = sp => `<button class="skcard ${SPRAY.cur === sp.id ? 'on' : ''}" data-sp="${esc(sp.id)}"><i class="skt" style="background:#3a4048 url(${sprayImg(sp)}) center/contain no-repeat;image-rendering:auto"></i><span>${esc(sp.name)}</span></button>`;
   const mine = SPRAY.list.find(x => x.id === SPRAY.cur);
@@ -3785,10 +3853,40 @@ function renderSpray() {
   };
   if (mine) $('#spDel').onclick = () => { SPRAY.list.splice(SPRAY.list.indexOf(mine), 1); SPRAY.cur = 'gg'; saveSpray(); renderSpray(); };
 }
+// miniatura 3D de cada acessório: renderiza uma cabeça com ele num alvo fora da tela
+const cosThumbs = new Map();
+function cosThumb(kind, id) {
+  const key = kind + ':' + id; if (cosThumbs.has(key)) return cosThumbs.get(key);
+  const N = 96, sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.05, 10);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x555a66, 0.9)); const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(-1, 2, -2); sc.add(dl);
+  const M = { skin: mat(C.skin), gear: mat(0x34373d), eye: mat(C.black) }, head = PART.head(M); sc.add(head);
+  cosOnHead(head, cleanCos(kind === 'hat' ? { hat: id } : { mask: id }));
+  cam.position.set(-0.32, 0.1, -0.62); cam.lookAt(0, kind === 'hat' && id !== 'none' && id !== 'bare' ? 0.06 : 0, 0);
+  const rt = new THREE.WebGLRenderTarget(N, N), px = new Uint8Array(N * N * 4), old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
+  renderer.setRenderTarget(rt); renderer.setClearColor(0x3a4048, 1); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 0, 0, N, N, px);
+  renderer.setRenderTarget(old); renderer.setClearColor(oc, oa); rt.dispose();
+  const cv = document.createElement('canvas'); cv.width = cv.height = N; const g = cv.getContext('2d'), im = g.createImageData(N, N);
+  for (let y = 0; y < N; y++) im.data.set(px.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   // WebGL lê de baixo para cima
+  g.putImageData(im, 0, 0);
+  const url = cv.toDataURL(); cosThumbs.set(key, url); return url;
+}
+function renderCos() {
+  const cos = myCos();
+  const grid = (kind, list) => `<div class="skgrid">${list.map(it => `<button class="skcard ${cos[kind] === it.id ? 'on' : ''}" data-cos="${kind}" data-id="${it.id}"><i class="skt" style="background-image:url(${cosThumb(kind, it.id)});image-rendering:auto"></i><span>${esc(it.name)}</span></button>`).join('')}</div>`;
+  $('#skinBody').innerHTML = skinTabs() + `<div class="formh">Chapéu</div>${grid('hat', HATS)}<div class="formh">Máscara</div>${grid('mask', MASKS)}` +
+    `<div class="btnrow"><button class="btn small" id="cosRand">Sortear</button></div>` +
+    `<p class="note" style="margin:4px 0 0">Os acessórios não mudam a hitbox: um chapéu alto não faz você levar tiro na cabeça. No online, todo mundo vê os seus. Com a skin dos bots em "Sorteada", eles também usam.</p>`;
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  const set = c => { SKINS.cos = c; saveSkins(); skinChanged(); renderCos(); };
+  $('#skinBody').querySelectorAll('[data-cos]').forEach(b => b.onclick = () => set(Object.assign(myCos(), { [b.dataset.cos]: b.dataset.id })));
+  $('#cosRand').onclick = () => set(randomCos());
+  if (skinView) { applySkin(skinView.c, mySkin()); applyCos(skinView.c, myCos()); }
+}
 function renderSkins() {
   const cur = skinFor === 'me' ? SKINS.me : SKINS.bots;
   const card = (id, name, sk, extra = '') => `<button class="skcard ${cur === id ? 'on' : ''}" data-sk="${esc(id)}">${extra || skinThumb(sk)}<span>${esc(name)}</span></button>`;
   if (skinFor === 'spray') { renderSpray(); return; }
+  if (skinFor === 'cos') { renderCos(); return; }
   let h = skinTabs();
   h += `<div class="skgrid">${card('team', 'Cores do time', null)}${skinFor === 'bots' ? card('random', 'Sorteada', null, '<i class="skt skrand">?</i>') : ''}` +
     SKIN_PRESETS.map(s => card(s.id, s.name, s)).join('') + SKINS.list.map(s => card(s.id, s.name, s)).join('') + `</div>`;
@@ -3857,7 +3955,7 @@ function renderSkins() {
     $('#sk_name').addEventListener('change', () => { upd(); renderSkins(); });
     $('#skDel').onclick = () => { dropSkin(sel); saveSkins(); skinChanged(); renderSkins(); };
   }
-  if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : SKINS.bots === 'random' ? SKIN_PRESETS[Math.floor(Math.random() * SKIN_PRESETS.length)] : botSkin());
+  if (skinView) { applySkin(skinView.c, skinFor === 'me' ? mySkin() : SKINS.bots === 'random' ? SKIN_PRESETS[Math.floor(Math.random() * SKIN_PRESETS.length)] : botSkin()); applyCos(skinView.c, skinFor === 'me' ? myCos() : SKINS.bots === 'random' ? randomCos() : null); }
 }
 function dropSkin(sk) {
   const i = SKINS.list.indexOf(sk); if (i >= 0) SKINS.list.splice(i, 1);
@@ -3865,14 +3963,14 @@ function dropSkin(sk) {
   if (SKINS.me === sk.id) SKINS.me = 'team'; if (SKINS.bots === sk.id) SKINS.bots = 'team';
 }
 function skinChanged() {
-  if (skinView) applySkin(skinView.c, skinFor === 'me' ? mySkin() : botSkin());
+  if (skinView) { const mine = skinFor !== 'bots'; applySkin(skinView.c, mine ? mySkin() : botSkin()); applyCos(skinView.c, mine ? myCos() : null); }
   sendMySkin('skin');
 }
 // manda a skin (e o arquivo do modelo, se for um) para o amigo
 async function sendMySkin(t) {
   if (!Net.open) return;
-  const sk = mySkin(), me = Net.me(); if (me) me.skin = skinPayload(sk);
-  Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk) } : { t: 'skin', skin: skinPayload(sk) });
+  const sk = mySkin(), cos = myCos(), me = Net.me(); if (me) { me.skin = skinPayload(sk); me.cos = cos; }
+  Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk), cos } : { t: 'skin', skin: skinPayload(sk), cos });
   if (sk && sk.model) { if (!modelBufs.has(sk.id)) { const b = await modelGet(sk.id).catch(() => null); if (b) modelBufs.set(sk.id, b); } sendModelTo(sk); }
 }
 function updateSkinView(dt) {
@@ -3880,8 +3978,10 @@ function updateSkinView(dt) {
   c.yaw = v.spin; c.pitch = 0;
   animateModel(c, dt);
   camera.fov = 40; camera.updateProjectionMatrix();
-  const w = innerWidth > innerHeight * 1.1 ? 1.25 : 0;
-  camera.position.set(c.pos.x, c.pos.y + 1.2, c.pos.z + 4.8); camera.lookAt(c.pos.x - w, c.pos.y + 0.95, c.pos.z);
+  // na aba de acessórios a câmera chega perto da cabeça
+  v.zoom = lerp(v.zoom || 0, skinFor === 'cos' ? 1 : 0, Math.min(1, dt * 4)); const z = v.zoom;
+  const w = (innerWidth > innerHeight * 1.1 ? 1.25 : 0) * (1 - z * 0.62);
+  camera.position.set(c.pos.x, c.pos.y + lerp(1.2, 1.68, z), c.pos.z + lerp(4.8, 2.0, z)); camera.lookAt(c.pos.x - w, c.pos.y + lerp(0.95, 1.5, z), c.pos.z);
 }
 
 // =====================================================================================
@@ -4538,7 +4638,8 @@ function renderHelp() {
     <p class="note" style="margin:10px 0 0"><b>Bunny hop:</b> pule, aperte ${k('crouch')} no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.</p>
     <p class="note" style="margin:6px 0 0">Todas as teclas podem ser trocadas em Configurações &gt; Controles.</p>`;
 }
-$('#heroSkinBtn').onclick = () => { initAudio(); openSkins(); };
+$('#heroSkinBtn').onclick = () => { initAudio(); if (skinFor === 'cos') skinFor = 'me'; openSkins(); };
+$('#heroCosBtn').onclick = () => { initAudio(); skinFor = 'cos'; openSkins(); };
 $('#bHelp').onclick = () => { $('#mainButtons').hidden = true; $('#helpPanel').hidden = false; renderHelp(); };
 $('#bHelpBack').onclick = () => { $('#helpPanel').hidden = true; $('#mainButtons').hidden = false; };
 // painéis do menu: botão de voltar no título e Esc para voltar; o logo encolhe para sobrar espaço
@@ -4924,30 +5025,49 @@ function kcRestore() {
 // Loop principal
 // =====================================================================================
 let last = performance.now(), menuOrbit = 0;
-// tela inicial: o seu personagem, com a sua skin, em destaque à direita do menu
-let menuHero = null, menuHeroT = 0;
+// tela inicial: o seu personagem, com a sua skin, em destaque à direita do menu.
+// A câmera passeia por planos de cinema: geral, close no rosto, cintura com a arma, contra-plongée e perfil.
+// a = ângulo em volta dele (0 = de frente), d = distância, h = altura da câmera, ly = altura para onde olha, sw = quanto ele balança
+const HERO_SHOTS = [
+  { dur: 7, fov: 40, a: [0, 0.2], d: [4.9, 4.7], h: [1.35, 1.35], ly: [1.0, 1.0], sw: 1 },
+  { dur: 5, fov: 32, a: [-0.36, -0.22], d: [1.45, 1.25], h: [1.68, 1.66], ly: [1.6, 1.6], sw: 0.25 },
+  { dur: 5, fov: 34, a: [0.45, 0.62], d: [2.1, 1.95], h: [1.32, 1.36], ly: [1.3, 1.32], sw: 0.4 },
+  { dur: 5, fov: 42, a: [-0.12, 0.08], d: [2.6, 2.3], h: [0.32, 0.38], ly: [1.35, 1.35], sw: 0.5 },
+  { dur: 4.5, fov: 32, a: [1.3, 1.15], d: [1.35, 1.25], h: [1.66, 1.66], ly: [1.6, 1.6], sw: 0.15 },
+  { dur: 5, fov: 34, a: [-0.75, -0.6], d: [2.1, 1.9], h: [1.5, 1.52], ly: [1.42, 1.44], sw: 0.35 },
+];
+let menuHero = null, menuHeroT = 0, heroShot = 0, heroShotT = 0, heroSw = 1;
+function heroFade(v) { const cv = renderer.domElement, f = v >= 0.999 ? '' : `brightness(${v.toFixed(2)})`; if (cv.style.filter !== f) cv.style.filter = f; }
 function updateMenuHero(dt) {
   const sideW = $('#menu .side').getBoundingClientRect().width;
   const on = state === 'menu' && !$('#menu').hidden && mapInfo && mapInfo.name === 'Arena' && innerWidth - sideW > 300 && !edState;
   const tag = $('#heroTag'); if (tag.hidden === on) tag.hidden = !on;
-  if (!on) return false;
+  if (!on) { heroFade(1); return false; }
   if (!menuHero || menuHero.group.parent !== world) {
     const c = createCombatant('Você', TEAM_COLORS[0], { pos: new THREE.Vector3(15, 0, 25), yaw: Math.PI }, false);
     const i = combatants.indexOf(c); if (i >= 0) combatants.splice(i, 1);
     setGunShape(c, WEAPONS[WI('rifle')]); menuHero = c; c._sk = undefined;
   }
   const c = menuHero, sk = mySkin();
+  const ck = JSON.stringify(myCos());
+  if (c._ck !== ck) { c._ck = ck; applyCos(c, myCos()); }
   if (c._sk !== sk) { c._sk = sk; applySkin(c, sk); const nm = loadJSON('cs3.web.net').name || 'Jogador'; $('#heroName').textContent = nm; $('#heroSkin').textContent = 'Skin: ' + (sk ? sk.name : 'cores do time'); }
-  menuHeroT += dt;
-  c.yaw = Math.PI + Math.sin(menuHeroT * 0.45) * 0.28; c.pitch = Math.sin(menuHeroT * 0.3) * 0.06;
+  menuHeroT += dt; heroShotT += dt;
+  let S = HERO_SHOTS[heroShot];
+  if (heroShotT >= S.dur) { heroShotT = 0; heroShot = (heroShot + 1) % HERO_SHOTS.length; S = HERO_SHOTS[heroShot]; }
+  const k = heroShotT / S.dur, e = k * k * (3 - 2 * k), L = v => lerp(v[0], v[1], e);
+  // corte: escurece rapidinho no fim de um plano e clareia no começo do outro
+  heroFade(clamp(Math.min(heroShotT / 0.35, (S.dur - heroShotT) / 0.3), 0, 1) * 0.85 + 0.15);
+  heroSw = heroShotT < 0.05 ? S.sw : lerp(heroSw, S.sw, Math.min(1, dt * 2));
+  c.yaw = Math.PI + Math.sin(menuHeroT * 0.45) * 0.28 * heroSw; c.pitch = Math.sin(menuHeroT * 0.3) * 0.06 * heroSw;
   animateModel(c, dt);
   // câmera: o personagem fica no meio do espaço livre à direita do menu
-  const a = Math.sin(menuHeroT * 0.12) * 0.22, dist = 4.9;
-  camera.fov = 40; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  const halfW = Math.tan(20 * DEG) * dist * camera.aspect, frac = (sideW + (innerWidth - sideW) / 2) / innerWidth;
+  const a = L(S.a), dist = L(S.d), fov = S.fov;
+  camera.fov = fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  const halfW = Math.tan(fov / 2 * DEG) * dist * camera.aspect, frac = (sideW + (innerWidth - sideW) / 2) / innerWidth;
   const off = (frac - 0.5) * 2 * halfW;
-  camera.position.set(c.pos.x + Math.sin(a) * dist - Math.cos(a) * off, 1.35, c.pos.z + Math.cos(a) * dist + Math.sin(a) * off);
-  camera.lookAt(c.pos.x - Math.cos(a) * off, 1.0, c.pos.z + Math.sin(a) * off);
+  camera.position.set(c.pos.x + Math.sin(a) * dist - Math.cos(a) * off, L(S.h), c.pos.z + Math.cos(a) * dist + Math.sin(a) * off);
+  camera.lookAt(c.pos.x - Math.cos(a) * off, L(S.ly), c.pos.z + Math.sin(a) * off);
   return true;
 }
 function frame(t) {
@@ -4981,7 +5101,7 @@ function frame(t) {
     else if (player.alive) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
-    if (skinView) updateSkinView(dt);
+    if (skinView) { updateSkinView(dt); $('#heroTag').hidden = true; }
     else if (updateMenuHero(dt)) {}
     else {
       menuOrbit += dt * 0.07;
@@ -5003,7 +5123,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, camera, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
