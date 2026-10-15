@@ -120,10 +120,18 @@ body.kc #death, body.kc #hp, body.kc #ammo, body.kc #slots, body.kc #speed, body
 #end .center { max-height: 92vh; overflow: auto; }
 .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; }
 .statgrid div { background: rgb(255 255 255 / 0.05); border: 1px solid var(--line, rgb(255 255 255 / 0.1)); padding: 8px; text-align: center; }
+.aimlist { display: grid; gap: 6px; }
+button.aimcard { text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 12px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; font: 14px var(--body); }
+button.aimcard b { font: 600 17px var(--display); } button.aimcard span { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+button.aimcard small { grid-row: 1; grid-column: 2; color: var(--accent); align-self: center; font-size: 12px; }
+button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent); background: #262c33; } button.aimcard:hover { border-left-color: var(--accent); }
+.aimbars { display: flex; align-items: flex-end; gap: 4px; height: 70px; margin-top: 10px; }
+.aimbars i { flex: 1; background: rgb(255 255 255 / 0.15); position: relative; min-width: 0; } .aimbars i.on { background: var(--accent); }
+.aimbars em { position: absolute; bottom: 100%; left: 0; right: 0; text-align: center; font: normal 11px var(--body); color: var(--muted); }
 .statgrid b { display: block; font-size: 22px; color: var(--accent); } .statgrid span { font-size: 12px; color: var(--muted); }
 .res { display: inline-block; width: 20px; text-align: center; font-weight: 700; } .res.w { color: #4ade80; } .res.l { color: var(--danger); } .res.e { color: var(--muted); }
 #histPanel { flex-shrink: 0; }
-.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote { display: none; }
+.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote, .side:has(#aimSetup:not([hidden])) #gpuWarn, .side:has(#aimSetup:not([hidden])) #controlsNote { display: none; }
 #histPanel table { width: 100%; font-size: 14px; }
 #mapEd { position: fixed; inset: 0; display: flex; gap: 12px; padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 #mePanel { width: 340px; flex-shrink: 0; overflow-y: auto; gap: 8px; }
@@ -218,10 +226,18 @@ body.touch #death { font-size: 15px; }
       <button class="btn primary" id="bX1">X1 contra bots (personalizado)</button>
       <button class="btn" id="bNet">X1 online com um amigo</button>
       <button class="btn" id="bDm">Mata-mata na Arena</button>
+      <button class="btn" id="bAim">Treino de mira</button>
       <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
       <button class="btn" id="bMapEd">Editor de mapa</button>
       <button class="btn" id="bHist">Histórico de x1</button>
       <button class="btn" id="bSet">Configurações</button>
+    </div>
+    <div class="panel stack" id="aimSetup" hidden style="gap:8px">
+      <h2>Treino de mira</h2>
+      <p class="note">Como no Aim Lab: você fica parado e treina a mira em alvos. Escolha um cenário.</p>
+      <div id="aimForm" class="stack" style="gap:4px"></div>
+      <button class="btn primary" id="bAimStart">Começar treino</button>
+      <button class="btn" id="bAimBack">Voltar</button>
     </div>
     <div class="panel stack" id="histPanel" hidden style="gap:8px">
       <h2>Histórico de x1</h2>
@@ -278,7 +294,7 @@ body.touch #death { font-size: 15px; }
 
 <div class="layer dim" id="end" hidden>
   <div class="center panel">
-    <h2>Fim de partida</h2>
+    <h2 id="endTitle">Fim de partida</h2>
     <p id="endWinner" class="sub"></p>
     <table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="endBody"></tbody></table>
     <div id="endStats"></div>
@@ -656,7 +672,7 @@ function goFullscreen() {
 const assist = { target: null, ang: 99, visAt: 0, vis: new Map(), onTarget: false };
 function updateAssist(p) {
   assist.target = null; assist.ang = 99; assist.onTarget = false;
-  if (!touchOn() || S.touch.assist <= 0 || !mode || !p.alive) return;
+  if (!touchOn() || S.touch.assist <= 0 || !mode || mode.type === 'aim' || !p.alive) return;
   const eye = eyePos(p), fwd = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(p.pitch, p.yaw, 0, 'YXZ'));
   const recheck = now >= assist.visAt; if (recheck) assist.visAt = now + 0.15;
   for (const o of combatants) {
@@ -1814,6 +1830,7 @@ function tryMelee(alt) {
 }
 function tryFire(pressedNow) {
   const s = active(), w = s.w;
+  if (mode && mode.noFire) return;
   if (pw.drawT > 0 || now < pw.nextFire || pw.reloadT) return;
   if (s.mag <= 0) { if (pressedNow) play('empty', 0.8); pw.nextFire = now + 0.2; tryReload(); return; }
   if (!pw.infinite) s.mag--;
@@ -1824,12 +1841,12 @@ function tryFire(pressedNow) {
     .addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.18)
     .addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), -0.14)
     .addScaledVector(dir, 0.6);
-  const res = fireWeapon(player, w, camera.position.clone(), dir, pw.spread, muzzleWorld);
+  const res = (mode && mode.aimShot && mode.aimShot(camera.position.clone(), dir, muzzleWorld)) || fireWeapon(player, w, camera.position.clone(), dir, mode && mode.perfect ? 0 : pw.spread, muzzleWorld);
   if (mode && mode.stats) { mode.stats.shots++; if (res.hit) mode.stats.hits++; }
   if (mode && mode.net) Net.send({ t: 'shot', w: s.wi, a: v3a(muzzleWorld), b: v3a(res.end) });
   pw.shotSpread = Math.min(pw.shotSpread + w.perShot, w.maxShot);
-  if (RECOIL[w.id]) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
-  pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3;
+  if (RECOIL[w.id] && !(mode && mode.noRecoil)) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
+  if (!(mode && mode.noRecoil)) { pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3; }
   pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0;
   play(w.snd, 0.9);
   if (w.scope && pw.zoom) { pw.rezoom = pw.zoom; pw.rezoomAt = pw.nextFire - 0.1; pw.zoom = 0; }
@@ -2739,6 +2756,204 @@ function removeBotAtCrosshair() {
   if (h && h.object.userData.owner && !h.object.userData.owner.isPlayer) removeBot(h.object.userData.owner);
 }
 
+// =====================================================================================
+// Treino de mira (estilo Aim Lab): sala fechada, jogador parado, alvos e recordes salvos
+// =====================================================================================
+const AIM_KEY = 'cs3.web.aim';
+const AIM_SCEN = [
+  { id: 'grid', name: 'Grade', w: 'pistol', desc: 'Três alvos na parede. Cada acerto faz outro aparecer. Velocidade e precisão.' },
+  { id: 'flick', name: 'Flick', w: 'deagle', desc: 'Um alvo pequeno por vez, em qualquer lugar da sala. Treina a puxada rápida.' },
+  { id: 'track', name: 'Rastreio', w: 'rifle', desc: 'Uma bola se mexe sem parar. Mantenha a mira em cima dela pelo maior tempo possível.' },
+  { id: 'react', name: 'Reflexo', w: 'pistol', desc: 'Alvos aparecem e somem rápido. Mede o seu tempo de reação.' },
+  { id: 'heads', name: 'Cabeças', w: 'pistol', desc: 'Bonecos andando de lado. Só vale tiro na cabeça, como no x1.' },
+];
+const AIM_DEF = { scen: 'grid', time: 60, size: 1, weapon: 'auto', recoil: false };
+const loadAim = () => { const a = loadJSON(AIM_KEY); return { opt: Object.assign(clone(AIM_DEF), a.opt || {}), rec: a.rec || {} }; };
+const saveAim = a => { try { localStorage.setItem(AIM_KEY, JSON.stringify(a)); } catch (e) {} };
+const aimRecKey = o => `${o.scen}|${o.time}|${o.size}`;
+const aimMat = color => new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.35 });
+const AIM_COL = 0x2fd5ff, AIM_ON = 0x56f08a;
+
+function buildAimRoom() {
+  newWorld();
+  box(0, -4, 30, 1, 34, 0x3a3f46, -1);
+  box(0, -17, 30, 10, 1, 0x4a5058); box(-15, -4, 1, 10, 34, 0x434950); box(15, -4, 1, 10, 34, 0x434950); box(0, 13, 30, 10, 1, 0x434950);
+  // grade fraca na parede do fundo e no chão, ajuda a ter noção de profundidade
+  for (let x = -12; x <= 12; x += 3) mesh(BOX, 0x5c636c, 0.04, 9, 0.02, x, 4.5, -16.45, world);
+  for (let y = 1; y <= 8; y += 1.5) mesh(BOX, 0x5c636c, 28, 0.04, 0.02, 0, y, -16.45, world);
+  for (let z = -14; z <= 10; z += 3) decal(0, z, 28, 0.04, 0x4c525a, 0.012);
+  decal(0, 4, 1.2, 1.2, C.orange, 0.015);
+  const ps = { pos: new THREE.Vector3(0, 0, 4), yaw: 0 };
+  mapInfo = { name: 'Sala de treino', spawns: [ps], teamSpawns: [[ps], [ps]], waypoints: [], playerSpawn: ps, targets: [] };
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -24; sun.shadow.camera.right = sun.shadow.camera.top = 24; sun.shadow.camera.updateProjectionMatrix();
+}
+
+function startAim(optIn) {
+  initAudio();
+  const o = Object.assign(clone(AIM_DEF), optIn || loadAim().opt);
+  const sc = AIM_SCEN.find(s => s.id === o.scen) || AIM_SCEN[0];
+  buildAimRoom(); clearCombatants(); feedEl.innerHTML = '';
+  const wid = o.weapon === 'auto' ? sc.w : o.weapon;
+  const wi = Math.max(0, WI(wid));
+  mode = { type: 'aim', weapons: [wi] };
+  setupPlayer(mapInfo.playerSpawn);
+  pw.infinite = true;
+  const T0 = 3, dur = o.time, sz = o.size;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const targets = [];
+  const addT = (pos, r, extra = {}) => {
+    const m = new THREE.Mesh(SPHERE, aimMat(AIM_COL)); m.scale.setScalar(r * 2); m.position.copy(pos); m.castShadow = true; world.add(m);
+    const t = Object.assign({ m, r, born: now }, extra); targets.push(t); return t;
+  };
+  const killT = t => { world.remove(t.m); t.m.material.dispose(); targets.splice(targets.indexOf(t), 1); };
+  const pop = (t, p) => burst(p || t.m.position, new THREE.Vector3(0, 0, 1), AIM_COL, 6);
+  const GRID = []; for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) GRID.push(new THREE.Vector3(-4 + i * 2, 1.4 + j * 1.25, -10));
+  const gridSpawn = () => { const free = GRID.filter(g => !targets.some(t => t.m.position.distanceTo(g) < 0.1)); addT(free[Math.floor(Math.random() * free.length)].clone(), 0.42 * sz); };
+  const randPos = () => new THREE.Vector3(rnd(-8, 8), rnd(0.9, 6.5), rnd(-13, -6));
+  const m = mode;
+  Object.assign(m, {
+    over: false, opt: o, scen: sc, targets, perfect: !o.recoil, noFire: true, noRecoil: !o.recoil, noFeed: true, hsOnly: sc.id === 'heads',
+    stats: { shots: 0, hits: 0, hsKills: 0 }, t: 0, onT: 0, rts: [], misses: 0, spawnAt: 0,
+    enemies(a, b) { return a !== b && (a.isPlayer || b.isPlayer); },
+    top() {
+      const left = Math.max(0, T0 + dur - this.t), s = this.stats;
+      if (this.t < T0) return `${sc.name}  ·  começa em ${Math.ceil(T0 - this.t)}`;
+      const mid = sc.id === 'track' ? `${pct(this.onT, this.t - T0)} no alvo` : `${s.hits} acerto${s.hits === 1 ? '' : 's'}  ·  ${pct(s.hits, s.shots)}`;
+      return `${sc.name}  ·  ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}  ·  ${mid}  ·  ${this.score()} pts`;
+    },
+    score() {
+      const s = this.stats;
+      if (sc.id === 'track') return Math.round(this.onT / Math.max(0.001, Math.min(dur, this.t - T0)) * 10000);
+      const base = s.hits * 100 - (s.shots - s.hits) * 25 - this.misses * 50;
+      const bonus = sc.id === 'react' ? this.rts.reduce((a, rt) => a + Math.max(0, 0.9 - rt) * 100, 0) : 0;
+      return Math.max(0, Math.round(base + bonus));
+    },
+    onDeath(v) { if (!v.isPlayer) v.respawnAt = now + 0.35; },
+    onPlayerHit() {},
+    aimShot(origin, dir, muzzle) {
+      if (sc.id === 'heads') return null;
+      let best = null, bt = 1e9;
+      for (const t of targets) {
+        if (t.hidden) continue;
+        const oc = origin.clone().sub(t.m.position), b = oc.dot(dir), c = oc.lengthSq() - t.r * t.r, disc = b * b - c;
+        if (disc < 0) continue; const tt = -b - Math.sqrt(disc);
+        if (tt > 0 && tt < bt) { bt = tt; best = t; }
+      }
+      if (!best || sc.id === 'track') return null;
+      const p = origin.clone().addScaledVector(dir, bt);
+      tracer(muzzle, p); pop(best, p);
+      if (sc.id === 'react') this.rts.push(now - best.born);
+      if (sc.id === 'flick') this.rts.push(now - best.born);
+      killT(best);
+      if (sc.id === 'grid') gridSpawn();
+      if (sc.id === 'flick') addT(randPos(), 0.24 * sz);
+      if (sc.id === 'react') this.spawnAt = now + rnd(0.35, 1.3);
+      return { hit: true, head: true, kill: false, end: p };
+    },
+    update(dt) {
+      // jogador fica parado no ponto laranja, só mira
+      player.pos.copy(mapInfo.playerSpawn.pos); player.vel.set(0, 0, 0);
+      if (this.over) return;
+      const was = this.t; this.t += dt;
+      if (was < T0 && this.t >= T0) { this.noFire = false; this.begin(); }
+      if (this.t < T0) return;
+      if (this.t >= T0 + dur) { this.finish(); return; }
+      if (sc.id === 'track') {
+        const t = targets[0]; if (!t) return;
+        if (now >= t.turnAt) { t.turnAt = now + rnd(0.35, 1.1); const sp = rnd(3.5, 7.5); const a = rnd(0, Math.PI * 2); t.v.set(Math.cos(a) * sp, Math.sin(a) * sp * 0.45, 0); }
+        t.m.position.addScaledVector(t.v, dt);
+        const P = t.m.position;
+        if (P.x < -8 || P.x > 8) { t.v.x *= -1; P.x = clamp(P.x, -8, 8); }
+        if (P.y < 1 || P.y > 5.5) { t.v.y *= -1; P.y = clamp(P.y, 1, 5.5); }
+        const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch + pw.punch.x * DEG, player.yaw - pw.punch.y * DEG, 0, 'YXZ'));
+        const oc = camera.position.clone().sub(P), b = oc.dot(dir), on = b < 0 && b * b - (oc.lengthSq() - t.r * t.r) >= 0;
+        if (on) this.onT += dt;
+        if (on !== t.on) { t.on = on; t.m.material.color.setHex(on ? AIM_ON : AIM_COL); t.m.material.emissive.setHex(on ? AIM_ON : AIM_COL); }
+        if (on && now >= (t.tick || 0)) { t.tick = now + 0.12; if (S.audio.hit) play('hit', 0.35); }
+      }
+      if (sc.id === 'react') {
+        const t = targets[0];
+        if (t && now - t.born > 0.9) { killT(t); this.misses++; this.spawnAt = now + rnd(0.35, 1.3); play('empty', 0.6); }
+        if (!targets.length && now >= this.spawnAt) addT(randPos(), 0.36 * sz);
+      }
+      if (sc.id === 'heads') {
+        for (const c of combatants) {
+          if (c.isPlayer) continue;
+          if (!c.alive) { if (c.respawnAt > 0 && now >= c.respawnAt) { respawn(c, { pos: new THREE.Vector3(rnd(-8, 8), 0, rnd(-13, -5)), yaw: 0 }); } continue; }
+          if (now >= c._turn) { c._turn = now + rnd(0.3, 1.2); c._vx = (Math.random() < 0.5 ? -1 : 1) * rnd(2.5, 5) * (Math.random() < 0.15 ? 0 : 1); }
+          c._x += c._vx * dt; if (c._x < -9 || c._x > 9) { c._vx *= -1; c._x = clamp(c._x, -9, 9); }
+          c.pos.set(c._x, 0, c._z); c.vel.set(c._vx, 0, 0); c.grounded = true;
+          c.yaw = facing(c.pos.x, c.pos.z, player.pos.x, player.pos.z);
+        }
+      }
+    },
+    begin() {
+      play('draw', 0.8);
+      if (sc.id === 'grid') { gridSpawn(); gridSpawn(); gridSpawn(); }
+      if (sc.id === 'flick') addT(randPos(), 0.24 * sz);
+      if (sc.id === 'track') addT(new THREE.Vector3(0, 3, -8), 0.5 * sz, { v: new THREE.Vector3(), turnAt: 0, on: false });
+      if (sc.id === 'react') this.spawnAt = now + 0.6;
+      if (sc.id === 'heads') for (let i = 0; i < 3; i++) {
+        const b = createBot(Object.assign(botDefaults(), { name: 'Alvo ' + (i + 1), weapon: WI('rifle'), hp: 1, move: false, shoot: false, respawn: false }),
+          { pos: new THREE.Vector3(-6 + i * 6, 0, -6 - i * 3), yaw: 0 }, new THREE.Color().setHSL(0.55 + i * 0.12, 0.6, 0.5).getHex());
+        b._x = b.pos.x; b._z = b.pos.z; b._vx = 0; b._turn = 0;
+      }
+    },
+    finish() {
+      this.over = true; this.noFire = true;
+      // um pouco depois do fim, para o último tiro e o som terminarem
+      const s = this.stats, score = this.score(), key = aimRecKey(o), A = loadAim();
+      const r = A.rec[key] || (A.rec[key] = { best: 0, runs: [] });
+      const prev = r.best, isNew = score > prev;
+      if (isNew) r.best = score;
+      r.runs.unshift({ at: Date.now(), s: score, acc: sc.id === 'track' ? Math.round(this.onT / dur * 100) : s.shots ? Math.round(s.hits / s.shots * 100) : 0 });
+      r.runs.length = Math.min(r.runs.length, 30);
+      saveAim(A);
+      if (document.exitPointerLock && locked()) document.exitPointerLock();
+      const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 1000) + ' ms' : '–';
+      const cells = [[score, 'pontos']];
+      if (sc.id === 'track') cells.push([pct(this.onT, dur), 'tempo no alvo']);
+      else {
+        cells.push([s.hits, sc.id === 'heads' ? 'tiros na cabeça' : 'acertos'], [pct(s.hits, s.shots), 'precisão']);
+        if (sc.id === 'react') cells.push([avg(this.rts), 'reação média'], [this.misses, 'alvos perdidos']);
+        else if (sc.id === 'flick') cells.push([avg(this.rts), 'tempo por alvo']);
+        else cells.push([s.hits ? (dur / s.hits).toFixed(2) + ' s' : '–', 'por acerto']);
+      }
+      cells.push([r.best, 'recorde']);
+      const last = r.runs.slice(0, 8).reverse();
+      const mx = Math.max(1, ...last.map(x => x.s));
+      $('#endTitle').textContent = 'Fim do treino';
+      $('#endWinner').innerHTML = `<b>${esc(sc.name)}</b> · ${dur} s · alvo ${sz === 1 ? 'normal' : sz < 1 ? 'pequeno' : 'grande'}` +
+        (isNew ? `<br><b style="color:var(--accent)">Novo recorde!</b>${prev ? ` Antes: ${prev}` : ''}` : prev ? `<br>Faltaram ${prev - score} pontos para o recorde` : '');
+      $('#end table').hidden = true; $('#endBody').innerHTML = '';
+      $('#endStats').innerHTML = `<div class="statgrid">${cells.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('')}</div>` +
+        (last.length > 1 ? `<div class="aimbars" title="Últimos treinos">${last.map((x, i) => `<i style="height:${Math.max(4, Math.round(x.s / mx * 100))}%" class="${i === last.length - 1 ? 'on' : ''}"><em>${x.s}</em></i>`).join('')}</div><p class="note" style="margin:2px 0 0">Últimos ${last.length} treinos deste cenário</p>` : '');
+      $('#eAgain').disabled = false; $('#eAgain').textContent = 'Treinar de novo';
+      $('#end').hidden = false;
+    },
+    restart() { startAim(o); },
+  });
+  enterPlaying();
+  banner('Treino: ' + sc.name, sc.desc, 3);
+}
+
+function renderAimSetup() {
+  const A = loadAim(), o = A.opt;
+  const best = id => { const r = A.rec[aimRecKey(Object.assign({}, o, { scen: id }))]; return r && r.best ? `recorde ${r.best}` : 'sem recorde'; };
+  const sel = (k, label, opts) => `<div class="row"><label for="a_${k}">${label}</label><select id="a_${k}" data-a="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(o[k]) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><span></span></div>`;
+  $('#aimForm').innerHTML = `<div class="aimlist">${AIM_SCEN.map(s => `<button class="aimcard ${s.id === o.scen ? 'on' : ''}" data-s="${s.id}"><b>${s.name}</b><span>${esc(s.desc)}</span><small>${best(s.id)}</small></button>`).join('')}</div>` +
+    `<div class="formh">Opções</div>` +
+    sel('time', 'Duração', [[30, '30 segundos'], [60, '60 segundos'], [90, '90 segundos']]) +
+    sel('size', 'Tamanho do alvo', [[0.7, 'Pequeno'], [1, 'Normal'], [1.4, 'Grande']]) +
+    sel('weapon', 'Arma', [['auto', 'A do cenário']].concat(WEAPONS.filter(w => !w.melee).map(w => [w.id, w.name]))) +
+    `<div class="row"><label for="a_recoil">Recuo e imprecisão da arma</label><input type="checkbox" id="a_recoil" data-a="recoil" ${o.recoil ? 'checked' : ''}><span></span></div>` +
+    `<p class="note" style="margin:0">Cada combinação de cenário, duração e tamanho tem o seu recorde. Use a mesma sensibilidade do x1 para o treino valer.</p>`;
+  $('#aimForm').querySelectorAll('[data-s]').forEach(b => b.onclick = () => { o.scen = b.dataset.s; saveAim(A); renderAimSetup(); });
+  $('#aimForm').querySelectorAll('[data-a]').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.a; o[k] = el.type === 'checkbox' ? el.checked : k === 'weapon' ? el.value : +el.value; saveAim(A); renderAimSetup();
+  }));
+}
+
 function enterPlaying() {
   goFullscreen();
   state = 'playing'; paused = false; devOpen = false;
@@ -2750,6 +2965,7 @@ function enterPlaying() {
   $('#eMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
   $('#banner').style.opacity = 0;
   hurtT = 0; hitT = 0;
+  $('#endTitle').textContent = 'Fim de partida'; $('#end table').hidden = false;
   buildSlots();
   lockPointer();
   updateLockHint();
@@ -2760,7 +2976,7 @@ function goMenu() {
   state = 'menu'; paused = false; devOpen = false; mode = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
-  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#histPanel').hidden = true; $('#mainButtons').hidden = false;
+  $('#dmSetup').hidden = true; $('#x1Setup').hidden = true; $('#netSetup').hidden = true; $('#histPanel').hidden = true; $('#aimSetup').hidden = true; $('#mainButtons').hidden = false;
   $('#banner').style.opacity = 0;
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   if (wasNet && Net.role) openNetPanel();
@@ -2796,6 +3012,7 @@ let hitT = 0, hitHead = false, hitKill = false, hurtT = 0, hurtFrom = null;
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const hex = n => '#' + new THREE.Color(n).getHexString();
 function addFeed(k, v, weapon, head) {
+  if (mode && mode.noFeed) return;
   const d = document.createElement('div');
   const nm = c => `<span style="color:${hex(c.color)}">${esc(c.name)}</span>`;
   d.innerHTML = !k || k === v ? `${nm(v)} morreu` : `${nm(k)} <span style="color:var(--muted)">[${esc(weapon)}]</span>${head ? ' <span style="color:var(--gold)">(HS)</span>' : ''} ${nm(v)}`;
@@ -2873,7 +3090,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
     [...H('slots').children].forEach((d, i) => d.classList.toggle('on', i === pw.cur));
   }
   T('top', mode.top());
-  const showSp = S.move.showSpeed && player.alive;
+  const showSp = S.move.showSpeed && player.alive && mode.type !== 'aim';
   HID('speed', !showSp);
   if (showSp) { T('speed', Math.hypot(player.vel.x, player.vel.z).toFixed(1) + ' m/s'); const sl = player.slideT > 0; if (H('speed')._sl !== sl) { H('speed')._sl = sl; H('speed').classList.toggle('slide', sl); } }
   if (bannerUntil && performance.now() > bannerUntil) { H('banner').style.opacity = 0; bannerUntil = 0; }
@@ -2896,7 +3113,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   // placar (atualiza 4 vezes por segundo enquanto aberto)
   const showSb = isHeld('score') && !mode.over && !paused;
   ST('scoreboard', 'display', showSb ? 'block' : 'none');
-  if (showSb && performance.now() - sbAt > 250) { sbAt = performance.now(); T('sbTitle', 'Placar · ' + (mode.type === 'dm' ? 'Mata-mata' : mode.type === 'x1' ? mode.top().split('  ·  ').slice(0, 2).join(' · ') : 'Mapa de testes')); fillScore(H('sbBody')); }
+  if (showSb && performance.now() - sbAt > 250) { sbAt = performance.now(); T('sbTitle', 'Placar · ' + (mode.type === 'dm' ? 'Mata-mata' : mode.type === 'x1' ? mode.top().split('  ·  ').slice(0, 2).join(' · ') : mode.type === 'aim' ? 'Treino de mira' : 'Mapa de testes')); fillScore(H('sbBody')); }
   // dica do modo dev
   if (mode.type === 'dev' && !devOpen) {
     HID('hint', false);
@@ -3025,6 +3242,9 @@ $('#bDm').onclick = () => { initAudio(); $('#dmSetup').hidden = false; $('#mainB
 $('#bDmBack').onclick = () => { $('#dmSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bDmStart').onclick = () => startDeathmatch({ bots: +$('#dmBots').value, diff: +$('#dmDiff').value, kills: +$('#dmKills').value, time: +$('#dmTime').value });
 $('#bDev').onclick = () => startDev();
+$('#bAim').onclick = () => { initAudio(); $('#mainButtons').hidden = true; $('#aimSetup').hidden = false; renderAimSetup(); };
+$('#bAimBack').onclick = () => { $('#aimSetup').hidden = true; $('#mainButtons').hidden = false; };
+$('#bAimStart').onclick = () => startAim();
 function renderHist() {
   const h = loadHist(), t = histTotals(h.matches);
   if (!t.n) { $('#histBody').innerHTML = '<p class="note">Nenhuma partida de x1 terminada ainda. Jogue uma contra bots ou online e ela aparece aqui.</p>'; return; }
@@ -3410,7 +3630,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
