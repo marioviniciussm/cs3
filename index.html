@@ -544,7 +544,7 @@ const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1 },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true },
   controls: { sens: 2, zoomSens: 1, invertY: false },
-  move: { autoHop: true, showSpeed: true },
+  move: { autoHop: true, showSpeed: true, manualPick: false },
   touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
   hud: { scale: 1, bg: 0.42, fg: '#e9edf0', accent: '#f2a03a', hitmarker: true, dmgDir: true, killcam: true },
   layout: { hud: {}, hudT: {}, touch: {} },
@@ -1198,7 +1198,7 @@ function addDoor(px1, px2, py) {
   const pivot = new THREE.Group(); pivot.position.set(hx, 0, z); world.add(pivot);
   const m = mesh(BOX, poolDoorMat, w, 1.9, 0.06, w / 2, 0.15 + 0.95, 0, pivot); m.castShadow = m.receiveShadow = true; worldMeshes.push(m);
   mesh(BOX, 0x7d7d7d, 0.05, 0.05, 0.14, w - 0.15, 1.05, 0, pivot);
-  const col = { min: new THREE.Vector3(hx, 0, z - 0.05), max: new THREE.Vector3(hx + w, 2.2, z + 0.05) }; colliders.push(col);
+  const col = { min: new THREE.Vector3(hx, 0, z - 0.05), max: new THREE.Vector3(hx + w, 2.1, z + 0.05) }; colliders.push(col);
   return { pivot, col, a: 0, until: 0, hx, cx: hx + w / 2, z, w, cmin: col.min.clone(), cmax: col.max.clone() };
 }
 function updateDoors(dt) {
@@ -1236,20 +1236,35 @@ function buildPoolDay() {
   for (const [a, b, c, d] of [
     [272, 141, 288, 208], [368, 193, 383, 207], [368, 270, 383, 432], [368, 503, 383, 575],
     [272, 265, 288, 463], [288, 352, 368, 368], [256, 560, 383, 575], [383, 575, 400, 615],
-    [480, 575, 544, 593],
     [736, 141, 752, 208], [640, 193, 655, 207], [640, 264, 655, 447], [640, 512, 655, 575],
     [736, 264, 752, 471], [655, 352, 736, 368], [640, 560, 768, 575], [623, 575, 640, 615],
   ]) PR(a, b, c, d, WH, K.wall).material = poolWallMat;
+  // bloco entre o pátio da piscina e o corredor de baixo: de pé só dá para ver a cabeça de quem está do outro lado
+  PR(480, 575, 544, 593, 1.5, K.wall).material = poolWallMat;
+  // paredes da piscininha de cima: mais altas que o jogador, cortam a visão daquela área
+  for (const [a, b, c, d] of [[383, 193, 460, 207], [516, 193, 640, 207], [545, 118, 560, 193]]) PR(a, b, c, d, 2.3, K.low).material = poolLowMat;
   // muretas e bancos (cinza claro no desenho)
   for (const [a, b, c, d] of [
-    [383, 193, 460, 207], [516, 193, 640, 207], [545, 118, 560, 193],
     [288, 323, 368, 352], [288, 368, 368, 397], [255, 296, 272, 440], [272, 544, 368, 560],
     [655, 323, 736, 352], [655, 368, 736, 397], [832, 352, 849, 447], [655, 544, 752, 560],
   ]) PR(a, b, c, d, LH, K.low).material = poolLowMat;
-  // escadas azuis: sobem até a mureta
-  const steps = (x1, z1, x2, z2, dir) => { for (let i = 0; i < 3; i++) { const k = (i + 1) / 3, h = LH * k;
-    if (dir === 'z-') PR(x1, z2 - (z2 - z1) * k, x2, z2 - (z2 - z1) * (k - 1 / 3), h, K.stair); else PR(x1 + (x2 - x1) * (k - 1 / 3), z1, x1 + (x2 - x1) * k, z2, h, K.stair); } };
-  steps(516, 208, 533, 247, 'z-'); steps(600, 383, 637, 399, 'x+');
+  // cadeiras de sol (listradas de azul e branco): assento baixo e encosto inclinado na cabeceira
+  const lounger = (x1, z1, x2, z2, head) => {
+    const along = head === 'z-' || head === 'z+' ? 'z' : 'x', L = along === 'z' ? (z2 - z1) * PX : (x2 - x1) * PX, W = along === 'z' ? (x2 - x1) * PX : (z2 - z1) * PX;
+    const cx = (pxX(x1) + pxX(x2)) / 2, cz = (pxZ(z1) + pxZ(z2)) / 2, sg = head.endsWith('-') ? -1 : 1, g = new THREE.Group(); g.position.set(cx, 0, cz); world.add(g);
+    if (along === 'x') g.rotation.y = -Math.PI / 2 * sg; else if (sg > 0) g.rotation.y = Math.PI;
+    for (let i = 0; i < 6; i++) mesh(BOX, i % 2 ? 0xf4f4f0 : K.stair, W, 0.08, L * 0.62 / 6, 0, 0.4, L * 0.19 + (i - 2.5) * L * 0.62 / 6, g);
+    const back = new THREE.Group(); back.position.set(0, 0.42, -L * 0.12); back.rotation.x = 0.75; g.add(back);
+    for (let i = 0; i < 3; i++) mesh(BOX, i % 2 ? 0xf4f4f0 : K.stair, W, 0.07, L * 0.36 / 3, 0, 0, -(i + 0.5) * L * 0.36 / 3, back);
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mesh(BOX, 0xd8d8d8, 0.05, 0.38, 0.05, x * (W / 2 - 0.05), 0.19, z * (L / 2 - 0.08) * (z < 0 ? 0.25 : 1), g);
+    g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; worldMeshes.push(m); } });
+    // colisão: assento (dá para subir andando) e encosto mais alto
+    const hx = along === 'z' ? W / 2 : L / 2, hz = along === 'z' ? L / 2 : W / 2;
+    colliders.push({ min: new THREE.Vector3(cx - hx, 0, cz - hz), max: new THREE.Vector3(cx + hx, 0.44, cz + hz) });
+    const bx = along === 'x' ? cx + sg * L * 0.3 : cx, bz = along === 'z' ? cz + sg * L * 0.3 : cz, bhx = along === 'x' ? L * 0.16 : W / 2, bhz = along === 'z' ? L * 0.16 : W / 2;
+    colliders.push({ min: new THREE.Vector3(bx - bhx, 0, bz - bhz), max: new THREE.Vector3(bx + bhx, 0.8, bz + bhz) });
+  };
+  lounger(516, 208, 533, 247, 'z-'); lounger(600, 383, 637, 399, 'x+');
   // piscina grande
   const P0 = [432, 288, 560, 480], wt = 0.4;
   PR(P0[0], P0[1], P0[2], P0[3], 1, K.poolDeep, -3.6);
@@ -1275,7 +1290,8 @@ function buildPoolDay() {
   for (const [x, side] of [[190, -1], [222, -1], [257, -1], [767, 1], [800, 1], [833, 1]]) {
     box(pxX(x), pxZ(160), 0.55, 0.45, 0.7, K.porcelain); box(pxX(x), pxZ(147), 0.7, 0.9, 0.3, K.porcelain);
   }
-  for (const x of [206, 240, 783, 817]) PR(x - 1, 141, x + 1, 190, 2.2, K.low).material = poolLowMat;
+  // divisórias de 2,1 m: do vaso (pulando e agachando no ar) dá para subir em cima da cabine
+  for (const x of [206, 240, 783, 817]) { PR(x - 1, 141, x + 1, 190, 1.95, K.low).material = poolLowMat; PR(x - 3, 141, x + 3, 192, 0.15, K.low, 1.95).material = poolLowMat; }   // tampo mais largo para ficar em pé em cima
   // portas das cabines: abrem para dentro quando alguém chega perto e fecham sozinhas
   const doors = [];
   for (const [a, b] of [[174, 205], [207, 239], [241, 271], [753, 782], [784, 816], [818, 850]]) doors.push(addDoor(a, b, 190));
@@ -2144,7 +2160,9 @@ function updatePlayer(dt) {
   const wantCrouch = input && isHeld('crouch');
   if (wantCrouch) p.crouching = true; else if (p.crouching && canStand()) p.crouching = false;
   p.crouch = clamp(p.crouch + (p.crouching ? 1 : -1) * dt * 8, 0, 1);
-  p.h = lerp(1.8, 1.25, p.crouch);
+  const oldH = p.h; p.h = lerp(1.8, 1.25, p.crouch);
+  // agachar no ar encolhe as pernas (como no CS): os pés sobem e dá para alcançar lugares mais altos
+  if (!p.grounded && p.h !== oldH) { const d = oldH - p.h; p.pos.y += d; if (collides(p.pos, p.h)) p.pos.y -= d; }
   const walking = input && isHeld('walk');
   const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1);
   const wishS = maxS * (p.crouching ? 0.34 : walking ? 0.52 : 1);
@@ -4212,7 +4230,7 @@ function updateGround(dt) {
     for (const it of ground.items.slice()) {
       if (it.noPick && now < it.noPick.until) continue;
       const d = Math.hypot(it.pos.x - player.pos.x, it.pos.z - player.pos.z);
-      if (d < 0.9 && Math.abs(it.pos.y - player.pos.y - 0.3) < 1.3 && !pw.slots.some(s => wCat(s.w) === wCat(WEAPONS[it.wi]))) pickItem(it);
+      if (!S.move.manualPick && d < 0.9 && Math.abs(it.pos.y - player.pos.y - 0.3) < 1.3 && !pw.slots.some(s => wCat(s.w) === wCat(WEAPONS[it.wi]))) pickItem(it);
     }
     if (canInput()) {
       if (isDown('drop')) { const s = active(); if (s && !s.w.melee) dropSlot(pw.cur); }
@@ -5196,6 +5214,7 @@ function renderSettings() {
       `<p class="note">${touchOn() ? 'Você está com os controles de toque: as posições da HUD no celular são guardadas separadas das do computador.' : 'As posições valem para este aparelho.'} Restaurar padrões da aba volta tudo ao original.</p>`;
   } else if (setTab === 4) {
     h = T_('move', 'autoHop', 'Pular sem parar segurando Espaço') + T_('move', 'showSpeed', 'Mostrar velocidade embaixo da mira') +
+      T_('move', 'manualPick', `Pegar arma do chão só com a tecla (${keyLabel(S.keys.use)}) ou o botão Pegar`) +
       `<p class="note">Como fazer o bunny hop: corra, pule e aperte agachar (<kbd>${keyLabel(S.keys.crouch)}</kbd>) antes de tocar o chão. Ao cair agachado você desliza com impulso; pule de novo durante o deslize e repita.
       Cada pulo + agachar soma velocidade até o limite. No ar, segure <kbd>A</kbd> ou <kbd>D</kbd> e vire o mouse para o mesmo lado (strafe) para ganhar ainda mais.
       A força do impulso, a gravidade e a velocidade são escolhidas nas regras do x1.</p>`;
