@@ -1017,7 +1017,8 @@ function tileFloor(px1, py1, px2, py2, color, y = 0.006) {
 // caixa a partir de um retângulo em pixels do desenho
 const PR = (px1, py1, px2, py2, h, color, y0 = 0, collide = true) => box(pxX((px1 + px2) / 2), pxZ((py1 + py2) / 2), (px2 - px1) * PX, h, (py2 - py1) * PX, color, y0, collide);
 const lampMat = new THREE.MeshBasicMaterial({ color: 0xfffbe8 }), ceilMat = new THREE.MeshLambertMaterial({ color: 0xcfcac0, emissive: 0x4a4740 }),
-  poolWallMat = new THREE.MeshPhongMaterial({ color: POOL_C.wall, specular: 0x000000, shininess: 1 }), poolLowMat = new THREE.MeshPhongMaterial({ color: POOL_C.low, specular: 0x000000, shininess: 1 });
+  poolWallMat = new THREE.MeshPhongMaterial({ color: POOL_C.wall, specular: 0x000000, shininess: 1 }), poolLowMat = new THREE.MeshPhongMaterial({ color: POOL_C.low, specular: 0x000000, shininess: 1 }),
+  poolDoorMat = new THREE.MeshPhongMaterial({ color: 0x8e9aa6, specular: 0x222222, shininess: 20 });
 let shadeTex = null;
 // sombra suave no chão (mancha escura com borda em degradê), para os cantos sem luz
 function floorShade(px1, py1, px2, py2, o) {
@@ -1027,6 +1028,29 @@ function floorShade(px1, py1, px2, py2, o) {
   }
   const m = new THREE.Mesh(new THREE.PlaneGeometry((px2 - px1) * PX, (py2 - py1) * PX), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: shadeTex, transparent: true, opacity: o, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.set(pxX((px1 + px2) / 2), 0.02, pxZ((py1 + py2) / 2)); m.renderOrder = 1; world.add(m);
+}
+function addDoor(px1, px2, py) {
+  const w = (px2 - px1) * PX, hx = pxX(px1), z = pxZ(py);
+  const pivot = new THREE.Group(); pivot.position.set(hx, 0, z); world.add(pivot);
+  const m = mesh(BOX, poolDoorMat, w, 1.9, 0.06, w / 2, 0.15 + 0.95, 0, pivot); m.castShadow = m.receiveShadow = true; worldMeshes.push(m);
+  mesh(BOX, 0x7d7d7d, 0.05, 0.05, 0.14, w - 0.15, 1.05, 0, pivot);
+  const col = { min: new THREE.Vector3(hx, 0, z - 0.05), max: new THREE.Vector3(hx + w, 2.2, z + 0.05) }; colliders.push(col);
+  return { pivot, col, a: 0, until: 0, hx, cx: hx + w / 2, z, w, cmin: col.min.clone(), cmax: col.max.clone() };
+}
+function updateDoors(dt) {
+  const D = mapInfo && mapInfo.doors; if (!D) return;
+  for (const d of D) {
+    for (const c of combatants) {
+      if (!c.alive || c.pos.y > 2) continue;
+      if (Math.abs(c.pos.x - d.cx) < d.w / 2 + 0.3 && Math.abs(c.pos.z - d.z) < 0.85) d.until = now + 2.5;
+      // não fecha em cima de quem está na frente da porta aberta, dentro da cabine
+      else if (d.a > 0.05 && c.pos.x > d.hx - 0.3 && c.pos.x < d.hx + d.w * 0.6 && c.pos.z < d.z && c.pos.z > d.z - d.w - 0.3) d.until = Math.max(d.until, now + 0.5);
+    }
+    const want = now < d.until ? 1.45 : 0, a0 = d.a;
+    d.a += clamp(want - d.a, -dt * 3.2, dt * 3.2); d.pivot.rotation.y = d.a;
+    if (a0 === 0 && d.a > 0) play('empty', 0.35, new THREE.Vector3(d.cx, 1, d.z));
+    if (d.a < 0.15) { d.col.min.copy(d.cmin); d.col.max.copy(d.cmax); } else { d.col.min.set(1e5, 1e5, 1e5); d.col.max.set(1e5, 1e5, 1e5); }
+  }
 }
 function buildPoolDay() {
   newWorld();
@@ -1088,6 +1112,9 @@ function buildPoolDay() {
     box(pxX(x), pxZ(160), 0.55, 0.45, 0.7, K.porcelain); box(pxX(x), pxZ(147), 0.7, 0.9, 0.3, K.porcelain);
   }
   for (const x of [206, 240, 783, 817]) PR(x - 1, 141, x + 1, 190, 2.2, K.low).material = poolLowMat;
+  // portas das cabines: abrem para dentro quando alguém chega perto e fecham sozinhas
+  const doors = [];
+  for (const [a, b] of [[174, 205], [207, 239], [241, 271], [753, 782], [784, 816], [818, 850]]) doors.push(addDoor(a, b, 190));
   for (const y of [300, 325, 352]) box(pxX(758), pxZ(y), 0.3, 0.7, 0.5, K.porcelain, 0.5);
   // teto: tudo é coberto, menos a área branca da piscina (céu aberto)
   for (const [a, b, c, d] of [[173, 141, 383, 659], [640, 141, 851, 659], [383, 575, 640, 659]]) { const r = PR(a, b, c, d, 0.6, K.ceil, WH - 0.15); r.material = ceilMat; }
@@ -1112,7 +1139,7 @@ function buildPoolDay() {
   const inPoolXZ = p => p.x > px0 - 0.6 && p.x < px1 + 0.6 && p.z > pz0 - 0.6 && p.z < pz1 + 0.6;
   mapInfo = { name: 'fy_pool_day', spawns: ta.concat(tb), teamSpawns: [ta, tb], playerSpawn: ta[0], targets: [],
     waypoints: gridWaypoints(pxX(185), pxX(840), pxZ(150), pxZ(650), 2.5).concat(gridWaypoints(pxX(410), pxX(615), pxZ(70), pxZ(135), 2.5)).filter(p => !inPoolXZ(p)),
-    pool: { x: (px0 + px1) / 2, z: (pz0 + pz1) / 2, hx: (px1 - px0) / 2, hz: (pz1 - pz0) / 2, y: -0.35, exits }, items };
+    pool: { x: (px0 + px1) / 2, z: (pz0 + pz1) / 2, hx: (px1 - px0) / 2, hz: (pz1 - pz0) / 2, y: -0.35, exits }, items, doors };
   shadowSize(34);
 }
 // nadar: dentro da piscina com a água acima da cintura
@@ -3657,7 +3684,7 @@ const nearItem = () => {
   return best;
 };
 function updateGround(dt) {
-  updateSocial();
+  updateSocial(); updateDoors(dt);
   if (!pickupOn()) return;
   const P = mapInfo.pool;
   for (const it of ground.items) {
