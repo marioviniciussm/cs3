@@ -3,19 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CS3 X1</title>
+<title>CS3</title>
+<meta name="theme-color" content="#0b0e11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 57 17.5v29L32 61 7 46.5v-29Z' fill='%230b0e11' stroke='%23f2a03a' stroke-width='5'/%3E%3Cpath d='M32 16v10M32 38v10M16 32h10M38 32h10' stroke='%23f2a03a' stroke-width='5' stroke-linecap='square'/%3E%3Ccircle cx='32' cy='32' r='3.5' fill='%23eef1f3'/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Barlow:wght@400;600&display=swap">
 <style>
 /* Layout: jogo em tela cheia; menus e HUD como camadas por cima, painéis escuros translúcidos à esquerda (estilo menu de CS). */
 :root {
-  --bg: #0d1013;
-  --panel: rgba(12, 15, 18, 0.9);
-  --panel-2: rgba(30, 35, 41, 0.92);
-  --line: #2b333b;
-  --fg: #e9edf0;
-  --muted: #98a3ad;
+  /* identidade CS3: grafite escuro, laranja de sinalização, cantos chanfrados */
+  --bg: #0b0e11;
+  --panel: rgba(13, 16, 20, 0.94);
+  --panel-2: rgba(29, 35, 42, 0.95);
+  --line: #2a323a;
+  --fg: #eef1f3;
+  --muted: #9aa5af;
+  --team-a: #e08a3c;
+  --team-b: #4a7fd0;
+  --ok: #5ad08a;
+  --cut: 10px;
+  --chamfer: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
   --accent: #f2a03a;
   --accent-ink: #1b1206;
   --danger: #ff5a4a;
@@ -152,7 +160,6 @@ button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent
 .statgrid b { display: block; font-size: 22px; color: var(--accent); } .statgrid span { font-size: 12px; color: var(--muted); }
 .res { display: inline-block; width: 20px; text-align: center; font-weight: 700; } .res.w { color: #4ade80; } .res.l { color: var(--danger); } .res.e { color: var(--muted); }
 #histPanel { flex-shrink: 0; }
-.side:has(#histPanel:not([hidden])) #gpuWarn, .side:has(#histPanel:not([hidden])) #controlsNote, .side:has(#aimSetup:not([hidden])) #gpuWarn, .side:has(#aimSetup:not([hidden])) #controlsNote, .side:has(#skinPanel:not([hidden])) #gpuWarn, .side:has(#skinPanel:not([hidden])) #controlsNote { display: none; }
 #histPanel table { width: 100%; font-size: 14px; }
 #mapEd { position: fixed; inset: 0; display: flex; gap: 12px; padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
 #mePanel { width: 340px; flex-shrink: 0; overflow-y: auto; gap: 8px; }
@@ -205,6 +212,106 @@ body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
 #lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--body); font-size: 18px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+/* ===================== Identidade CS3 e revisão de UX (menu, painéis, HUD) ===================== */
+.side { width: min(500px, 100%); gap: 16px; background: linear-gradient(90deg, rgba(8,10,13,0.96), rgba(8,10,13,0.86) 70%, rgba(8,10,13,0)); scrollbar-width: thin; scrollbar-color: #39424b transparent; }
+.side::before { content: ""; position: fixed; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand .mark { width: 62px; height: 62px; color: var(--accent); flex-shrink: 0; }
+.brand h1 { font-size: clamp(48px, 7vw, 76px); line-height: 0.85; }
+.tag { margin: 6px 0 0; color: var(--muted); font: 600 13px var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
+#menu.insub .brand .mark { width: 38px; height: 38px; } #menu.insub .brand h1 { font-size: 40px; } #menu.insub .tag { display: none; } #menu.insub details.alert { display: none; }
+.label { font: 700 12px var(--display); letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; margin: 2px 0 -4px; }
+.label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.home { display: flex; flex-direction: column; gap: 10px; }
+.modes { display: flex; flex-direction: column; gap: 6px; }
+button.mode, button.tile, button.link { font-family: var(--body); color: var(--fg); cursor: pointer; border: 1px solid var(--line); background: var(--panel-2); clip-path: var(--chamfer); }
+button.mode { display: flex; align-items: center; gap: 14px; padding: 13px 16px; text-align: left; position: relative; }
+button.mode svg { width: 30px; height: 30px; color: var(--accent); flex-shrink: 0; }
+button.mode b { display: block; font: 700 19px var(--display); letter-spacing: 0.02em; }
+button.mode small { display: block; color: var(--muted); font-size: 14px; margin-top: 1px; }
+button.mode.primary { background: linear-gradient(100deg, var(--accent), #f6b45c); border-color: var(--accent); color: var(--accent-ink); }
+button.mode.primary svg { color: var(--accent-ink); } button.mode.primary small { color: rgb(27 18 6 / 0.75); }
+button.mode::after { content: "›"; position: absolute; right: 16px; top: 50%; transform: translateY(-52%); font: 700 26px var(--display); opacity: 0.45; transition: transform 0.15s, opacity 0.15s; }
+button.mode:hover::after, button.mode:focus-visible::after { opacity: 1; transform: translate(4px, -52%); }
+button.mode:not(.primary):hover, button.mode:not(.primary):focus-visible, button.tile:hover, button.tile:focus-visible { border-color: var(--accent); background: #252c34; outline: none; }
+button.mode.primary:hover, button.mode.primary:focus-visible { filter: brightness(1.06); outline: none; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+button.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 12px 6px; font-weight: 600; font-size: 13px; line-height: 1.15; text-align: center; min-height: 78px; }
+button.tile svg { width: 24px; height: 24px; color: var(--accent); }
+.foot { display: flex; flex-wrap: wrap; gap: 6px; }
+button.link { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 14px; font-weight: 600; background: transparent; color: var(--muted); }
+button.link svg { width: 17px; height: 17px; }
+button.link:hover, button.link:focus-visible { color: var(--fg); border-color: #3d4750; outline: none; }
+details.alert { border: 1px solid rgb(255 90 74 / 0.55); background: rgb(60 14 10 / 0.55); padding: 9px 12px; clip-path: var(--chamfer); }
+details.alert summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 1px; font-size: 14px; }
+details.alert summary::-webkit-details-marker { display: none; }
+details.alert summary b { color: #ff8b7e; font: 700 14px var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+details.alert summary span { color: var(--muted); font-size: 13px; }
+details.alert[open] summary { margin-bottom: 8px; }
+.panel { clip-path: var(--chamfer); border-top: 2px solid var(--accent); }
+.phead { display: flex; align-items: center; gap: 10px; }
+button.back { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; background: #1b2026; border: 1px solid var(--line); color: var(--fg); cursor: pointer; clip-path: var(--chamfer); --cut: 6px; }
+button.back svg { width: 18px; height: 18px; } button.back:hover, button.back:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+button.btn { clip-path: var(--chamfer); --cut: 7px; }
+button.btn.primary:hover, button.btn.primary:focus-visible { filter: brightness(1.07); background: var(--accent); }
+#bX1Start, #bDmStart, #bAimStart, #bNetStart, #bSkinBack { position: sticky; bottom: -1px; z-index: 2; box-shadow: 0 -14px 16px rgba(13,16,20,0.95); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 5px 16px; align-items: center; font-size: 14px; }
+.keys kbd { justify-self: start; min-width: 30px; text-align: center; font: 700 13px var(--display); background: #1f262d; border: 1px solid var(--line); border-bottom-width: 3px; padding: 3px 7px; color: var(--fg); }
+.keys .k { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.keys .grp { grid-column: 1 / -1; margin-top: 6px; font: 700 12px var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+@media (max-height: 560px) {
+  .side { gap: 10px; padding-top: max(16px, env(safe-area-inset-top, 0px)); }
+  .brand .mark { width: 40px; height: 40px; } .brand h1 { font-size: 42px; } .tag { font-size: 11px; margin-top: 3px; }
+  button.mode { padding: 9px 14px; } button.mode svg { width: 24px; height: 24px; } button.mode b { font-size: 17px; } button.mode small { font-size: 12.5px; }
+  button.tile { min-height: 0; padding: 8px 4px; flex-direction: row; gap: 6px; font-size: 12.5px; } button.tile svg { width: 18px; height: 18px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* celular deitado: menu em duas colunas para tudo caber sem rolar */
+@media (max-height: 560px) and (min-width: 700px) {
+  .side { width: min(780px, 100%); }
+  .home { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-areas: "l1 l2" "m t" "m f"; gap: 8px 12px; align-items: start; }
+  .home > :nth-child(1) { grid-area: l1; } .home > :nth-child(2) { grid-area: m; } .home > :nth-child(3) { grid-area: l2; } .home > :nth-child(4) { grid-area: t; } .home > :nth-child(5) { grid-area: f; }
+  .foot button.link { padding: 6px 9px; font-size: 13px; }
+  details.alert:not([open]) summary span { display: none; }
+  .brand { gap: 10px; } .brand > div { display: flex; align-items: baseline; gap: 12px; }
+}
+
+#heroTag { position: fixed; right: max(24px, env(safe-area-inset-right, 0px)); bottom: max(24px, env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 14px;
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); padding: 10px 12px 10px 14px; clip-path: var(--chamfer); }
+#heroTag b { display: block; font: 700 18px var(--display); letter-spacing: 0.04em; } #heroTag small { display: block; color: var(--muted); font-size: 13px; }
+/* HUD */
+.box { clip-path: var(--chamfer); --cut: 8px; }
+#hp, #ammo { padding: 8px 16px 10px; }
+#hp { display: grid; grid-template-columns: auto auto 1fr; align-items: center; column-gap: 8px; border-left: 3px solid var(--hud-team, var(--hud-fg)); }
+#hp .ico { font: 700 26px var(--display); color: var(--hud-team, var(--hud-fg)); line-height: 1; }
+#hp .bar, #hp #hpTag { grid-column: 1 / -1; } #hp #hpTag:empty { display: none; }
+#hp.low { animation: lowhp 0.9s ease-in-out infinite; } #hp.low .ico, #hp.low .big { color: var(--danger); }
+@keyframes lowhp { 50% { background: rgb(150 20 10 / 0.55); } }
+#ammo .wname { font: 600 12px var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: rgb(233 237 240 / 0.7); margin-bottom: -2px; }
+#ammo.lowammo #ammoNum { color: var(--danger); }
+#top { padding: 0; background: none; display: flex; align-items: stretch; gap: 3px; clip-path: none; }
+#top .sc { display: flex; align-items: center; gap: 10px; padding: 5px 12px; background: rgb(0 0 0 / var(--hud-bg)); border-bottom: 3px solid var(--c); min-width: 120px; }
+#top .sc.l { justify-content: flex-end; clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); } #top .sc.r { clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%); }
+#top .sc b { font-size: 26px; line-height: 1; color: var(--c); font-variant-numeric: tabular-nums; }
+#top .sc .nm { font: 600 13px var(--display); letter-spacing: 0.06em; text-transform: uppercase; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+#top .mid { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3px 14px; background: rgb(0 0 0 / calc(var(--hud-bg) + 0.15)); min-width: 86px; }
+#top .mid b { font-size: 22px; line-height: 1.05; font-variant-numeric: tabular-nums; } #top .mid b.hot { color: var(--danger); }
+#top .mid small { font: 600 10.5px var(--display); letter-spacing: 0.14em; text-transform: uppercase; color: rgb(233 237 240 / 0.7); }
+#top .plain { padding: 7px 16px; background: rgb(0 0 0 / var(--hud-bg)); clip-path: var(--chamfer); --cut: 8px; }
+#top .ping { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; font: 600 11px var(--display); color: rgb(233 237 240 / 0.6); white-space: nowrap; }
+#slots div { clip-path: var(--chamfer); --cut: 6px; }
+#feed div { clip-path: var(--chamfer); --cut: 6px; }
+#feed div.mine { box-shadow: inset 2px 0 0 var(--hud-accent); background: rgb(242 160 58 / 0.22); }
+#fps { background: none; font-size: 11.5px; opacity: 0.75; clip-path: none; }
+#speed { font-size: 14px; top: calc(50% + 84px); opacity: 0.8; }
+#banner { font-family: var(--display); }
+/* toque */
+.tb { background: rgba(10,12,14,0.42); border: 1.5px solid rgba(255,255,255,0.32); font-size: calc(10px * var(--ts)); letter-spacing: 0.06em; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+.tb.tbig { border: 2.5px solid rgba(242,160,58,0.85); background: rgba(242,160,58,0.16); }
+#tPause, #tScore, #tChat, #tSpray { width: auto; min-width: 44px; height: 38px; border-radius: 19px; padding: 0 12px; font-size: 10.5px; }
+body:not(.canpick) #tUse { display: none !important; }
+#tUse { border-color: var(--accent); background: rgba(242,160,58,0.35); }
 </style>
 </head>
 <body>
@@ -223,9 +330,9 @@ body.touch #death { font-size: 15px; }
   <div class="box" id="pick" hidden></div>
   <div id="feed"></div>
   <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="Mensagem: Enter envia, Esc cancela" hidden></div>
-  <div class="box" id="hp"><span class="big" id="hpNum">100</span> <span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
+  <div class="box" id="hp"><span class="ico" aria-hidden="true">+</span><span class="big" id="hpNum">100</span><span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
   <div id="slots"></div>
-  <div class="box" id="ammo"><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--hud-accent)"></div></div>
+  <div class="box" id="ammo"><div class="wname" id="ammoName"></div><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--hud-accent)"></div></div>
   <div class="box" id="death" hidden></div>
   <div class="box" id="lockHint" hidden>Clique para voltar ao jogo</div>
   <div id="speed"></div>
@@ -234,28 +341,58 @@ body.touch #death { font-size: 15px; }
   <div class="panel" id="scoreboard"><h2 id="sbTitle">Placar</h2><table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="sbBody"></tbody></table></div>
 </div>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mark" viewBox="0 0 64 64"><path d="M32 3 57 17.5v29L32 61 7 46.5v-29Z" fill="none" stroke="currentColor" stroke-width="5"/><path d="M32 15v11M32 38v11M15 32h11M38 32h11" stroke="currentColor" stroke-width="5"/><circle cx="32" cy="32" r="3.5" fill="#eef1f3"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6"/></g></symbol>
+  <symbol id="i-net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.8"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M14.5 14.5c.8-.3 1.6-.5 2.5-.5 2.8 0 5 2 5 5"/></g></symbol>
+  <symbol id="i-dm" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 14 10M10 4l10 10M15 3l6 6-3 3-6-6zM3 15l6 6"/></g></symbol>
+  <symbol id="i-aim" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></g></symbol>
+  <symbol id="i-skin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z"/></g></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/></g></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></g></symbol>
+  <symbol id="i-set" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></g></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17v.5"/></g></symbol>
+  <symbol id="i-dev" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></g></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2.5"/></symbol>
+</svg>
 <div class="layer" id="menu">
   <div class="side">
-    <div class="stack" style="gap:10px">
-      <h1>CS<span>3</span></h1>
-      <p class="sub">FPS de navegador para tirar x1. Bunny hop, faca, mapas pequenos e tudo configurável.</p>
-    </div>
-    <div class="panel stack" id="gpuWarn" hidden style="gap:6px;border-color:var(--danger)">
-      <b style="color:var(--danger)">O navegador está desenhando o jogo sem a placa de vídeo</b>
-      <p class="note" style="margin:0">Por isso o FPS fica baixo. No Chrome ou Edge: abra <b>Configurações &gt; Sistema</b> (chrome://settings/system), ligue <b>Usar aceleração gráfica quando disponível</b> e reinicie o navegador.
+    <header class="brand">
+      <svg class="mark" aria-hidden="true"><use href="#i-mark"/></svg>
+      <div><h1>CS<span>3</span></h1><p class="tag">Tiro tático direto no navegador</p></div>
+    </header>
+    <details class="alert" id="gpuWarn" hidden>
+      <summary><b>Sem aceleração de vídeo</b><span>O FPS vai ficar baixo. Toque para ver como resolver.</span></summary>
+      <p class="note" style="margin:0">No Chrome ou Edge: abra <b>Configurações &gt; Sistema</b> (chrome://settings/system), ligue <b>Usar aceleração gráfica quando disponível</b> e reinicie o navegador.
       Se já estiver ligado, no Windows vá em <b>Configurações &gt; Sistema &gt; Tela &gt; Gráficos</b>, escolha o navegador e marque <b>Alto desempenho</b>.</p>
       <p class="note" style="margin:0" id="gpuName"></p>
+    </details>
+    <div class="home" id="mainButtons">
+      <div class="label">Jogar</div>
+      <div class="modes">
+        <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>X1 contra bots</b><small>Você escolhe mapa, regras, armas e times</small></span></button>
+        <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Sala com código, até 8 jogadores</small></span></button>
+        <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
+      </div>
+      <div class="label">Treinar e personalizar</div>
+      <div class="tiles">
+        <button class="tile" id="bAim"><svg><use href="#i-aim"/></svg>Treino de mira</button>
+        <button class="tile" id="bSkins"><svg><use href="#i-skin"/></svg>Skins e spray</button>
+        <button class="tile" id="bMapEd"><svg><use href="#i-map"/></svg>Editor de mapa</button>
+        <button class="tile" id="bHist"><svg><use href="#i-hist"/></svg>Histórico</button>
+      </div>
+      <div class="foot">
+        <button class="link" id="bSet"><svg><use href="#i-set"/></svg>Configurações</button>
+        <button class="link" id="bHelp"><svg><use href="#i-help"/></svg>Como jogar</button>
+        <button class="link" id="bDev"><svg><use href="#i-dev"/></svg>Mapa de testes</button>
+      </div>
     </div>
-    <div class="stack" id="mainButtons">
-      <button class="btn primary" id="bX1">X1 contra bots (personalizado)</button>
-      <button class="btn" id="bNet">Online com amigos (até 8)</button>
-      <button class="btn" id="bDm">Mata-mata na Arena</button>
-      <button class="btn" id="bAim">Treino de mira</button>
-      <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
-      <button class="btn" id="bMapEd">Editor de mapa</button>
-      <button class="btn" id="bHist">Histórico de x1</button>
-      <button class="btn" id="bSkins">Skins e spray</button>
-      <button class="btn" id="bSet">Configurações</button>
+    <div id="heroTag" hidden><span><b id="heroName"></b><small id="heroSkin"></small></span><button class="btn small" id="heroSkinBtn">Trocar skin</button></div>
+    <div class="panel stack" id="helpPanel" hidden style="gap:10px">
+      <h2>Como jogar</h2>
+      <div id="controlsNote"></div>
+      <p class="note" id="touchNote" hidden>No celular: arraste no lado esquerdo para andar e no lado direito para mirar. O botão Atirar também mira se você arrastar. Jogue com o celular deitado. Assistência de mira e tamanho dos botões ficam em Configurações &gt; Celular.</p>
+      <button class="btn" id="bHelpBack">Voltar</button>
     </div>
     <div class="panel stack" id="skinPanel" hidden style="gap:8px">
       <h2>Skins e spray</h2>
@@ -306,8 +443,6 @@ body.touch #death { font-size: 15px; }
       <button class="btn primary" id="bDmStart">Iniciar partida</button>
       <button class="btn" id="bDmBack">Voltar</button>
     </div>
-    <p class="note" id="controlsNote"></p>
-    <p class="note" id="touchNote" hidden>No celular: arraste no lado esquerdo para andar e no lado direito para mirar. O botão Atirar também mira se você arrastar. Jogue com o celular deitado. Assistência de mira e tamanho dos botões ficam em Configurações &gt; Celular.</p>
   </div>
 </div>
 
@@ -636,7 +771,7 @@ function closeEditor() {
 }
 function fillHudSample() {
   if (player) return;
-  T('hpNum', '+ 100'); T('ammoNum', '30'); T('ammoRes', '90'); T('top', 'Round 1  ·  Você 0 x 0 Bot Alfa  ·  01:30');
+  T('hpNum', '100'); T('ammoNum', '30'); T('ammoRes', '90'); T('ammoName', 'Metralhadora'); HT('top', topHtml({ l: ['Você', 0, TEAM_COLORS[0]], r: ['Bot Alfa', 0, TEAM_COLORS[1]], mid: '01:30', sub: 'Round 1' }));
   H('slots').innerHTML = WEAPONS.filter(w => !w.nade).map((w, i) => `<div class="${w.id === 'rifle' ? 'on' : ''}"><b>${i + 1}</b> &nbsp;${w.name}</div>`).join('');
   H('slots')._cur = -1;
   if (!chatLog.childElementCount) chatLog.innerHTML = '<div><b style="color:var(--hud-accent)">Bot Alfa</b>: gg</div>';
@@ -2456,6 +2591,11 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (t === myTeam) return cfg.allies ? 'Seu time' : 'Você';
       const e = enemyBots(); return e.length === 1 ? e[0].name : 'Inimigos';
     },
+    topParts() {
+      const a = myTeam, b = 1 - myTeam;
+      const sub = cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : `Até ${cfg.target} abates`;
+      return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: fmtTime(this.timeLeft), hot: this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
+    },
     top() {
       const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       const ping = net ? `  ·  ping ${Net.ping} ms` : '';
@@ -4106,7 +4246,7 @@ function enterPlaying() {
   goFullscreen();
   state = 'playing'; paused = false; devOpen = false;
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
-  $('#hud').hidden = false; dmgNums = []; document.body.classList.toggle('pickup', !!(mode && mode.pickup)); applyLayout();
+  $('#hud').hidden = false; dmgNums = []; if (player) $('#hud').style.setProperty('--hud-team', hex(player.color)); document.body.classList.toggle('pickup', !!(mode && mode.pickup)); applyLayout();
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
   $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para todos)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
@@ -4165,6 +4305,7 @@ function addFeed(k, v, weapon, head) {
   const d = document.createElement('div');
   const nm = c => `<span style="color:${hex(c.color)}">${esc(c.name)}</span>`;
   d.innerHTML = !k || k === v ? `${nm(v)} morreu` : `${nm(k)} <span style="color:var(--muted)">[${esc(weapon)}]</span>${head ? ' <span style="color:var(--gold)">(HS)</span>' : ''} ${nm(v)}`;
+  if (k === player || v === player) d.className = 'mine';
   feedEl.appendChild(d);
   while (feedEl.children.length > 6) feedEl.firstChild.remove();
   setTimeout(() => d.remove(), 6000);
@@ -4201,6 +4342,11 @@ const T = (id, v) => { const e = H(id); if (e._t !== v) { e._t = v; e.textConten
 const HT = (id, v) => { const e = H(id); if (e._h !== v) { e._h = v; e.innerHTML = v; } };
 const ST = (id, k, v) => { const e = H(id), c = e._s || (e._s = {}); if (c[k] !== v) { c[k] = v; e.style[k] = v; } };
 const HID = (id, v) => { const e = H(id); if (e.hidden !== v) e.hidden = v; };
+// placar do topo: time da esquerda (o seu) · relógio e round · time da direita
+function topHtml(t) {
+  const sc = (side, [nm, n, col]) => `<div class="sc ${side}" style="--c:${hex(col)}">${side === 'l' ? `<span class="nm">${esc(nm)}</span><b>${n}</b>` : `<b>${n}</b><span class="nm">${esc(nm)}</span>`}</div>`;
+  return sc('l', t.l) + `<div class="mid"><b class="${t.hot ? 'hot' : ''}">${esc(t.mid)}</b><small>${esc(t.sub || '')}</small></div>` + sc('r', t.r) + (t.ping != null ? `<span class="ping">ping ${t.ping} ms</span>` : '');
+}
 function updateHud(dt, cpuMs = 0, realDt = dt) {
   fpsAcc += realDt; fpsN++; cpuAcc += cpuMs;
   if (fpsAcc > 0.5) { fpsVal = fpsN / fpsAcc; cpuVal = cpuAcc / fpsN; fpsAcc = 0; fpsN = 0; cpuAcc = 0; }
@@ -4226,10 +4372,13 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   }
   ST('scope', 'display', pw.zoom && player.alive ? 'block' : 'none');
   // vida / munição
-  T('hpNum', `+ ${Math.ceil(player.hp)}`);
+  T('hpNum', String(Math.ceil(player.hp)));
+  const hpLow = player.alive && player.hp / player.maxHp <= 0.3; if (H('hp')._low !== hpLow) { H('hp')._low = hpLow; H('hp').classList.toggle('low', hpLow); }
+  T('ammoName', slot.w.name);
+  const amLow = !slot.w.melee && slot.mag <= Math.max(1, Math.floor(slot.w.mag * 0.25)); if (H('ammo')._low !== amLow) { H('ammo')._low = amLow; H('ammo').classList.toggle('lowammo', amLow); }
   HT('hpTag', pv.god ? '<span style="color:var(--gold)">DEUS</span>' : '');
   ST('hpBar', 'width', Math.round(player.hp / player.maxHp * 100) + '%');
-  ST('hpBar', 'background', player.hp / player.maxHp > 0.3 ? 'var(--hud-fg)' : 'var(--danger)');
+  ST('hpBar', 'background', player.hp / player.maxHp > 0.6 ? 'var(--hud-fg)' : player.hp / player.maxHp > 0.3 ? '#ffc04a' : 'var(--danger)');
   T('ammoNum', slot.w.melee ? '—' : String(slot.mag));
   T('ammoRes', slot.w.melee ? '—' : pw.infinite ? '∞' : String(slot.reserve));
   HT('ammoState', pw.reloadT ? '<span style="color:var(--accent)">recarregando</span>' : slot.mag === 0 && !slot.w.melee ? `<span style="color:var(--danger)">[${keyLabel(S.keys.reload)}] recarregar</span>` : '');
@@ -4238,9 +4387,12 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
     H('slots')._cur = pw.cur; H('slots')._n = H('slots').childElementCount;
     [...H('slots').children].forEach((d, i) => d.classList.toggle('on', i === pw.cur));
   }
-  T('top', mode.top());
-  const showSp = S.move.showSpeed && player.alive && mode.type !== 'aim';
+  const tp = mode.topParts && mode.topParts();
+  HT('top', tp ? topHtml(tp) : `<span class="plain">${esc(mode.top())}</span>`);
+  const spd = Math.hypot(player.vel.x, player.vel.z);
+  const showSp = S.move.showSpeed && player.alive && mode.type !== 'aim' && (spd > 0.5 || player.slideT > 0);
   HID('speed', !showSp);
+  const cp = !!(player.alive && pickupOn() && nearItem()); if (document.body._cp !== cp) { document.body._cp = cp; document.body.classList.toggle('canpick', cp); }
   if (showSp) { T('speed', Math.hypot(player.vel.x, player.vel.z).toFixed(1) + ' m/s'); const sl = player.slideT > 0; if (H('speed')._sl !== sl) { H('speed')._sl = sl; H('speed').classList.toggle('slide', sl); } }
   if (bannerUntil && performance.now() > bannerUntil) { H('banner').style.opacity = 0; bannerUntil = 0; }
   const P = mapInfo && mapInfo.pool, under = !!P && camera.position.y < P.y && Math.abs(camera.position.x - P.x) < P.hx && Math.abs(camera.position.z - P.z) < P.hz;
@@ -4376,8 +4528,32 @@ addEventListener('keydown', e => {
 // =====================================================================================
 // Menus e configurações
 // =====================================================================================
-$('#controlsNote').innerHTML = 'WASD mover · <kbd>Espaço</kbd> pular (segure para pular sem parar) · <kbd>C</kbd> agachar · <kbd>Shift</kbd> andar · <kbd>1</kbd>–<kbd>7</kbd> armas · <kbd>F</kbd> faca · <kbd>R</kbd> recarregar · botão direito: zoom ou facada forte · <kbd>Tab</kbd> placar · <kbd>E</kbd> pegar arma · <kbd>G</kbd> largar · <kbd>Y</kbd> ou <kbd>Enter</kbd> chat · <kbd>T</kbd> spray · <kbd>Esc</kbd> pausa.<br>' +
-  '<b>Bunny hop:</b> pule, aperte <kbd>C</kbd> no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.';
+// "Como jogar": as teclas vêm das configurações (mudou a tecla, muda aqui)
+function renderHelp() {
+  const k = a => `<kbd>${esc(keyLabel(S.keys[a]))}</kbd>`;
+  const rows = [['Movimento'], [`${k('forward')} ${k('left')} ${k('back')} ${k('right')}`, 'Andar'], [k('jump'), 'Pular (segure para pular sem parar)'], [k('crouch'), 'Agachar'], [k('walk'), 'Andar devagar, sem barulho'],
+    ['Combate'], [k('fire'), 'Atirar / golpe de faca'], [k('scope'), 'Zoom da sniper / facada forte'], [k('reload'), 'Recarregar'], [`${k('w1')}–${k('w7')}`, 'Trocar de arma'], [k('knife'), 'Faca'], [k('last'), 'Última arma'],
+    ['No mapa'], [k('use'), 'Pegar ou trocar arma do chão'], [k('drop'), 'Largar a arma'], [k('spray'), 'Spray na parede'], [`${k('chat')} ou <kbd>Enter</kbd>`, 'Chat'], [k('score'), 'Placar'], ['<kbd>Esc</kbd>', 'Pausa']];
+  $('#controlsNote').innerHTML = `<div class="keys">${rows.map(r => r.length === 1 ? `<div class="grp">${r[0]}</div>` : `<span class="k">${r[0]}</span><span>${r[1]}</span>`).join('')}</div>
+    <p class="note" style="margin:10px 0 0"><b>Bunny hop:</b> pule, aperte ${k('crouch')} no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.</p>
+    <p class="note" style="margin:6px 0 0">Todas as teclas podem ser trocadas em Configurações &gt; Controles.</p>`;
+}
+$('#heroSkinBtn').onclick = () => { initAudio(); openSkins(); };
+$('#bHelp').onclick = () => { $('#mainButtons').hidden = true; $('#helpPanel').hidden = false; renderHelp(); };
+$('#bHelpBack').onclick = () => { $('#helpPanel').hidden = true; $('#mainButtons').hidden = false; };
+// painéis do menu: botão de voltar no título e Esc para voltar; o logo encolhe para sobrar espaço
+const PANEL_BACK = { helpPanel: 'bHelpBack', skinPanel: 'bSkinBack', aimSetup: 'bAimBack', histPanel: 'bHistBack', x1Setup: 'bX1Back', netSetup: 'bNetBack', dmSetup: 'bDmBack' };
+for (const [pid, bid] of Object.entries(PANEL_BACK)) {
+  const p = $('#' + pid), h = p.querySelector('h2'), head = document.createElement('div');
+  head.className = 'phead'; head.innerHTML = '<button class="back" aria-label="Voltar" title="Voltar (Esc)"><svg><use href="#i-back"/></svg></button>';
+  h.replaceWith(head); head.appendChild(h);
+  head.querySelector('.back').onclick = () => $('#' + bid).click();
+}
+new MutationObserver(() => $('#menu').classList.toggle('insub', $('#mainButtons').hidden)).observe($('#mainButtons'), { attributes: true, attributeFilter: ['hidden'] });
+addEventListener('keydown', e => {
+  if (e.code !== 'Escape' || state !== 'menu' || !$('#settings').hidden || capturing) return;
+  for (const [pid, bid] of Object.entries(PANEL_BACK)) if (!$('#' + pid).hidden) { $('#' + bid).click(); break; }
+});
 // Descobre qual placa de vídeo o navegador está usando; "SwiftShader", "llvmpipe" ou "Basic Render" = desenho por software (lento)
 const GPU = (() => {
   try {
@@ -4576,7 +4752,7 @@ function renderSettings() {
   if (setTab === 0) {
     h = R_('video', 'fov', 'Campo de visão (vertical)', 60, 100, 1) + `<p class="note" id="hfov"></p>` + Sel('video', 'res', 'Resolução interna', ['Baixa (70%)', 'Normal (100%)', 'Alta (tela retina)']) +
       Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
-      `<p class="note">No projeto Unity há também resolução, modo de tela, VSync, limite de FPS, qualidade, anti-aliasing e distâncias de sombra e renderização.</p>`;
+''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') +
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
@@ -4748,6 +4924,32 @@ function kcRestore() {
 // Loop principal
 // =====================================================================================
 let last = performance.now(), menuOrbit = 0;
+// tela inicial: o seu personagem, com a sua skin, em destaque à direita do menu
+let menuHero = null, menuHeroT = 0;
+function updateMenuHero(dt) {
+  const sideW = $('#menu .side').getBoundingClientRect().width;
+  const on = state === 'menu' && !$('#menu').hidden && mapInfo && mapInfo.name === 'Arena' && innerWidth - sideW > 300 && !edState;
+  const tag = $('#heroTag'); if (tag.hidden === on) tag.hidden = !on;
+  if (!on) return false;
+  if (!menuHero || menuHero.group.parent !== world) {
+    const c = createCombatant('Você', TEAM_COLORS[0], { pos: new THREE.Vector3(15, 0, 25), yaw: Math.PI }, false);
+    const i = combatants.indexOf(c); if (i >= 0) combatants.splice(i, 1);
+    setGunShape(c, WEAPONS[WI('rifle')]); menuHero = c; c._sk = undefined;
+  }
+  const c = menuHero, sk = mySkin();
+  if (c._sk !== sk) { c._sk = sk; applySkin(c, sk); const nm = loadJSON('cs3.web.net').name || 'Jogador'; $('#heroName').textContent = nm; $('#heroSkin').textContent = 'Skin: ' + (sk ? sk.name : 'cores do time'); }
+  menuHeroT += dt;
+  c.yaw = Math.PI + Math.sin(menuHeroT * 0.45) * 0.28; c.pitch = Math.sin(menuHeroT * 0.3) * 0.06;
+  animateModel(c, dt);
+  // câmera: o personagem fica no meio do espaço livre à direita do menu
+  const a = Math.sin(menuHeroT * 0.12) * 0.22, dist = 4.9;
+  camera.fov = 40; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  const halfW = Math.tan(20 * DEG) * dist * camera.aspect, frac = (sideW + (innerWidth - sideW) / 2) / innerWidth;
+  const off = (frac - 0.5) * 2 * halfW;
+  camera.position.set(c.pos.x + Math.sin(a) * dist - Math.cos(a) * off, 1.35, c.pos.z + Math.cos(a) * dist + Math.sin(a) * off);
+  camera.lookAt(c.pos.x - Math.cos(a) * off, 1.0, c.pos.z + Math.sin(a) * off);
+  return true;
+}
 function frame(t) {
   requestAnimationFrame(frame);
   const realDt = Math.max(0.0001, (t - last) / 1000);
@@ -4780,6 +4982,7 @@ function frame(t) {
     updateDmgNums();
   } else {
     if (skinView) updateSkinView(dt);
+    else if (updateMenuHero(dt)) {}
     else {
       menuOrbit += dt * 0.07;
       camera.fov = 55; camera.updateProjectionMatrix();
