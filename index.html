@@ -320,6 +320,8 @@ button.clscard small { color: var(--muted); font-size: 12px; line-height: 1.35; 
 button.clscard .cst { display: grid; gap: 3px; font-size: 11px; color: var(--muted); } button.clscard .cst i { font-style: normal; display: grid; grid-template-columns: 74px 1fr; align-items: center; }
 button.clscard .cst em { display: block; height: 5px; background: var(--accent); }
 button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+#voiceList { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: 38%; display: flex; flex-direction: column; gap: 4px; font: 600 14px var(--body); }
+#voiceList div { background: rgb(0 0 0 / 0.55); color: #fff; padding: 4px 9px; border-left: 3px solid var(--hud-accent); }
 </style>
 </head>
 <body>
@@ -337,6 +339,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <div class="box" id="hint" hidden></div>
   <div class="box" id="pick" hidden></div>
   <div id="feed"></div>
+  <div id="voiceList"></div>
   <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="Mensagem: Enter envia, Esc cancela" hidden></div>
   <div class="box" id="hp"><span class="ico" aria-hidden="true">+</span><span class="big" id="hpNum">100</span><span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
   <div id="slots"></div>
@@ -542,7 +545,7 @@ const ACTIONS = [
 ];
 const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1 },
-  audio: { master: 0.6, sfx: 1, hit: true, hrtf: true },
+  audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1 },
   controls: { sens: 2, zoomSens: 1, invertY: false },
   move: { autoHop: true, showSpeed: true, manualPick: false },
   touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
@@ -1537,7 +1540,15 @@ const PART = {
     const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.3, 0.025, 0.08); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
     for (const x of [-0.055, 0.055]) { const e = new THREE.Mesh(SPHERE, M.eye); e.scale.set(0.04, 0.05, 0.03); e.position.set(x, -0.01, -0.14); g.add(e); }
     const nose = new THREE.Mesh(SPHERE, M.skin); nose.scale.set(0.045, 0.06, 0.05); nose.position.set(0, -0.05, -0.15); g.add(nose);
+    // boca em 3 quadros: fechada, toda aberta (exagerada, com língua) e meio torta
     const mouth = new THREE.Mesh(BOX, M.eye); mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
+    const open = new THREE.Group(); open.position.set(0, -0.11, -0.128); g.add(open); open.visible = false;
+    const om = new THREE.Mesh(SPHERE, M.eye); om.scale.set(0.085, 0.085, 0.03); open.add(om);
+    const tongue = new THREE.Mesh(SPHERE, mat(0xd2475a)); tongue.scale.set(0.05, 0.03, 0.02); tongue.position.set(0, -0.022, -0.008); open.add(tongue);
+    const half = new THREE.Group(); half.position.set(0.022, -0.105, -0.132); half.rotation.z = 0.38; g.add(half); half.visible = false;
+    const hm = new THREE.Mesh(SPHERE, M.eye); hm.scale.set(0.062, 0.028, 0.025); half.add(hm);
+    const teeth = new THREE.Mesh(BOX, mat(0xf4f1e6)); teeth.scale.set(0.05, 0.012, 0.01); teeth.position.set(0, 0.009, -0.012); half.add(teeth);
+    g.userData.mouth = [mouth, open, half];
     const ear = new THREE.Mesh(SPHERE, M.skin); ear.scale.set(0.05, 0.08, 0.06); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
     return g;
   },
@@ -3134,7 +3145,7 @@ function onNetMsg(m) {
     case 'roster':
       if (!Array.isArray(m.ro)) break;
       Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
-      renderNetLobby(); break;
+      renderNetLobby(); Voice.sync(); break;
     case 'resend': sendMySkin('skin'); break;
     case 'gone': {
       const g = remoteOf(m.id); if (!inGame || !g) break;
@@ -3143,6 +3154,7 @@ function onNetMsg(m) {
     }
     case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
+    case 'rtc': Voice.onMsg(m); break;
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
     case 'chat': { const p = Net.byId(m.f); if (inGame && p) addChat(p.name, r ? r.color : TEAM_COLORS[p.team], cleanChat(m.m)); break; }
     case 'spray': if (inGame && Net.byId(m.f)) onSprayMsg(m); break;
@@ -3242,7 +3254,7 @@ const Net = {
   setStatus(t) { this.status = t; renderNetLobby(); },
   // ---- anfitrião
   teamSizes() { const n = [0, 0]; for (const p of this.roster) n[p.team]++; return n; },
-  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos })) }); renderNetLobby(); },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos })) }); renderNetLobby(); Voice.sync(); },
   hostConn(conn) {
     conn.on('data', m => this.hostData(conn, m));
     conn.on('close', () => this.dropGuest(conn));
@@ -3343,7 +3355,7 @@ const Net = {
     this.setStatus(wasOpen ? 'Conexão encerrada.' : this.status);
   },
   leave() {
-    clearInterval(this.pingTimer);
+    clearInterval(this.pingTimer); Voice.dropAll();
     for (const c of this.conns.values()) { try { c.close(); } catch (e) {} }
     if (this.hub) this.hub.destroy();
     if (this.peer) { try { this.peer.destroy(); } catch (e) {} }
@@ -4720,6 +4732,9 @@ function topHtml(t) {
   return sc('l', t.l) + `<div class="mid"><b class="${t.hot ? 'hot' : ''}">${esc(t.mid)}</b><small>${esc(t.sub || '')}</small></div>` + sc('r', t.r) + (t.ping != null ? `<span class="ping">ping ${t.ping} ms</span>` : '');
 }
 function updateHud(dt, cpuMs = 0, realDt = dt) {
+  // quem está falando no voice chat
+  const vk = mode && mode.net ? Voice.talking().map(p => p.name).join('|') : '';
+  if (H('voiceList')._k !== vk) { H('voiceList')._k = vk; H('voiceList').innerHTML = vk ? vk.split('|').map(n => `<div>🎤 ${esc(n)}</div>`).join('') : ''; }
   fpsAcc += realDt; fpsN++; cpuAcc += cpuMs;
   if (fpsAcc > 0.5) { fpsVal = fpsN / fpsAcc; cpuVal = cpuAcc / fpsN; fpsAcc = 0; fpsN = 0; cpuAcc = 0; }
   HID('fps', !S.video.showFps);
@@ -5078,6 +5093,138 @@ function cfgSummary(cfg) {
   return `Mapa ${m}, ${fmt}, ${cfg.hp} de vida${cfg.hsOnly ? ', só cabeça' : ''}. Armas: ${ws}. Bunny hop: ${BHOP_PRESETS[cfg.bhop].name.toLowerCase()}.`;
 }
 
+// =====================================================================================
+// Voice chat: microfone sempre aberto para todo mundo da sala. Cada par de jogadores tem uma conexão de áudio direta
+// (WebRTC); a combinação da conexão passa pelas mensagens da sala. Na partida, a voz fica mais baixa com a distância.
+// =====================================================================================
+const Voice = {
+  mic: null, micState: '', peers: new Map(), myLevel: 0, myAn: null, buf: new Float32Array(512),
+  enabled() { return S.audio.voice && !!Net.role && typeof RTCPeerConnection !== 'undefined'; },
+  async ensureMic() {
+    if (this.mic) return this.mic;
+    if (this._micP) return this._micP;
+    this._micP = (async () => {
+      initAudio();
+      try {
+        this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        this.micState = 'on';
+        if (actx) { const src = actx.createMediaStreamSource(this.mic); this.myAn = actx.createAnalyser(); this.myAn.fftSize = 512; src.connect(this.myAn); }
+      } catch (e) {
+        // sem microfone (ou não permitido): manda silêncio e continua ouvindo os outros
+        this.micState = 'off';
+        const dst = actx ? actx.createMediaStreamDestination() : null; this.mic = dst ? dst.stream : new MediaStream();
+      }
+      renderNetLobby();
+      return this.mic;
+    })();
+    return this._micP;
+  },
+  // quem tem o id "menor" liga para o outro; assim cada par abre uma conexão só
+  async sync() {
+    if (!this.enabled() || !Net.myId) return;
+    const ids = new Set(Net.others().map(p => p.id));
+    for (const id of [...this.peers.keys()]) if (!ids.has(id)) this.drop(id);
+    if (!ids.size) return;
+    await this.ensureMic();
+    for (const id of ids) if (!this.peers.has(id) && Net.myId < id) this.call(id);
+  },
+  make(id) {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const P = { id, pc, level: 0, talk: 0, frame: 0, frameT: 0, pending: [] };
+    this.peers.set(id, P);
+    pc.onicecandidate = e => { if (e.candidate) Net.send({ t: 'rtc', k: 'ice', c: e.candidate.toJSON() }, id); };
+    pc.ontrack = e => this.attach(P, e.streams[0] || new MediaStream([e.track]));
+    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') { this.drop(id); setTimeout(() => this.sync(), 1500); } };
+    for (const tr of (this.mic ? this.mic.getAudioTracks() : [])) pc.addTrack(tr, this.mic);
+    return P;
+  },
+  async call(id) {
+    const P = this.make(id), pc = P.pc;
+    if (!pc.getSenders().length) pc.addTransceiver('audio', { direction: 'recvonly' });
+    const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+    Net.send({ t: 'rtc', k: 'offer', sdp: pc.localDescription.sdp }, id);
+  },
+  async onMsg(m) {
+    if (!this.enabled() || typeof m.k !== 'string') return;
+    const id = m.f; if (!Net.byId(id) || id === Net.myId) return;
+    try {
+      if (m.k === 'offer' && typeof m.sdp === 'string') {
+        if (this.peers.has(id)) this.drop(id);
+        await this.ensureMic();
+        const P = this.make(id);
+        await P.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
+        for (const c of P.pending) await P.pc.addIceCandidate(c).catch(() => {}); P.pending = [];
+        const ans = await P.pc.createAnswer(); await P.pc.setLocalDescription(ans);
+        Net.send({ t: 'rtc', k: 'answer', sdp: P.pc.localDescription.sdp }, id);
+      } else if (m.k === 'answer' && typeof m.sdp === 'string') {
+        const P = this.peers.get(id); if (!P || P.pc.signalingState !== 'have-local-offer') return;
+        await P.pc.setRemoteDescription({ type: 'answer', sdp: m.sdp });
+        for (const c of P.pending) await P.pc.addIceCandidate(c).catch(() => {}); P.pending = [];
+      } else if (m.k === 'ice' && m.c && typeof m.c === 'object') {
+        const P = this.peers.get(id); if (!P) return;
+        if (P.pc.remoteDescription) await P.pc.addIceCandidate(m.c).catch(() => {}); else P.pending.push(m.c);
+      }
+    } catch (e) { /* conexão de voz falhou: o jogo continua sem a voz desse jogador */ }
+  },
+  attach(P, stream) {
+    if (P.stream === stream) return;
+    P.stream = stream; initAudio(); if (!actx) return;
+    // o Chrome só libera o áudio de uma conexão WebRTC para o Web Audio se ele também estiver num <audio> (mudo)
+    P.el = new Audio(); P.el.muted = true; P.el.srcObject = stream; P.el.play().catch(() => {});
+    P.src = actx.createMediaStreamSource(stream); P.an = actx.createAnalyser(); P.an.fftSize = 512;
+    P.gain = actx.createGain(); P.pan = actx.createStereoPanner ? actx.createStereoPanner() : null;
+    P.src.connect(P.an); P.src.connect(P.gain);
+    if (P.pan) { P.gain.connect(P.pan); P.pan.connect(master); } else P.gain.connect(master);
+  },
+  drop(id) {
+    const P = this.peers.get(id); if (!P) return;
+    this.peers.delete(id);
+    try { P.pc.close(); } catch (e) {}
+    try { if (P.src) P.src.disconnect(); if (P.gain) P.gain.disconnect(); if (P.pan) P.pan.disconnect(); } catch (e) {}
+    if (P.el) { P.el.srcObject = null; }
+    const r = state === 'playing' && mode && mode.remotes && remoteOf(id); if (r) r.talk = 0;
+  },
+  dropAll() {
+    for (const id of [...this.peers.keys()]) this.drop(id);
+    if (this.mic) for (const t of this.mic.getTracks()) t.stop();
+    this.mic = null; this._micP = null; this.myAn = null; this.micState = ''; this.myLevel = 0;
+  },
+  rms(an) { an.getFloatTimeDomainData(this.buf); let s = 0; for (let i = 0; i < this.buf.length; i++) s += this.buf[i] * this.buf[i]; return Math.sqrt(s / this.buf.length); },
+  // a cada quadro: nível de cada voz (para a boca e o ícone) e volume pela distância
+  update(dt) {
+    if (!this.peers.size && !this.myAn) return;
+    const inGame = state === 'playing' && mode && mode.net && player;
+    if (this.myAn) this.myLevel = lerp(this.myLevel, this.rms(this.myAn), 0.5);
+    for (const P of this.peers.values()) {
+      if (!P.an) continue;
+      P.level = lerp(P.level, this.rms(P.an), 0.5);
+      P.talk = P.level > 0.015 ? 0.35 : Math.max(0, P.talk - dt);
+      const r = inGame ? remoteOf(P.id) : null;
+      let v = S.audio.voice ? S.audio.voiceVol : 0, pan = 0;
+      if (r) {
+        r.talkLevel = P.talk > 0 ? P.level : 0;
+        const dx = r.pos.x - player.pos.x, dz = r.pos.z - player.pos.z, d = Math.hypot(dx, dz, r.pos.y - player.pos.y);
+        // cheio até 3 m, some aos 45 m; atrás de parede fica um pouco mais baixo
+        v *= Math.pow(clamp(1 - (d - 3) / 42, 0, 1), 1.3) * (d > 3 && occluded(r.pos) ? 0.7 : 1);
+        const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw); pan = d > 0.1 ? clamp((dx * rx + dz * rz) / d, -1, 1) * 0.7 : 0;
+      }
+      P.gain.gain.setTargetAtTime(v, actx.currentTime, 0.05);
+      if (P.pan) P.pan.pan.setTargetAtTime(pan, actx.currentTime, 0.05);
+    }
+  },
+  talking() { return Net.roster.filter(p => p.id === Net.myId ? this.myLevel > 0.02 && this.micState === 'on' : (this.peers.get(p.id) || {}).talk > 0); },
+};
+// boca: poucos quadros, bem exagerada (fechada, toda aberta, meio torta) trocando rápido enquanto a pessoa fala
+function updateMouth(c, dt) {
+  const M = c.head && c.head.userData.mouth; if (!M) return;
+  let f = 0;
+  if (c.talkLevel > 0) {
+    c.mouthT = (c.mouthT || 0) - dt;
+    if (c.mouthT <= 0) { c.mouthT = 0.07 + Math.random() * 0.06; const L = c.talkLevel; c.mouthF = L > 0.06 ? (Math.random() < 0.65 ? 1 : 2) : L > 0.03 ? (Math.random() < 0.5 ? 2 : 1) : (Math.random() < 0.6 ? 0 : 2); }
+    f = c.mouthF || 0;
+  } else c.mouthT = 0;
+  if (c.mouthShown !== f) { c.mouthShown = f; M.forEach((m, i) => m.visible = i === f); }
+}
 // ---- sala online
 function openNetPanel() {
   $('#mainButtons').hidden = true; $('#x1Setup').hidden = true; $('#dmSetup').hidden = true; $('#netSetup').hidden = false;
@@ -5105,6 +5252,7 @@ function renderNetLobby() {
     const h = Net.byId('h');
     html = Net.open ? `Conectado à sala de <b>${esc(h ? h.name : 'anfitrião')}</b>. ${Net.inMatch ? 'Tem uma partida rolando: você entra na próxima.' : 'Aguardando o anfitrião iniciar.'}` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
   } else html = esc(Net.status);
+  if (role && S.audio.voice) html += `<br><span class="note">${Voice.micState === 'on' ? '🎤 Voice chat ligado: todo mundo da sala ouve você.' : Voice.micState === 'off' ? 'Sem microfone (não liberado): você ouve os outros, mas eles não te ouvem.' : 'Voice chat: o navegador vai pedir o microfone quando alguém entrar.'}</span>`;
   if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Tem gente com versão diferente do jogo. Recarreguem a página (Ctrl+F5).</span>';
   st.innerHTML = html;
   // times
@@ -5181,7 +5329,7 @@ function renderSettings() {
       Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
 ''; 
   } else if (setTab === 1) {
-    h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') +
+    h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
@@ -5387,6 +5535,7 @@ function updateMenuHero(dt) {
   heroFade(clamp(Math.min(heroShotT / 0.35, (S.dur - heroShotT) / 0.3), 0, 1) * 0.85 + 0.15);
   heroSw = heroShotT < 0.05 ? S.sw : lerp(heroSw, S.sw, Math.min(1, dt * 2));
   c.yaw = Math.PI + Math.sin(menuHeroT * 0.45) * 0.28 * heroSw; c.pitch = Math.sin(menuHeroT * 0.3) * 0.06 * heroSw;
+  c.talkLevel = Voice.micState === 'on' && Voice.myLevel > 0.02 ? Voice.myLevel : 0; updateMouth(c, dt);
   animateModel(c, dt);
   // câmera: o personagem fica no meio do espaço livre à direita do menu
   const a = L(S.a), dist = L(S.d), fov = S.fov;
@@ -5403,6 +5552,7 @@ function frame(t) {
   let dt = Math.min(0.05, realDt); last = t;
   const t0 = performance.now();
   renderer.info.reset();
+  Voice.update(dt); for (const c of combatants) updateMouth(c, dt);
   if (world && !world.userData.baked) bakeWorld();
   if (state === 'playing' && mode) {
     const sim = worldActive() ? dt * (mode.type === 'dev' ? devTimeScale : 1) : 0;
@@ -5450,7 +5600,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
