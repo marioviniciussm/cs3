@@ -85,6 +85,12 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 #feed { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); top: 64px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-family: var(--body); font-weight: 600; }
 #feed div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 4px 10px; white-space: nowrap; }
 #fps { left: max(16px, env(safe-area-inset-left, 0px)); top: max(10px, env(safe-area-inset-top, 0px)); font-size: 13px; color: var(--muted); padding: 4px 8px; white-space: nowrap; }
+#chat { position: absolute; width: min(440px, 62vw); display: flex; flex-direction: column; gap: 3px; font-family: var(--body); font-size: 15px; pointer-events: none; }
+#chatLog { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+#chatLog div { background: rgb(0 0 0 / calc(var(--hud-bg) + 0.08)); padding: 3px 9px; max-width: 100%; overflow-wrap: anywhere; }
+#chatLog div.old { display: none; }
+#chat.open #chatLog div.old { display: block; }
+#chatIn { pointer-events: auto; font: inherit; padding: 7px 9px; background: rgb(0 0 0 / 0.65); color: #fff; border: 1px solid var(--hud-accent); border-radius: 4px; outline: none; }
 #pick { left: 50%; top: 63%; transform: translateX(-50%); font-family: var(--body); font-size: 15px; white-space: nowrap; }
 #hint { left: max(16px, env(safe-area-inset-left, 0px)); top: 44px; font-family: var(--body); font-size: 14px; }
 #death { left: 50%; top: 60%; transform: translateX(-50%); text-align: center; font-family: var(--body); font-size: 20px; padding: 12px 24px; width: min(700px, 90%); }
@@ -211,6 +217,7 @@ body.touch #death { font-size: 15px; }
   <div class="box" id="hint" hidden></div>
   <div class="box" id="pick" hidden></div>
   <div id="feed"></div>
+  <div id="chat"><div id="chatLog"></div><input type="text" id="chatIn" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="Mensagem: Enter envia, Esc cancela" hidden></div>
   <div class="box" id="hp"><span class="big" id="hpNum">100</span> <span id="hpTag"></span><div class="bar" id="hpBar"></div></div>
   <div id="slots"></div>
   <div class="box" id="ammo"><span class="big" id="ammoNum">30</span> / <span id="ammoRes">90</span> <div id="ammoState"></div><div class="bar" id="reloadBar" style="width:0;background:var(--hud-accent)"></div></div>
@@ -242,11 +249,11 @@ body.touch #death { font-size: 15px; }
       <button class="btn" id="bDev">Mapa de testes (desenvolvedor)</button>
       <button class="btn" id="bMapEd">Editor de mapa</button>
       <button class="btn" id="bHist">Histórico de x1</button>
-      <button class="btn" id="bSkins">Skins</button>
+      <button class="btn" id="bSkins">Skins e spray</button>
       <button class="btn" id="bSet">Configurações</button>
     </div>
     <div class="panel stack" id="skinPanel" hidden style="gap:8px">
-      <h2>Skins</h2>
+      <h2>Skins e spray</h2>
       <div id="skinBody" class="stack" style="gap:6px"></div>
       <button class="btn primary" id="bSkinBack">Voltar</button>
     </div>
@@ -333,6 +340,8 @@ body.touch #death { font-size: 15px; }
   <div id="tStick" hidden><div id="tKnob"></div></div>
   <button class="tb" id="tPause" aria-label="Pausar">II</button>
   <button class="tb" id="tScore">Placar</button>
+  <button class="tb" id="tChat">Chat</button>
+  <button class="tb" id="tSpray">Spray</button>
   <button class="tb tbig" id="tFire" aria-label="Atirar">Atirar</button>
   <button class="tb tbig" id="tFire2" aria-label="Atirar">Atirar</button>
   <button class="tb" id="tJump">Pular</button>
@@ -368,7 +377,7 @@ const ACTIONS = [
   ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
-  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'],
+  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'],
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
@@ -466,7 +475,7 @@ canvas.addEventListener('click', () => {
 // =====================================================================================
 const tMove = { x: 0, y: 0 }, tLook = { x: 0, y: 0 };
 const tTouches = new Map();
-const TB_ACTION = { tFire: 'fire', tFire2: 'fire', tJump: 'jump', tCrouch: 'crouch', tReload: 'reload', tScope: 'scope', tKnife: 'knife', tScore: 'score', tUse: 'use', tDrop: 'drop' };
+const TB_ACTION = { tFire: 'fire', tFire2: 'fire', tJump: 'jump', tCrouch: 'crouch', tReload: 'reload', tScope: 'scope', tKnife: 'knife', tScore: 'score', tUse: 'use', tDrop: 'drop', tSpray: 'spray' };
 let crouchLatched = false;
 function tPress(a) { const k = S.keys[a]; held.add(k); pressed.add(k); }
 function tRelease(a) { held.delete(S.keys[a]); }
@@ -480,6 +489,7 @@ function onTouchStart(e) {
     if (btn) {
       btn.classList.add('on');
       if (btn.id === 'tPause') { setPaused(true); continue; }
+      if (btn.id === 'tChat') { openChat(); continue; }
       if (btn.id === 'tSwap') { wheel += 1; tTouches.set(t.identifier, { kind: 'btn', btn }); continue; }
       if (btn.id === 'tCrouch' && S.touch.crouchToggle) {
         crouchLatched = !crouchLatched;
@@ -552,17 +562,17 @@ function updateTouchUI() {
 // Layout: posição, tamanho, opacidade e visibilidade de cada parte da HUD e de cada botão do celular
 // x/y = onde fica o ponto de âncora, em fração da tela; ax/ay = qual ponto do elemento é a âncora
 // =====================================================================================
-const HUD_IDS = { hp: 'Vida', ammo: 'Munição', slots: 'Lista de armas', top: 'Placar do topo', feed: 'Abates', fps: 'FPS', speed: 'Velocidade' };
+const HUD_IDS = { hp: 'Vida', ammo: 'Munição', slots: 'Lista de armas', top: 'Placar do topo', feed: 'Abates', fps: 'FPS', speed: 'Velocidade', chat: 'Chat' };
 const TOUCH_IDS = { tStick: 'Joystick', tFire: 'Atirar', tFire2: 'Atirar (2º)', tJump: 'Pular', tCrouch: 'Agachar', tReload: 'Recarregar', tScope: 'Mira', tSwap: 'Trocar arma',
-  tKnife: 'Faca', tPause: 'Pausa', tScore: 'Placar', tUse: 'Pegar arma do chão', tDrop: 'Largar arma' };
+  tKnife: 'Faca', tPause: 'Pausa', tScore: 'Placar', tUse: 'Pegar arma do chão', tDrop: 'Largar arma', tChat: 'Chat', tSpray: 'Spray' };
 const HUD_DEF_DESK = { hp: { x: 0.015, y: 0.975, ax: 0, ay: 1 }, ammo: { x: 0.985, y: 0.975, ax: 1, ay: 1 }, slots: { x: 0.985, y: 0.86, ax: 1, ay: 1 },
-  top: { x: 0.5, y: 0.015, ax: 0.5, ay: 0 }, feed: { x: 0.985, y: 0.08, ax: 1, ay: 0 }, fps: { x: 0.012, y: 0.012, ax: 0, ay: 0 }, speed: { x: 0.5, y: 0.58, ax: 0.5, ay: 0 } };
+  top: { x: 0.5, y: 0.015, ax: 0.5, ay: 0 }, feed: { x: 0.985, y: 0.08, ax: 1, ay: 0 }, fps: { x: 0.012, y: 0.012, ax: 0, ay: 0 }, speed: { x: 0.5, y: 0.58, ax: 0.5, ay: 0 }, chat: { x: 0.015, y: 0.83, ax: 0, ay: 1 } };
 const HUD_DEF_TOUCH = { ...HUD_DEF_DESK, hp: { x: 0.44, y: 0.985, ax: 1, ay: 1, s: 0.8 }, ammo: { x: 0.56, y: 0.985, ax: 0, ay: 1, s: 0.8 },
   slots: { x: 0.985, y: 0.5, ax: 1, ay: 0.5, hide: true }, fps: { x: 0.988, y: 0.012, ax: 1, ay: 0, s: 0.8 }, feed: { x: 0.988, y: 0.1, ax: 1, ay: 0, s: 0.8 },
-  top: { x: 0.5, y: 0.012, ax: 0.5, ay: 0, s: 0.8 }, speed: { x: 0.5, y: 0.6, ax: 0.5, ay: 0, s: 0.85 } };
+  top: { x: 0.5, y: 0.012, ax: 0.5, ay: 0, s: 0.8 }, speed: { x: 0.5, y: 0.6, ax: 0.5, ay: 0, s: 0.85 }, chat: { x: 0.012, y: 0.17, ax: 0, ay: 0, s: 0.8 } };
 const TOUCH_DEF = { tStick: { x: 0.17, y: 0.7 }, tFire: { x: 0.8, y: 0.7 }, tFire2: { x: 0.24, y: 0.36, hide: true }, tJump: { x: 0.945, y: 0.8 }, tCrouch: { x: 0.945, y: 0.6 },
   tReload: { x: 0.7, y: 0.79 }, tScope: { x: 0.7, y: 0.57 }, tSwap: { x: 0.82, y: 0.45 }, tKnife: { x: 0.925, y: 0.4 }, tPause: { x: 0.035, y: 0.09 }, tScore: { x: 0.105, y: 0.09 },
-  tUse: { x: 0.6, y: 0.42 }, tDrop: { x: 0.6, y: 0.27 } };
+  tUse: { x: 0.6, y: 0.42 }, tDrop: { x: 0.6, y: 0.27 }, tChat: { x: 0.175, y: 0.09 }, tSpray: { x: 0.245, y: 0.09 } };
 const TOUCH_PRESETS = {
   'Padrão': () => ({}),
   'Canhoto (espelhado)': () => Object.fromEntries(Object.entries(TOUCH_DEF).map(([k, v]) => [k, { ...v, x: +(1 - v.x).toFixed(3) }])),
@@ -623,6 +633,7 @@ function fillHudSample() {
   T('hpNum', '+ 100'); T('ammoNum', '30'); T('ammoRes', '90'); T('top', 'Round 1  ·  Você 0 x 0 Bot Alfa  ·  01:30');
   H('slots').innerHTML = WEAPONS.filter(w => !w.nade).map((w, i) => `<div class="${w.id === 'rifle' ? 'on' : ''}"><b>${i + 1}</b> &nbsp;${w.name}</div>`).join('');
   H('slots')._cur = -1;
+  if (!chatLog.childElementCount) chatLog.innerHTML = '<div><b style="color:var(--hud-accent)">Bot Alfa</b>: gg</div>';
   if (!feedEl.childElementCount) feedEl.innerHTML = '<div>Você <span style="color:var(--muted)">[Deagle]</span> Bot Alfa</div><div>Bot Bravo <span style="color:var(--muted)">[Faca]</span> Você</div>';
   T('speed', '6.8 m/s'); H('speed').hidden = false; H('fps').hidden = false;
 }
@@ -747,6 +758,7 @@ function initAudio() {
     knifeWall: make(0.12, (t, w) => (w * 0.4 + Math.sin(2 * Math.PI * 2600 * t) * 0.5 + Math.sin(2 * Math.PI * 3900 * t) * 0.3) * Math.exp(-t * 40) * 0.6),
     slide: make(0.45, (t, w, s) => { s.lp += (w - s.lp) * 0.12; return s.lp * 1.8 * Math.min(1, t * 30) * Math.exp(-t * 5); }),
     round: tone(0.6, 660, 990, 4, 0.35),
+    spray: make(0.5, (t, w, s) => { s.lp += (w - s.lp) * 0.35; return (w - s.lp) * 0.6 * Math.min(1, t * 25) * Math.exp(-t * 4) * (1 + 0.3 * Math.sin(2 * Math.PI * 18 * t)); }),
     boom: make(1.4, (t, w, s) => { s.lp += (w - s.lp) * (0.12 - Math.min(0.1, t * 0.1)); return (s.lp * 3.2 + Math.sin(2 * Math.PI * (60 - 25 * t) * t) * 0.7) * Math.exp(-t * 3.2) * Math.min(1, t * 400); }),
     magOut: click(0.09, 900, 0.6), magIn: click(0.12, 650, 0.8), empty: click(0.05, 2200, 0.5), draw: click(0.1, 1300, 0.35), zoom: click(0.05, 3000, 0.3),
     hit: tone(0.07, 1500, 0, 60, 0.5), head: tone(0.35, 1900, 2850, 10, 0.55), kill: tone(0.4, 1200, 1800, 7, 0.5),
@@ -880,10 +892,11 @@ function bakeWorld() {
   }
   renderer.shadowMap.needsUpdate = true;
 }
-const ground = { items: [], nades: [], seq: 0 }, boomFx = [];
+const ground = { items: [], nades: [], seq: 0 }, boomFx = [], sprays = new Map();
+let chatOpen = false;
 function newWorld() {
   if (world) scene.remove(world);
-  ground.items.length = 0; ground.nades.length = 0; boomFx.length = 0;
+  ground.items.length = 0; ground.nades.length = 0; boomFx.length = 0; sprays.clear();
   world = new THREE.Group(); scene.add(world);
   worldMeshes = []; colliders = []; fx.length = 0; impacts.length = 0;
 }
@@ -986,8 +999,8 @@ function buildPatio() {
 
 // fy_pool_day seguindo a visão de cima do mapa original (FY_Pool_Day, de Squall).
 // As medidas saem dos pixels do overview: 1 px = 0,07 m, origem no pixel (512, 400). x do desenho = x do jogo, y do desenho = z do jogo.
-const POOL_C = { white: 0xd9d6cf, red: 0xa86565, redDark: 0x7e4747, blue: 0x5c6ba3, blueDark: 0x3f4a7a, wall: 0xc9c4ba, low: 0xb9b5ad,
-  pool: 0x5fc3e8, poolDeep: 0x3d9fd0, porcelain: 0xf4f4f4, stair: 0x3c6fc8 };
+const POOL_C = { white: 0xc8c8c3, red: 0xa86565, redDark: 0x7e4747, blue: 0x5c6ba3, blueDark: 0x3f4a7a, wall: 0xc9c4ba, low: 0xb9b5ad,
+  pool: 0x5fc3e8, poolDeep: 0x3d9fd0, porcelain: 0xf4f4f4, stair: 0x3c6fc8, ceil: 0xb4afa6, sunTile: 0xa3a5a3 };
 const PX = 0.07, pxX = px => (px - 512) * PX, pxZ = py => (py - 400) * PX;
 let tileTex = null;
 function tileFloor(px1, py1, px2, py2, color, y = 0.006) {
@@ -997,11 +1010,24 @@ function tileFloor(px1, py1, px2, py2, color, y = 0.006) {
     tileTex = new THREE.CanvasTexture(c); tileTex.wrapS = tileTex.wrapT = THREE.RepeatWrapping;
   }
   const w = (px2 - px1) * PX, d = (py2 - py1) * PX, t = tileTex.clone(); t.needsUpdate = true; t.repeat.set(w / 0.9, d / 0.9);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ color, map: t }));
+  // Phong: no Lambert a sombra do sol apaga também a luz das lâmpadas (o teto faz sombra na sala toda)
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshPhongMaterial({ color, map: t, specular: 0x181818, shininess: 12 }));
   m.rotation.x = -Math.PI / 2; m.position.set(pxX((px1 + px2) / 2), y, pxZ((py1 + py2) / 2)); m.receiveShadow = true; world.add(m);
 }
 // caixa a partir de um retângulo em pixels do desenho
 const PR = (px1, py1, px2, py2, h, color, y0 = 0, collide = true) => box(pxX((px1 + px2) / 2), pxZ((py1 + py2) / 2), (px2 - px1) * PX, h, (py2 - py1) * PX, color, y0, collide);
+const lampMat = new THREE.MeshBasicMaterial({ color: 0xfffbe8 }), ceilMat = new THREE.MeshLambertMaterial({ color: 0xcfcac0, emissive: 0x4a4740 }),
+  poolWallMat = new THREE.MeshPhongMaterial({ color: POOL_C.wall, specular: 0x000000, shininess: 1 }), poolLowMat = new THREE.MeshPhongMaterial({ color: POOL_C.low, specular: 0x000000, shininess: 1 });
+let shadeTex = null;
+// sombra suave no chão (mancha escura com borda em degradê), para os cantos sem luz
+function floorShade(px1, py1, px2, py2, o) {
+  if (!shadeTex) {
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); shadeTex = new THREE.CanvasTexture(c);
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry((px2 - px1) * PX, (py2 - py1) * PX), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: shadeTex, transparent: true, opacity: o, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(pxX((px1 + px2) / 2), 0.02, pxZ((py1 + py2) / 2)); m.renderOrder = 1; world.add(m);
+}
 function buildPoolDay() {
   newWorld();
   const K = POOL_C, WH = 4, LH = 1.1;
@@ -1011,14 +1037,13 @@ function buildPoolDay() {
   PR(397, 61, 627, 141, 1, K.white, -1);
   tileFloor(173, 141, 383, 575, K.red); tileFloor(173, 575, 480, 659, K.redDark);
   tileFloor(640, 141, 851, 575, K.blue); tileFloor(480, 575, 851, 659, K.blueDark);
-  tileFloor(383, 141, 640, 288, K.white); tileFloor(383, 480, 640, 575, K.white); tileFloor(383, 288, 432, 480, K.white); tileFloor(560, 288, 640, 480, K.white);
-  tileFloor(397, 61, 627, 141, K.white);
+  tileFloor(383, 141, 640, 288, K.sunTile); tileFloor(383, 480, 640, 575, K.sunTile); tileFloor(383, 288, 432, 480, K.sunTile); tileFloor(560, 288, 640, 480, K.sunTile);
+  tileFloor(397, 61, 627, 141, K.sunTile);
   tileFloor(173, 141, 272, 205, K.redDark, 0.008); tileFloor(752, 141, 851, 205, K.blueDark, 0.008);   // banheiros
   // paredes de fora (com o "puxadinho" de cima)
   const OH = 6;
-  PR(163, 659, 861, 669, OH, K.wall); PR(163, 131, 173, 669, OH, K.wall); PR(851, 131, 861, 669, OH, K.wall);
-  PR(173, 131, 397, 141, OH, K.wall); PR(627, 131, 851, 141, OH, K.wall);
-  PR(387, 51, 397, 141, OH, K.wall); PR(627, 51, 637, 141, OH, K.wall); PR(387, 51, 637, 61, OH, K.wall);
+  for (const r of [[163, 659, 861, 669], [163, 131, 173, 669], [851, 131, 861, 669], [173, 131, 397, 141], [627, 131, 851, 141], [387, 51, 397, 141], [627, 51, 637, 141], [387, 51, 637, 61]])
+    PR(...r, OH, K.wall).material = poolWallMat;
   // paredes altas (pretas no desenho)
   for (const [a, b, c, d] of [
     [272, 141, 288, 208], [368, 193, 383, 207], [368, 270, 383, 432], [368, 503, 383, 575],
@@ -1026,13 +1051,13 @@ function buildPoolDay() {
     [480, 575, 544, 593],
     [736, 141, 752, 208], [640, 193, 655, 207], [640, 264, 655, 447], [640, 512, 655, 575],
     [736, 264, 752, 471], [655, 352, 736, 368], [640, 560, 768, 575], [623, 575, 640, 615],
-  ]) PR(a, b, c, d, WH, K.wall);
+  ]) PR(a, b, c, d, WH, K.wall).material = poolWallMat;
   // muretas e bancos (cinza claro no desenho)
   for (const [a, b, c, d] of [
     [383, 193, 460, 207], [516, 193, 640, 207], [545, 118, 560, 193],
     [288, 323, 368, 352], [288, 368, 368, 397], [255, 296, 272, 440], [272, 544, 368, 560],
     [655, 323, 736, 352], [655, 368, 736, 397], [832, 352, 849, 447], [655, 544, 752, 560],
-  ]) PR(a, b, c, d, LH, K.low);
+  ]) PR(a, b, c, d, LH, K.low).material = poolLowMat;
   // escadas azuis: sobem até a mureta
   const steps = (x1, z1, x2, z2, dir) => { for (let i = 0; i < 3; i++) { const k = (i + 1) / 3, h = LH * k;
     if (dir === 'z-') PR(x1, z2 - (z2 - z1) * k, x2, z2 - (z2 - z1) * (k - 1 / 3), h, K.stair); else PR(x1 + (x2 - x1) * (k - 1 / 3), z1, x1 + (x2 - x1) * k, z2, h, K.stair); } };
@@ -1062,8 +1087,18 @@ function buildPoolDay() {
   for (const [x, side] of [[190, -1], [222, -1], [257, -1], [767, 1], [800, 1], [833, 1]]) {
     box(pxX(x), pxZ(160), 0.55, 0.45, 0.7, K.porcelain); box(pxX(x), pxZ(147), 0.7, 0.9, 0.3, K.porcelain);
   }
-  for (const x of [206, 240, 783, 817]) PR(x - 1, 141, x + 1, 190, 2.2, K.low);
+  for (const x of [206, 240, 783, 817]) PR(x - 1, 141, x + 1, 190, 2.2, K.low).material = poolLowMat;
   for (const y of [300, 325, 352]) box(pxX(758), pxZ(y), 0.3, 0.7, 0.5, K.porcelain, 0.5);
+  // teto: tudo é coberto, menos a área branca da piscina (céu aberto)
+  for (const [a, b, c, d] of [[173, 141, 383, 659], [640, 141, 851, 659], [383, 575, 640, 659]]) { const r = PR(a, b, c, d, 0.6, K.ceil, WH - 0.15); r.material = ceilMat; }
+  // iluminação como no desenho: centro claro de sol; salas com luz de teto puxando para a cor do time; cantos e o fundo mais escuros
+  for (const [x, y, col, k] of [[225, 300, 0xffd9cf, 0.5], [225, 470, 0xffd9cf, 0.5], [320, 260, 0xffd9cf, 0.35], [320, 470, 0xffd9cf, 0.35],
+    [800, 300, 0xd4defc, 0.45], [800, 470, 0xd4defc, 0.45], [700, 260, 0xd4defc, 0.3], [700, 470, 0xd4defc, 0.3], [430, 617, 0xffe7d6, 0.3], [600, 617, 0xdfe6ff, 0.3]]) {
+    const L = new THREE.PointLight(col, k * 1.05, 16, 1); L.position.set(pxX(x), WH - 0.7, pxZ(y)); world.add(L);
+    mesh(BOX, 0xfffbe8, 0.9, 0.05, 0.9, pxX(x), WH - 0.19, pxZ(y), world).material = lampMat;
+  }
+  for (const [a, b, c, d, o] of [[173, 141, 300, 225, 0.55], [724, 141, 851, 225, 0.6], [173, 560, 480, 659, 0.5], [480, 560, 851, 659, 0.55],
+    [173, 141, 230, 659, 0.3], [794, 141, 851, 659, 0.35], [383, 575, 640, 659, 0.3]]) floorShade(a, b, c, d, o);
   // spawns: TR no lado vermelho, CT no azul
   const sp = pts => pts.map(([x, y]) => { const X = pxX(x), Z = pxZ(y); return { pos: new THREE.Vector3(X, 0, Z), yaw: facing(X, Z, 0, Z) }; });
   const ta = sp([[220, 340], [220, 470], [320, 450], [220, 250], [320, 600]]), tb = sp([[800, 380], [800, 500], [700, 450], [800, 250], [700, 610]]);
@@ -1078,7 +1113,7 @@ function buildPoolDay() {
   mapInfo = { name: 'fy_pool_day', spawns: ta.concat(tb), teamSpawns: [ta, tb], playerSpawn: ta[0], targets: [],
     waypoints: gridWaypoints(pxX(185), pxX(840), pxZ(150), pxZ(650), 2.5).concat(gridWaypoints(pxX(410), pxX(615), pxZ(70), pxZ(135), 2.5)).filter(p => !inPoolXZ(p)),
     pool: { x: (px0 + px1) / 2, z: (pz0 + pz1) / 2, hx: (px1 - px0) / 2, hz: (pz1 - pz0) / 2, y: -0.35, exits }, items };
-  shadowSize(30);
+  shadowSize(34);
 }
 // nadar: dentro da piscina com a água acima da cintura
 const inWater = p => { const P = mapInfo && mapInfo.pool; return !!P && Math.abs(p.pos.x - P.x) < P.hx && Math.abs(p.pos.z - P.z) < P.hz && p.pos.y < P.y - 0.9; };
@@ -1791,7 +1826,7 @@ function selectWeapon(i, force) {
 }
 const active = () => pw.slots[pw.cur];
 const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : 1;
-const canInput = () => state === 'playing' && !paused && !devOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
+const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
 const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(mode && mode.over);
 
 function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
@@ -2764,6 +2799,8 @@ function onNetMsg(m) {
       break;
     case 'mdl': onModelChunk(m); break;
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
+    case 'chat': if (inGame) addChat(Net.peerName, mode.remote && mode.remote.color, cleanChat(m.m)); break;
+    case 'spray': if (inGame) onSprayMsg(m); break;
     case 'skin': Net.peerSkin = cleanSkin(m.skin); if (inGame && mode.remote) applySkin(mode.remote, Net.peerSkin); break;
     case 'ping': Net.send({ t: 'pong', ts: m.ts }); break;
     case 'pong': Net.ping = Math.round(performance.now() - m.ts); break;
@@ -3412,10 +3449,36 @@ function skinThumb(sk) {
   if (!sk._thumb) sk._thumb = patternCanvas(sk, 64).toDataURL();
   return `<i class="skt" style="background-image:url(${sk._thumb})"></i>`;
 }
+const skinTabs = () => `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button><button role="tab" data-for="spray" aria-selected="${skinFor === 'spray'}">Spray</button></div>`;
+function renderSpray() {
+  const card = sp => `<button class="skcard ${SPRAY.cur === sp.id ? 'on' : ''}" data-sp="${esc(sp.id)}"><i class="skt" style="background:#3a4048 url(${sprayImg(sp)}) center/contain no-repeat;image-rendering:auto"></i><span>${esc(sp.name)}</span></button>`;
+  const mine = SPRAY.list.find(x => x.id === SPRAY.cur);
+  let h = skinTabs() + `<div class="skgrid">${SPRAY_PRESETS.map(card).join('')}${SPRAY.list.map(card).join('')}</div>`;
+  h += `<div class="btnrow"><button class="btn small" id="spUp">Enviar imagem (PNG ou JPG)</button>${mine ? '<button class="btn small" id="spDel">Apagar este spray</button>' : ''}</div>` +
+    `<input type="file" id="spFile" accept="image/png,image/jpeg,image/webp" hidden><p class="note" id="skMsg" style="margin:0"></p>`;
+  h += `<p class="note" style="margin:4px 0 0">Na partida, olhe para uma parede ou para o chão e aperte <kbd>${keyLabel(S.keys.spray)}</kbd> (no celular, o botão Spray). PNG com fundo transparente fica melhor. No x1 online, o seu amigo vê o seu spray.</p>`;
+  $('#skinBody').innerHTML = h;
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { SPRAY.cur = b.dataset.sp; saveSpray(); renderSpray(); });
+  $('#spUp').onclick = () => $('#spFile').click();
+  $('#spFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const img = await readSprayFile(f);
+      const sp = { id: 'p' + Date.now().toString(36), name: f.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'Meu spray', img };
+      SPRAY.list.push(sp); if (SPRAY.list.length > 8) SPRAY.list.shift();
+      SPRAY.cur = sp.id;
+      if (!saveSpray()) { SPRAY.list.pop(); SPRAY.cur = 'gg'; saveSpray(); renderSpray(); $('#skMsg').textContent = 'Sem espaço no navegador para mais imagens. Apague algum spray ou skin enviada.'; return; }
+      renderSpray();
+    } catch (err) { $('#skMsg').textContent = err.message; }
+  };
+  if (mine) $('#spDel').onclick = () => { SPRAY.list.splice(SPRAY.list.indexOf(mine), 1); SPRAY.cur = 'gg'; saveSpray(); renderSpray(); };
+}
 function renderSkins() {
   const cur = skinFor === 'me' ? SKINS.me : SKINS.bots;
   const card = (id, name, sk, extra = '') => `<button class="skcard ${cur === id ? 'on' : ''}" data-sk="${esc(id)}">${extra || skinThumb(sk)}<span>${esc(name)}</span></button>`;
-  let h = `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button></div>`;
+  if (skinFor === 'spray') { renderSpray(); return; }
+  let h = skinTabs();
   h += `<div class="skgrid">${card('team', 'Cores do time', null)}${skinFor === 'bots' ? card('random', 'Sorteada', null, '<i class="skt skrand">?</i>') : ''}` +
     SKIN_PRESETS.map(s => card(s.id, s.name, s)).join('') + SKINS.list.map(s => card(s.id, s.name, s)).join('') + `</div>`;
   h += `<div class="btnrow"><button class="btn small" id="skUp">Enviar imagem (PNG ou JPG)</button><button class="btn small" id="skMdl">Enviar modelo 3D</button></div>` +
@@ -3594,6 +3657,7 @@ const nearItem = () => {
   return best;
 };
 function updateGround(dt) {
+  updateSocial();
   if (!pickupOn()) return;
   const P = mapInfo.pool;
   for (const it of ground.items) {
@@ -3718,6 +3782,153 @@ function onGroundMsg(m) {
   if (m.t === 'drop' && WEAPONS[m.w] && !ground.items.some(x => x.id === m.id)) spawnItem(m.w, a2v(m.p), { id: String(m.id).slice(0, 16), mag: +m.m || 0, reserve: +m.r || 0, vel: a2v(m.v) });
   if (m.t === 'nade' && mode.remote) spawnNade(a2v(m.p), a2v(m.v), mode.remote, 1.6);
 }
+// =====================================================================================
+// Chat e spray na partida
+// =====================================================================================
+const chatBox = $('#chat'), chatLog = $('#chatLog'), chatIn = $('#chatIn');
+const cleanChat = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 120);
+function openChat() {
+  if (state !== 'playing' || paused || chatOpen || (mode && mode.over)) return;
+  chatOpen = true; held.clear(); chatBox.classList.add('open'); chatIn.hidden = false; chatIn.value = '';
+  setTimeout(() => chatIn.focus(), 0);
+}
+function closeChat() {
+  if (!chatOpen) return;
+  chatOpen = false; chatBox.classList.remove('open'); chatIn.hidden = true; chatIn.blur(); held.clear();
+}
+function sendChat() {
+  const txt = cleanChat(chatIn.value); closeChat();
+  if (!txt || !player) return;
+  addChat(player.name || 'Você', player.color, txt, true);
+  if (mode && mode.net) Net.send({ t: 'chat', m: txt });
+  else botsAnswer(txt);
+}
+function addChat(name, color, txt, mine) {
+  if (mode && mode.noFeed) return;
+  const d = document.createElement('div');
+  d.innerHTML = `<b style="color:${color != null ? hex(color) : 'var(--hud-accent)'}">${esc(name)}</b>: ${esc(txt)}`;
+  chatLog.appendChild(d);
+  while (chatLog.children.length > 8) chatLog.firstChild.remove();
+  setTimeout(() => d.classList.add('old'), 9000);
+  if (!mine) play('empty', 0.35);
+}
+// os bots respondem um "gg" ou um cumprimento de vez em quando
+function botsAnswer(txt) {
+  const bots = combatants.filter(c => c.bot); if (!bots.length) return;
+  const t = txt.toLowerCase();
+  const say = /\bgg\b|\bgood game\b/.test(t) ? ['gg', 'gg wp', 'ggwp'] : /\b(oi|ola|olá|eae|salve|hi|hello)\b/.test(t) ? ['salve', 'eae', 'oi'] : /\b(nt|nice|boa|ns)\b/.test(t) ? ['vlw', 'tmj', 'kkk'] : null;
+  if (!say) return;
+  const b = bots[Math.floor(Math.random() * bots.length)], m = mode;
+  setTimeout(() => { if (mode === m && state === 'playing') addChat(b.name, b.color, say[Math.floor(Math.random() * say.length)]); }, 700 + Math.random() * 900);
+}
+chatIn.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  else if (e.key === 'Escape') { e.preventDefault(); closeChat(); }
+});
+chatIn.addEventListener('blur', () => setTimeout(() => { if (chatOpen && document.activeElement !== chatIn) closeChat(); }, 150));
+
+// ---- spray: imagem na parede para onde você está olhando (uma por jogador; a nova apaga a anterior)
+const SPRAY_KEY = 'cs3.web.spray';
+const SPRAY_PRESETS = [{ id: 'gg', name: 'GG' }, { id: 'smile', name: 'Sorriso' }, { id: 'cs3', name: 'CS3' }, { id: 'heart', name: 'Coração' }, { id: 'skull', name: 'Caveira' }, { id: 'alvo', name: 'Alvo' }];
+let SPRAY = (() => { const v = loadJSON(SPRAY_KEY); return { list: Array.isArray(v.list) ? v.list.filter(s => s && okImg(s.img)) : [], cur: v.cur || 'gg' }; })();
+const saveSpray = () => { try { localStorage.setItem(SPRAY_KEY, JSON.stringify(SPRAY)); return true; } catch (e) { return false; } };
+const sprayImgCache = new Map();
+function sprayPresetImg(id) {
+  if (sprayImgCache.has(id)) return sprayImgCache.get(id);
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.lineJoin = 'round'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const circ = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+  if (id === 'gg' || id === 'cs3') {
+    g.font = `900 ${id === 'gg' ? 84 : 54}px Impact, Arial Black, sans-serif`;
+    g.lineWidth = 10; g.strokeStyle = '#111'; g.strokeText(id.toUpperCase(), 64, 68);
+    g.fillStyle = id === 'gg' ? '#ffd23a' : '#f2a03a'; g.fillText(id.toUpperCase(), 64, 68);
+    if (id === 'cs3') { g.lineWidth = 6; g.strokeStyle = '#f2a03a'; g.beginPath(); g.arc(64, 64, 58, 0, Math.PI * 2); g.stroke(); }
+  } else if (id === 'smile') {
+    circ(64, 64, 58, '#111'); circ(64, 64, 53, '#ffd23a'); circ(45, 50, 8, '#111'); circ(83, 50, 8, '#111');
+    g.lineWidth = 8; g.strokeStyle = '#111'; g.beginPath(); g.arc(64, 66, 30, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+  } else if (id === 'heart') {
+    g.fillStyle = '#e0323c'; g.strokeStyle = '#111'; g.lineWidth = 6;
+    g.beginPath(); g.moveTo(64, 112); g.bezierCurveTo(0, 70, 8, 14, 64, 40); g.bezierCurveTo(120, 14, 128, 70, 64, 112); g.fill(); g.stroke();
+  } else if (id === 'skull') {
+    g.fillStyle = '#eee'; g.strokeStyle = '#111'; g.lineWidth = 5;
+    g.beginPath(); g.arc(64, 54, 42, Math.PI * 0.8, Math.PI * 2.2); g.lineTo(90, 108); g.lineTo(38, 108); g.closePath(); g.fill(); g.stroke();
+    circ(47, 58, 12, '#111'); circ(81, 58, 12, '#111');
+    g.beginPath(); g.moveTo(64, 72); g.lineTo(57, 86); g.lineTo(71, 86); g.closePath(); g.fill();
+    for (let x = 48; x <= 80; x += 10) g.fillRect(x, 96, 3, 12);
+  } else {
+    [[58, '#111'], [54, '#e0323c'], [40, '#fff'], [26, '#e0323c'], [12, '#fff']].forEach(([r, col]) => circ(64, 64, r, col));
+  }
+  // cara de tinta: falhas e bordas irregulares
+  const d = g.getImageData(0, 0, 128, 128), a = d.data;
+  for (let i = 3; i < a.length; i += 4) if (a[i]) a[i] = Math.max(0, a[i] * (0.82 + Math.random() * 0.18) - (Math.random() < 0.04 ? 120 : 0));
+  g.putImageData(d, 0, 0);
+  const url = c.toDataURL('image/png'); sprayImgCache.set(id, url); return url;
+}
+const sprayById = id => SPRAY_PRESETS.find(s => s.id === id) || SPRAY.list.find(s => s.id === id) || null;
+const sprayImg = sk => sk ? (sk.img || sprayPresetImg(sk.id)) : sprayPresetImg('gg');
+const mySprayImg = () => sprayImg(sprayById(SPRAY.cur));
+function readSprayFile(file) {
+  return new Promise((ok, fail) => {
+    if (!file || !/^image\/(png|jpeg|webp|gif|bmp)$/.test(file.type)) { fail(new Error('Use uma imagem PNG ou JPG.')); return; }
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      const k = Math.min(128 / im.width, 128 / im.height), w = im.width * k, h = im.height * k;
+      g.drawImage(im, (128 - w) / 2, (128 - h) / 2, w, h);
+      let img = c.toDataURL('image/png'); if (img.length > 60000) img = c.toDataURL('image/webp', 0.85);
+      if (!okImg(img) || img.length > 90000) img = c.toDataURL('image/jpeg', 0.85);
+      ok(img);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); fail(new Error('Não deu para abrir essa imagem.')); };
+    im.src = url;
+  });
+}
+const sprayTex = new Map();
+let sprayNext = 0;
+function sprayTexture(img) {
+  if (sprayTex.has(img)) return sprayTex.get(img);
+  const im = new Image(), t = new THREE.Texture(im);
+  im.onload = () => { t.needsUpdate = true; }; im.src = img;
+  if ('encoding' in t) t.encoding = THREE.sRGBEncoding;
+  sprayTex.set(img, t); if (sprayTex.size > 24) { const [k, old] = sprayTex.entries().next().value; old.dispose(); sprayTex.delete(k); }
+  return t;
+}
+function placeSpray(key, p, n, img, yaw) {
+  const old = sprays.get(key); if (old) { world.remove(old); old.material.dispose(); }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), new THREE.MeshBasicMaterial({ map: sprayTexture(img), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, opacity: 0.95 }));
+  m.position.copy(p).addScaledVector(n, 0.015);
+  if (Math.abs(n.y) > 0.8) m.up.set(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(n.y > 0 ? 1 : -1);
+  m.lookAt(m.position.clone().add(n)); m.renderOrder = 2;
+  world.add(m); sprays.set(key, m);
+  play('spray', 0.8, p);
+  return m;
+}
+function trySpray() {
+  if (!player || !player.alive || now < sprayNext || (mode && mode.type === 'aim')) return false;
+  const eye = eyePos(player), fwd = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
+  scene.updateMatrixWorld(); raycaster.set(eye, fwd); raycaster.far = 4;
+  const hit = raycaster.intersectObjects(worldMeshes, false)[0]; raycaster.far = Infinity;
+  if (!hit || !hit.face) return false;
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+  sprayNext = now + 3;
+  const img = mySprayImg();
+  placeSpray('me', hit.point, n, img, player.yaw);
+  if (mode && mode.net) Net.send({ t: 'spray', p: v3a(hit.point), n: v3a(n), y: +player.yaw.toFixed(3), img });
+  return true;
+}
+function onSprayMsg(m) {
+  if (!okImg(m.img) || m.img.length > 120000) return;
+  const p = a2v(m.p), n = a2v(m.n); if (!isFinite(p.x + p.y + p.z + n.x + n.y + n.z) || n.lengthSq() < 0.5 || p.length() > 500) return;
+  placeSpray('remote', p, n.normalize(), m.img, +m.y || 0);
+}
+function clearSprays() { for (const m of sprays.values()) m.material.dispose(); sprays.clear(); sprayNext = 0; }
+function updateSocial() {
+  if (state !== 'playing' || paused || chatOpen) return;
+  if (isDown('chat') || pressed.has('Enter') || pressed.has('NumpadEnter')) { openChat(); return; }
+  if (canInput() && isDown('spray')) trySpray();
+}
 
 function enterPlaying() {
   goFullscreen();
@@ -3738,6 +3949,7 @@ function enterPlaying() {
 function goMenu() {
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') Net.send({ t: 'lobby' });
+  closeChat(); chatLog.innerHTML = '';
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
@@ -3748,7 +3960,7 @@ function goMenu() {
 }
 function setPaused(p) {
   if (state !== 'playing') return;
-  paused = p; $('#pause').hidden = !p; if (p) pausedAt = performance.now();
+  paused = p; $('#pause').hidden = !p; if (p) { pausedAt = performance.now(); closeChat(); }
   if (p) { if (document.exitPointerLock && locked()) document.exitPointerLock(); }
   else lockPointer();
   updateLockHint();
@@ -3992,7 +4204,7 @@ addEventListener('keydown', e => {
 // =====================================================================================
 // Menus e configurações
 // =====================================================================================
-$('#controlsNote').innerHTML = 'WASD mover · <kbd>Espaço</kbd> pular (segure para pular sem parar) · <kbd>C</kbd> agachar · <kbd>Shift</kbd> andar · <kbd>1</kbd>–<kbd>7</kbd> armas · <kbd>F</kbd> faca · <kbd>R</kbd> recarregar · botão direito: zoom ou facada forte · <kbd>Tab</kbd> placar · <kbd>Esc</kbd> pausa.<br>' +
+$('#controlsNote').innerHTML = 'WASD mover · <kbd>Espaço</kbd> pular (segure para pular sem parar) · <kbd>C</kbd> agachar · <kbd>Shift</kbd> andar · <kbd>1</kbd>–<kbd>7</kbd> armas · <kbd>F</kbd> faca · <kbd>R</kbd> recarregar · botão direito: zoom ou facada forte · <kbd>Tab</kbd> placar · <kbd>E</kbd> pegar arma · <kbd>G</kbd> largar · <kbd>Y</kbd> ou <kbd>Enter</kbd> chat · <kbd>T</kbd> spray · <kbd>Esc</kbd> pausa.<br>' +
   '<b>Bunny hop:</b> pule, aperte <kbd>C</kbd> no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.';
 // Descobre qual placa de vídeo o navegador está usando; "SwiftShader", "llvmpipe" ou "Basic Render" = desenho por software (lento)
 const GPU = (() => {
@@ -4405,7 +4617,7 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { renderer, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { renderer, camera, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
