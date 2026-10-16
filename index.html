@@ -1670,8 +1670,8 @@ const WEAPONS = [
     base: 0.004, move: 0.05, air: 0.2, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.6, recoilY: 0.5, speed: 1 },
   { id: 'bow', name: 'Arco', snd: 'bow', proj: { kind: 'bolt', speed: 62, grav: 9 }, dmg: 62, pellets: 1, interval: 0.55, auto: false, mag: 1, reserve: 40, reload: 0.7, draw: 0.5, range: 300, falloff: 1, head: 2.4,
     base: 0.001, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 1.4, recoilY: 0.2, speed: 1.02 },
-  { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 19, pellets: 11, interval: 1.0, auto: false, mag: 2, reserve: 30, reload: 1.9, draw: 0.6, range: 45, falloff: 0.62, head: 1.6,
-    base: 0.075, move: 0.03, air: 0.12, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
+  { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 24, pellets: 12, interval: 0.55, auto: false, mag: 2, reserve: 40, reload: 1.5, draw: 0.5, range: 70, falloff: 0.8, head: 1.6,
+    base: 0.045, move: 0.025, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
   { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 9, pellets: 1, interval: 0.08, spinUp: 0.7, auto: true, mag: 120, reserve: 240, reload: 4.8, draw: 1.0, range: 200, falloff: 0.88, head: 2,
     base: 0.016, move: 0.07, air: 0.2, perShot: 0.0025, maxShot: 0.045, recover: 0.3, recoilP: 0.35, recoilY: 0.3, speed: 0.78 },
   { id: 'sword', name: 'Espadão', snd: 'knife', melee: true, dmg: 70, alt: 115, altInterval: 1.15, pellets: 1, interval: 0.7, auto: true, mag: 0, reserve: 0, reload: 0, draw: 0.4,
@@ -2804,6 +2804,15 @@ function updateBot(c, dt) {
     if (best) { b.target = best; b.visible = true; b.lastSeen.copy(best.pos); b.lastSeenT = now; }
     else { b.visible = false; if (b.target && !b.target.alive) b.target = null; }
   }
+  // clone do Peão: sempre sabe onde está o inimigo mais perto e vai para cima dele (não atira)
+  if (c.rusher) {
+    if (!b.target || !b.target.alive || now >= (b.rtAt || 0)) {
+      b.rtAt = now + 0.5; let nb = null, nd = 1e9;
+      for (const o of combatants) { if (o === c || !o.alive || !mode.enemies(c, o)) continue; const d = o.pos.distanceToSquared(c.pos); if (d < nd) { nd = d; nb = o; } }
+      b.target = nb;
+    }
+    b.visible = !!b.target;
+  }
   // mira
   const eye = eyePos(c); let lookDir;
   const turn = lerp(200, 720, cfg.acc) * DEG * dt;
@@ -2856,7 +2865,21 @@ function updateBot(c, dt) {
   }
   // movimento
   let desired = new THREE.Vector3();
-  if (cfg.move) {
+  if (c.rusher && b.target) {
+    // corre até o alvo em zigue-zague; quando o alvo mira nele, troca de lado mais rápido e pula para desviar
+    const T = b.target, d = Math.hypot(T.pos.x - c.pos.x, T.pos.z - c.pos.z);
+    if (now >= (b.pathAt || 0)) { b.pathAt = now + 0.4; b.path = navLineClear(c.pos, T.pos) ? null : navPath(c.pos, T.pos); }
+    while (b.path && b.path.length > 1 && Math.hypot(b.path[0].x - c.pos.x, b.path[0].z - c.pos.z) < 1.2) b.path.shift();
+    const goal = b.path && b.path.length ? b.path[0] : T.pos, onPath = !!(b.path && b.path.length);
+    const to = new THREE.Vector3(goal.x - c.pos.x, 0, goal.z - c.pos.z).normalize();
+    const side = new THREE.Vector3(-to.z, 0, to.x);
+    const tAim = new THREE.Vector3(-Math.sin(T.yaw) * Math.cos(T.pitch), Math.sin(T.pitch), -Math.cos(T.yaw) * Math.cos(T.pitch));
+    const aimed = tAim.angleTo(chestPos(c).sub(eyePos(T))) < 12 * DEG;
+    if (now >= b.strafeAt) { b.strafeAt = now + (aimed ? rand(0.15, 0.35) : rand(0.35, 0.8)); b.strafe = Math.random() < 0.5 ? -1 : 1; }
+    desired.copy(to).multiplyScalar(d > 3 ? 1 : 0.25).addScaledVector(side, b.strafe * (aimed ? 0.9 : 0.5) * (onPath ? 0.35 : 1));
+    if (aimed && c.grounded && Math.random() < dt * 1.8) { c.grounded = false; c.vel.y = 6.5; }
+    desired = avoid(c, desired.normalize());
+  } else if (cfg.move) {
     const fwd = new THREE.Vector3(-Math.sin(c.yaw), 0, -Math.cos(c.yaw)), rgt = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw));
     if (b.visible && b.target) {
       if (now >= b.strafeAt) { b.strafeAt = now + rand(0.4, 1.4); const r = Math.random(); b.strafe = r < 0.4 ? -1 : r < 0.8 ? 1 : 0; }
@@ -2889,6 +2912,45 @@ function updateBot(c, dt) {
   if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; play('step', 0.9, c.pos); } }
 }
 function pickWp(b) { const wps = mapInfo.waypoints; if (!wps.length) { b.hasWp = false; return; } b.wp.copy(wps[Math.floor(Math.random() * wps.length)]); b.hasWp = true; }
+// grade de navegação (1 m) do mapa atual, para os clones do Peão contornarem paredes e peças
+let NAV = null;
+function navGrid() {
+  if (NAV && NAV.world === world) return NAV;
+  const wp = mapInfo.waypoints.length ? mapInfo.waypoints : [new THREE.Vector3(-20, 0, -20), new THREE.Vector3(20, 0, 20)];
+  const x0 = Math.floor(Math.min(...wp.map(p => p.x)) - 4), x1 = Math.ceil(Math.max(...wp.map(p => p.x)) + 4);
+  const z0 = Math.floor(Math.min(...wp.map(p => p.z)) - 4), z1 = Math.ceil(Math.max(...wp.map(p => p.z)) + 4);
+  const W = x1 - x0 + 1, H = z1 - z0 + 1, ok = new Uint8Array(W * H), q = new THREE.Vector3();
+  for (let i = 0; i < W; i++) for (let j = 0; j < H; j++) { q.set(x0 + i, 0.4, z0 + j); ok[j * W + i] = collides(q, 1.2, 0.45) ? 0 : 1; }
+  return (NAV = { world, x0, z0, W, H, ok });
+}
+function navLineClear(a, b) {
+  const L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(L / 0.5), q = new THREE.Vector3();
+  for (let i = 1; i < n; i++) { const t = i / n; q.set(a.x + (b.x - a.x) * t, 0.4, a.z + (b.z - a.z) * t); if (collides(q, 1.2, 0.35)) return false; }
+  return true;
+}
+function navPath(a, b) {
+  const N = navGrid(), { W, H, ok } = N;
+  const cell = p => { const i = clamp(Math.round(p.x - N.x0), 0, W - 1), j = clamp(Math.round(p.z - N.z0), 0, H - 1); return j * W + i; };
+  const s0 = cell(a), g = cell(b), prev = new Int32Array(W * H).fill(-1), seen = new Uint8Array(W * H);
+  const queue = [s0]; seen[s0] = 1;
+  for (let qi = 0; qi < queue.length; qi++) {
+    const k = queue[qi]; if (k === g) break;
+    const i = k % W, j = (k / W) | 0;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue;
+      const nk = nj * W + ni; if (seen[nk] || !(ok[nk] || nk === g)) continue;
+      if (di && dj && !(ok[j * W + ni] && ok[nj * W + i])) continue;   // não corta quina
+      seen[nk] = 1; prev[nk] = k; queue.push(nk);
+    }
+  }
+  if (!seen[g]) return null;
+  const out = []; for (let k = g; k !== s0 && k >= 0; k = prev[k]) out.push(new THREE.Vector3(N.x0 + (k % W), 0, N.z0 + ((k / W) | 0)));
+  out.reverse();
+  // pula pontos enquanto a linha reta continua livre (caminho mais natural)
+  const res = []; let from = a;
+  for (let i = 0; i < out.length; i++) { if (i === out.length - 1 || !navLineClear(from, out[i + 1])) { res.push(out[i]); from = out[i]; } }
+  return res.slice(0, 6);
+}
 function clear(c, dir) {
   const p = c.pos.clone().addScaledVector(dir, 1.0), P = mapInfo.pool;
   if (P && c.pos.y > -0.4 && Math.abs(p.x - P.x) < P.hx + 0.6 && Math.abs(p.z - P.z) < P.hz + 0.6) return false; // não pula na piscina
@@ -4787,7 +4849,8 @@ const nearItem = () => {
   return best;
 };
 function updateGround(dt) {
-  updateSocial(); updateDoors(dt); updateProj(dt);
+  // granadas e a bomba do Bispo voam mesmo sem armas no chão (antes ficavam paradas no ar nos duelos de xadrez)
+  updateSocial(); updateDoors(dt); updateProj(dt); updateNades(dt);
   if (!pickupOn()) return;
   const P = mapInfo.pool;
   for (const it of ground.items) {
@@ -4829,7 +4892,6 @@ function updateGround(dt) {
       }
     }
   }
-  updateNades(dt);
 }
 function groundHint() {
   if (!pickupOn() || !player || !player.alive) return '';
@@ -7145,8 +7207,8 @@ function spawnSummons(team, pos, yaw, owner) {
     const sp = { pos: pos.clone().add(new THREE.Vector3(Math.cos(yaw) * s * 1.6, 0.05, -Math.sin(yaw) * s * 1.6)), yaw };
     if (collides(sp.pos, 1.8)) sp.pos.copy(pos);
     const L = summonLook(owner);
-    const b = createBot(Object.assign(botDefaults(), { name: L.name, weapon: WI('musket'), acc: d.acc * 0.75, react: d.react * 1.3, speed: d.speed, view: d.view, fov: d.fov, hp: 20, respawn: false }), sp, TEAM_COLORS[team]);
-    b.team = team; b.summon = true; b.spawnIdx = 9; b.maxHp = 20; b.hp = 20;
+    const b = createBot(Object.assign(botDefaults(), { name: L.name, weapon: WI('musket'), acc: d.acc, react: d.react, speed: d.speed * 1.3, view: 200, fov: 180, hp: 20, respawn: false, shoot: false }), sp, TEAM_COLORS[team]);
+    b.team = team; b.summon = true; b.rusher = true; b.spawnIdx = 9; b.maxHp = 20; b.hp = 20;
     applySkin(b, L.skin); applyCos(b, L.cos);
     if (mode && mode.net && mode.netBots) {
       const id = 's' + (++sumSeq); Object.assign(b, { netId: id, netBot: true }); mode.netBots.set(id, b);
