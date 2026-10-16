@@ -316,6 +316,16 @@ body:not(.canpick) #tUse { display: none !important; }
 #tUse { border-color: var(--accent); background: rgba(242,160,58,0.35); }
 #classGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: min(62vh, 560px); overflow: auto; }
 .clspanel { width: min(980px, calc(100vw - 32px)); max-width: none; }
+#adminMenu { z-index: 60; }
+.admpanel { width: min(720px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); display: flex; flex-direction: column; gap: 10px; }
+#admBody { overflow-y: auto; min-height: 0; flex: 1; padding-right: 4px; }
+.admrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.admrow .nm { flex: 1 1 140px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.admrow .nm i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.admrow .nm small { color: var(--muted); font-weight: 400; }
+.admrow .btn, .admcam .btn { padding: 5px 10px; font-size: 13px; width: auto; }
+.admrow .btn.on, .admcam .btn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.admcam { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
 button.clscard { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; text-align: left; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); cursor: pointer; clip-path: var(--chamfer); font-family: var(--body); }
 button.clscard b { font: 700 16px var(--display); letter-spacing: 0.03em; } button.clscard .cw { color: var(--accent); font-size: 13px; font-weight: 600; }
 button.clscard small { color: var(--muted); font-size: 12px; line-height: 1.35; min-height: 32px; }
@@ -469,12 +479,21 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <div class="btnrow"><button class="btn primary" id="classClose">Jogar</button></div>
   </div>
 </div>
+<div class="layer dim" id="adminMenu" hidden>
+  <div class="center panel admpanel">
+    <h2>Menu de admin</h2>
+    <div class="tabs" role="tablist" id="admTabs"></div>
+    <div id="admBody"></div>
+    <div class="btnrow"><button class="btn primary" id="admApply">Aplicar e reiniciar para todos</button><button class="btn" id="admClose">Fechar</button></div>
+  </div>
+</div>
 <div class="layer dim" id="pause" hidden>
   <div class="center panel">
     <h2>Pausado</h2>
     <button class="btn primary" id="pResume">Continuar</button>
     <button class="btn" id="pSet">Configurações</button>
     <button class="btn" id="pClass" hidden>Trocar classe</button>
+    <button class="btn" id="pAdmin" hidden>Menu de admin</button>
     <button class="btn" id="pRestart">Reiniciar</button>
     <button class="btn" id="pMenu">Menu principal</button>
   </div>
@@ -488,7 +507,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <p id="endWinner" class="sub"></p>
     <table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="endBody"></tbody></table>
     <div id="endStats"></div>
-    <div class="btnrow"><button class="btn primary" id="eAgain">Jogar novamente</button><button class="btn" id="eMenu">Menu principal</button></div>
+    <div class="btnrow"><button class="btn primary" id="eAgain">Jogar novamente</button><button class="btn" id="eAdmin" hidden>Mudar regras</button><button class="btn" id="eMenu">Menu principal</button></div>
   </div>
 </div>
 
@@ -542,7 +561,7 @@ const ACTIONS = [
   ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
-  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'],
+  ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
@@ -626,12 +645,12 @@ function lockPointer() {
   } catch (e) { try { canvas.requestPointerLock(); } catch (e2) {} }
 }
 document.addEventListener('pointerlockchange', () => {
-  if (classOpen && document.pointerLockElement) { document.exitPointerLock(); return; }   // escolhendo classe: o mouse fica livre
-  if (!locked()) { held.clear(); if (state === 'playing' && !paused && !devOpen && !classOpen && !(mode && mode.over)) setPaused(true); }
+  if ((classOpen || adminOpen) && document.pointerLockElement) { document.exitPointerLock(); return; }   // escolhendo classe / menu de admin: o mouse fica livre
+  if (!locked()) { held.clear(); if (state === 'playing' && !paused && !devOpen && !classOpen && !adminOpen && !(mode && mode.over)) setPaused(true); }
   updateLockHint();
 });
 canvas.addEventListener('click', () => {
-  if (state !== 'playing' || paused || classOpen || (mode && mode.over)) return;
+  if (state !== 'playing' || paused || classOpen || adminOpen || (mode && mode.over)) return;
   if (devOpen) toggleDev(false);
   lockPointer();
 });
@@ -1827,7 +1846,11 @@ function animateModel(c, dt) {
 function damage(victim, amount, attacker, weapon, zone, dir) {
   if (!victim.alive) return false;
   if (attacker && attacker !== victim && mode && mode.teams && attacker.team === victim.team) return false;
-  if (victim.remote) { if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }, victim.netId); victim.flash = 1; return false; }
+  if (victim.remote) {
+    if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }, victim.netId);
+    else if (attacker && attacker.netBot && mode && mode.host && !victim.isNetBot) Net.send({ t: 'hit', d: amount, z: zone, w: weapon, by: attacker.netId }, victim.netId);
+    victim.flash = 1; return false;
+  }
   if (!victim.invuln) victim.hp = Math.max(0, victim.hp - amount);
   victim.flash = 1; victim.lastHurt = now;
   if (attacker && attacker !== victim) victim.lastAttacker = attacker;
@@ -2114,8 +2137,8 @@ function selectWeapon(i, force) {
 }
 const active = () => pw.slots[pw.cur];
 const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : 1;
-const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
-const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(classOpen && !(mode && mode.net) && !mode.started) && !(mode && mode.over);
+const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && !adminOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
+const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(adminOpen && !(mode && mode.net)) && !(classOpen && !(mode && mode.net) && !mode.started) && !(mode && mode.over);
 
 function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
 
@@ -2473,6 +2496,7 @@ function updateBot(c, dt) {
           const alt = Math.random() < 0.3;
           b.nextFire = now + (alt ? w.altInterval : w.interval) * rand(1, 1.5);
           const r = meleeAttack(c, w, eye, to.clone().normalize(), alt);
+          if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w) });
           c.recoilAnim = 1; play(r.hit ? 'knifeHit' : 'knife', 1, c.pos);
         }
       } else if (aim.angleTo(to) < 6 * DEG) {
@@ -2483,8 +2507,8 @@ function updateBot(c, dt) {
           if (w.auto) { if (b.burst <= 0) b.burst = 3 + Math.floor(Math.random() * 6); b.burst--; if (b.burst <= 0) b.nextFire += rand(0.25, 0.6); }
           c.group.updateMatrixWorld(true);
           const ms = new THREE.Vector3(); c.muzzle.getWorldPosition(ms);
-          if (w.proj) { const tg = to.clone(), tt = tg.length() / w.proj.speed; tg.y += 0.5 * (w.proj.grav || 0) * tt * tt; fireProj(c, w, ms, tg.normalize(), w.base + (1 - cfg.acc) * 0.03); }
-          else fireWeapon(c, w, eye, aim, (w.scope ? w.scoped : w.base + b.shotSpread) + (1 - cfg.acc) * 0.03, ms, cfg.dmg);
+          if (w.proj) { const tg = to.clone(), tt = tg.length() / w.proj.speed; tg.y += 0.5 * (w.proj.grav || 0) * tt * tt; const pv0 = fireProj(c, w, ms, tg.normalize(), w.base + (1 - cfg.acc) * 0.03); if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), pp: v3a(ms), pv: v3a(pv0) }); }
+          else { fireWeapon(c, w, eye, aim, (w.scope ? w.scoped : w.base + b.shotSpread) + (1 - cfg.acc) * 0.03, ms, cfg.dmg); if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), a: v3a(ms), b: v3a(ms.clone().addScaledVector(aim, 40)) }); }
           b.shotSpread = Math.min(b.shotSpread + w.perShot, w.maxShot);
           c.recoilAnim = 1; play(w.snd, 1, c.pos);
         }
@@ -2602,7 +2626,7 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0 };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game']];
 const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
@@ -2639,6 +2663,7 @@ function applyDuel(m) {
 function loadJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null') || {}; } catch (e) { return {}; } }
 let X1 = Object.assign(clone(X1_DEFAULT), loadJSON('cs3.web.x1'));
 function saveX1() { try { localStorage.setItem('cs3.web.x1', JSON.stringify(X1)); } catch (e) {} }
+window.__saveX1 = saveX1;
 // ordem dos slots: armas de fogo na ordem da lista, faca por último (tecla F também saca a faca)
 function cfgWeapons(cfg) {
   const p = WEAPON_PRESETS[cfg.preset] || WEAPON_PRESETS[0];
@@ -2666,6 +2691,7 @@ function startX1(cfgIn, net, ids) {
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
   mapDef.build(); clearCombatants(); feedEl.innerHTML = ''; Admin.watch = null;
+  if (adminOpen) { adminOpen = false; $('#adminMenu').hidden = true; }
   applyPhysics(cfg);
   // online: quem joga esta partida (quem entrou depois espera a próxima)
   const lineup = net ? net.roster.filter(p => !ids || ids.includes(p.id)) : null;
@@ -2689,6 +2715,21 @@ function startX1(cfgIn, net, ids) {
       r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
       setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, p.skin || null); applyCos(r, p.cos);
       mode.remotes.set(p.id, r);
+    }
+    mode.netBots = new Map();
+    const d = DIFF[cfg.diff] || DIFF[1], cnt = [lineup.filter(p => p.team === 0).length, lineup.filter(p => p.team === 1).length];
+    for (const nb of Array.isArray(cfg.netBots) ? cfg.netBots.slice(0, 12) : []) {
+      const team = nb.team ? 1 : 0, i = cnt[team]++, id = String(nb.id).slice(0, 4), wsel = WEAPONS[nb.w] ? nb.w : WI('knife'), name = String(nb.name || 'Bot').slice(0, 16);
+      if (net.role === 'host') {
+        const b = createBot(Object.assign(botDefaults(), { name, weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov, hp: cfg.hp, move: cfg.botMove, shoot: cfg.botShoot }), teamSpawn(team, i), shade(TEAM_COLORS[team], i));
+        Object.assign(b, { team, spawnIdx: i, netId: id, netBot: true }); mode.netBots.set(id, b);
+      } else {
+        const r = createCombatant(name, shade(TEAM_COLORS[team], i), teamSpawn(team, i), false);
+        Object.assign(r, { remote: true, isNetBot: true, netId: id, team, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: i, wi: wsel });
+        r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+        setGunShape(r, WEAPONS[wsel]); applySkin(r, null);
+        mode.remotes.set(id, r);
+      }
     }
   } else {
     const d = DIFF[cfg.diff] || DIFF[1];
@@ -2787,6 +2828,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     onDeath(v, a) {
       if (this.over) return;
       if (net && v === player) { const d = v.lastDeath || {}; Net.send({ t: 'dead', by: a ? (a === player ? '' : a.netId || '') : '', w: d.weapon, h: d.head ? 1 : 0 }); }
+      if (net && host && v.netBot) { const d = v.lastDeath || {}; Net.sendAs(v.netId, { t: 'dead', by: a ? (a === player ? Net.myId : a.netId || '') : '', w: d.weapon, h: d.head ? 1 : 0 }); }
       if (!rounds) {
         if (!v.remote) v.respawnAt = now + 2;
         if (cfg.duel === 'random' && v === player) this.roundGun = randomGun(cfg);
@@ -3087,6 +3129,7 @@ function endX1(team) {
   $('#endStats').innerHTML = `<div class="statgrid"><div><b>${r.k}</b><span>abates</span></div><div><b>${r.d}</b><span>mortes</span></div><div><b>${kd(r.k, r.d)}</b><span>A/M</span></div>
     <div><b>${pct(r.hs, r.k)}</b><span>abates na cabeça</span></div><div><b>${pct(r.hits, r.shots)}</b><span>precisão</span></div></div>
     <p class="note" style="margin:6px 0 0">Contra ${esc(r.opp)} no total: <b>${R.vs.w}</b> vitória${R.vs.w === 1 ? '' : 's'}, <b>${R.vs.l}</b> derrota${R.vs.l === 1 ? '' : 's'}${R.vs.e ? `, ${R.vs.e} empate${R.vs.e === 1 ? '' : 's'}` : ''}.</p>`;
+  $('#eAdmin').hidden = !isAdmin();
   const again = $('#eAgain'); again.disabled = !!(m.net && !m.host); again.textContent = m.net && !m.host ? 'Aguardando o anfitrião…' : 'Jogar novamente';
   $('#end').hidden = false;
 }
@@ -3097,12 +3140,12 @@ function netState() {
   return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp) };
 }
 const a2v = a => new THREE.Vector3(a[0], a[1], a[2]);
-const remoteOf = id => (id && mode && mode.remotes && mode.remotes.get(id)) || null;
+const remoteOf = id => (id && mode && ((mode.remotes && mode.remotes.get(id)) || (mode.netBots && mode.netBots.get(id)))) || null;
 function removeRemote(r) {
   mode.remotes.delete(r.netId); r.alive = false;
   const i = combatants.indexOf(r); if (i >= 0) combatants.splice(i, 1); if (r.group.parent) r.group.parent.remove(r.group);
   const sp = sprays.get('r_' + r.netId); if (sp) { world.remove(sp); sprays.delete('r_' + r.netId); }
-  if (!mode.over && !mode.remotes.size) {
+  if (!mode.over && ![...mode.remotes.values()].some(x => !x.isNetBot) && !(mode.netBots && mode.netBots.size)) {
     mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
     $('#endWinner').innerHTML = '<b>Todos os outros jogadores saíram</b>';
     fillScore($('#endBody')); $('#eAgain').disabled = true; $('#end').hidden = false;
@@ -3173,6 +3216,7 @@ function onNetMsg(m) {
       Net.inMatch = true; startX1(m.cfg, Net, m.ro.map(q => q.id)); break;
     case 'lobby': Net.inMatch = false; if (inGame) { goMenu(); openNetPanel(); } else renderNetLobby(); break;
     case 's': if (r) onRemoteState(r, m); break;
+    case 'bs': if (inGame && Array.isArray(m.l)) for (const e of m.l) { const b = Array.isArray(e) && remoteOf(String(e[0])); if (b && b.isNetBot) onRemoteState(b, { p: e[1], v: e[2], y: e[3], x: e[4], c: e[5], w: e[6], a: e[7], h: e[8] }); } break;
     case 'shot': if (r) {
       const w = WEAPONS[m.w]; if (!w) break;
       r.recoilAnim = 1; play(w.melee ? 'knife' : w.snd, 1, r.pos);
@@ -3181,7 +3225,7 @@ function onNetMsg(m) {
     } break;
     case 'build': if (inGame && Net.byId(m.f) && BUILD_KINDS[m.k]) { const bp = a2v(m.p); if (isFinite(bp.x + bp.y + bp.z) && bp.length() < 500) placeBuild(String(m.id).slice(0, 24), m.k, bp, m.a ? 1 : 0, m.f); } break;
     case 'bhit': if (inGame) hitBuild(builds.get(String(m.id)), clamp(+m.d || 0, 0, 500), false); break;
-    case 'hit': if (r && !mode.over && player.alive) damage(player, +m.d || 0, r, String(m.w || ''), m.z, null); break;
+    case 'hit': { const a = m.f === 'h' && m.by ? remoteOf(String(m.by)) || r : r; if (a && !mode.over && player.alive) damage(player, +m.d || 0, a, String(m.w || ''), m.z, null); break; }
     case 'dead': if (r && r.alive) {
       const killer = m.by && m.by === Net.myId ? player : remoteOf(m.by) || null;
       r.deathVel = r.vel.clone(); r.deathDir = killer ? r.pos.clone().sub(killer.pos) : null; r.deathZone = m.h ? 'head' : 'body';
@@ -3240,7 +3284,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -3289,6 +3333,11 @@ const Net = {
     if (m.t === 'pong') { conn.ping = Math.round(performance.now() - m.ts); this.ping = Math.max(0, ...[...this.conns.values()].map(c => c.ping || 0)); return; }
     if (m.t === 'bye') { this.dropGuest(conn); return; }
     if (HOST_ONLY.has(m.t)) return;
+    if (m.to && mode && mode.netBots && mode.netBots.has(m.to)) {
+      const b = mode.netBots.get(m.to), a = remoteOf(id);
+      if (m.t === 'hit' && a && b.alive && !mode.over) damage(b, clamp(+m.d || 0, 0, 500), a, String(m.w || '').slice(0, 24), m.z === 'head' ? 'head' : m.z === 'legs' ? 'legs' : 'body', null);
+      return;
+    }
     if (m.to && m.to !== 'h') { const c = this.conns.get(m.to); if (c) this.raw(c, m); return; }
     if (!m.to && !NO_RELAY.has(m.t)) for (const [cid, c] of this.conns) if (cid !== id) this.raw(c, m);
     onNetMsg(m);
@@ -3368,10 +3417,20 @@ const Net = {
     this.peer = null; this.hub = null; this.conns = new Map(); this.open = false; this.role = null; this.hostCfg = null; this.versionWarn = false; this.status = '';
     this.roster = []; this.myId = ''; this.seq = 0; this.inMatch = false; Admin.me = false; Admin.admins.clear(); this.kicked = false;
   },
-  canStart() { const n = this.teamSizes(); return this.role === 'host' && this.roster.length >= 2 && n[0] > 0 && n[1] > 0; },
+  canStart(cfg = X1) {
+    const n = this.teamSizes(), a = cfg.botsA | 0, b = cfg.botsB | 0;
+    return this.role === 'host' && (this.roster.length >= 2 || a + b > 0) && n[0] + a > 0 && n[1] + b > 0;
+  },
+  // o anfitrião manda uma mensagem como se fosse um dos bots dele
+  sendAs(id, m) { if (this.role !== 'host') return; m.f = id; for (const c of this.conns.values()) this.raw(c, m); },
   startMatch(cfg) {
-    if (!this.canStart()) return;
+    if (!this.canStart(cfg)) return;
     cfg = resolveMapCfg(cfg); this.inMatch = true;
+    // bots da sala: o anfitrião simula, os outros veem como jogadores remotos
+    const guns = cfgWeapons(cfg).filter(i => !WEAPONS[i].melee && !WEAPONS[i].build), bots = []; let n = 0;
+    for (const [team, cnt] of [[0, clamp(cfg.botsA | 0, 0, 6)], [1, clamp(cfg.botsB | 0, 0, 6)]]) for (let i = 0; i < cnt; i++, n++)
+      bots.push({ id: 'b' + n, name: 'Bot ' + NAMES[n % NAMES.length], team, w: cfg.botWeapon >= 0 && WEAPONS[cfg.botWeapon] ? cfg.botWeapon : guns.length ? guns[Math.floor(Math.random() * guns.length)] : WI('knife') });
+    cfg.netBots = bots;
     this.send({ t: 'start', cfg, ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team })) });
     startX1(cfg, this);
   },
@@ -3380,6 +3439,10 @@ const Net = {
     updateRemote(dt);
     this.sendAcc += dt;
     if (this.sendAcc >= 1 / 30 && player) { this.sendAcc = 0; this.send(netState()); }
+    if (this.role === 'host' && mode && mode.netBots && mode.netBots.size && (this.botAcc = (this.botAcc || 0) + dt) >= 1 / 20) {
+      this.botAcc = 0;
+      this.send({ t: 'bs', l: [...mode.netBots.values()].map(b => [b.netId, v3a(b.pos), v3a(b.vel), +b.yaw.toFixed(3), +(b.pitch || 0).toFixed(3), +(b.crouch || 0).toFixed(2), WEAPONS.indexOf(b.weapon.w), b.alive ? 1 : 0, Math.ceil(b.hp)]) });
+    }
   },
 };
 
@@ -4486,7 +4549,7 @@ function onGroundMsg(m) {
 // Chat e spray na partida
 // =====================================================================================
 const chatBox = $('#chat'), chatLog = $('#chatLog'), chatIn = $('#chatIn');
-const cleanChat = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 120);
+const cleanChat = (s, n = 120) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
 function openChat() {
   if (state !== 'playing' || paused || chatOpen || (mode && mode.over)) return;
   chatOpen = true; held.clear(); chatBox.classList.add('open'); chatIn.hidden = false; chatIn.value = '';
@@ -4543,11 +4606,16 @@ const CMD_HELP = [
   ['gravidade', '/gravidade 0.5  ·  /velocidade 1.5  ·  /vida 200  ·  /bhop 0-3'],
   ['municao', '/municao on|off (infinita)  ·  /hs on|off (só headshot)'],
   ['admin', '/admin Ana libera os comandos para ela  ·  /tiraradmin Ana  ·  /kick Ana'],
+  ['modo', '/modo rounds|mata|infinito|faca|awp|aleatoria|gungame|normal'],
+  ['tempo', '/tempo 10 (minutos)  ·  /round 90 (segundos)  ·  /rounds 5 ou /abates 20 para vencer'],
+  ['armas', '/armas awp deagle faca (ou todas)  ·  /classes on|off  ·  /bots azul 3 laranja 1'],
+  ['menu', 'Tecla M (ou Pausa → Menu de admin) abre o menu com tudo isso'],
 ];
-const CMD_ALIAS = { help: 'ajuda', '?': 'ajuda', camera: 'cam', 'câmera': 'cam', spec: 'ver', assistir: 'ver', team: 'time', map: 'mapa', restart: 'reiniciar', rr: 'reiniciar',
+const CMD_ALIAS = { help: 'ajuda', '?': 'ajuda', camera: 'cam', 'câmera': 'cam', spec: 'ver', assistir: 'ver', team: 'time', map: 'mapa', restart: 'reiniciar', rr: 'reiniciar', mode: 'modo', time_: 'tempo', weapons: 'armas', classe: 'classes', bot: 'bots', kills: 'abates', alvo: 'abates', menu: 'menuadm',
   gravity: 'gravidade', grav: 'gravidade', speed: 'velocidade', vel: 'velocidade', hp: 'vida', ammo: 'municao', 'munição': 'municao', headshot: 'hs', unadmin: 'tiraradmin', expulsar: 'kick' };
 const CFG_CMDS = { gravidade: ['gravity', 0.1, 4], velocidade: ['speed', 0.3, 3], vida: ['hp', 1, 1000], bhop: ['bhop', 0, 3], municao: ['infinite'], hs: ['hsOnly'] };
-const SERVER_CMDS = new Set(['time', 'mapa', 'reiniciar', 'admin', 'tiraradmin', 'kick', 'camoutro', ...Object.keys(CFG_CMDS)]);
+const RULE_CMDS = new Set(['modo', 'tempo', 'round', 'rounds', 'abates', 'armas', 'classes', 'bots']);
+const SERVER_CMDS = new Set(['time', 'mapa', 'reiniciar', 'admin', 'tiraradmin', 'kick', 'camoutro', 'regras', ...RULE_CMDS, ...Object.keys(CFG_CMDS)]);
 const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function sysChat(txt, err) { if (mode && mode.noFeed) return; addChat(err ? 'Comando' : 'Admin', err ? 0xd9534f : 0xf2a03a, txt, true); }
 // acha um jogador pelo nome (pedaço do nome serve); "eu" é você
@@ -4590,8 +4658,10 @@ function runCommand(txt) {
     if (!c) { sysChat('Ninguém com esse nome: ' + rest.join(' '), true); return; }
     watchCombatant(c === player ? null : c, m); if (c === player) setCam(m); return;
   }
+  if (cmd === 'menuadm') { openAdmin(); return; }
   if (!SERVER_CMDS.has(cmd)) { sysChat(`Comando desconhecido: /${w}. Digite /ajuda.`, true); return; }
   if (!mode || mode.type !== 'x1') { sysChat('Esse comando funciona nas partidas de x1 (sozinho ou online).', true); return; }
+  if (RULE_CMDS.has(cmd)) { const r = ruleFromCmd(cmd, args); if (typeof r === 'string') sysChat(r, true); else sendRules(r); return; }
   // nomes viram ids aqui, de quem digitou, para o anfitrião não precisar adivinhar
   if (!mode.net && ['admin', 'tiraradmin', 'kick'].includes(cmd)) { sysChat('Jogando sozinho você já é o admin; esse comando é para salas online.', true); return; }
   if (['time', 'admin', 'tiraradmin', 'kick'].includes(cmd)) {
@@ -4604,6 +4674,120 @@ function runCommand(txt) {
   }
   serverCmd(cmd, args);
 }
+// ---- regras da partida mudadas pelo admin (menu ou comando): a partida recomeça com todo mundo junto
+function draftCfg() { const c = clone(mode && mode.type === 'x1' ? mode.cfg : X1); delete c.netBots; return c; }
+const MODE_WORDS = { rounds: ['format', 'rounds'], round: ['format', 'rounds'], mata: ['format', 'dm'], 'mata-mata': ['format', 'dm'], dm: ['format', 'dm'], infinito: ['format', 'endless'], endless: ['format', 'endless'],
+  faca: ['duel', 'knife'], knife: ['duel', 'knife'], awp: ['duel', 'awp'], sniper: ['duel', 'awp'], aleatoria: ['duel', 'random'], random: ['duel', 'random'], gungame: ['duel', 'gungame'], normal: ['duel', 'normal'] };
+function ruleFromCmd(cmd, args) {
+  const c = draftCfg(), num = (lo, hi) => { const v = parseFloat(String(args[0] || '').replace(',', '.')); return Number.isFinite(v) ? Math.round(clamp(v, lo, hi)) : null; };
+  if (cmd === 'modo') { const k = MODE_WORDS[normTxt(args[0])]; if (!k) return 'Use /modo rounds, mata, infinito, faca, awp, aleatoria, gungame ou normal.'; c[k[0]] = k[1]; return c; }
+  if (cmd === 'tempo') { const v = num(1, 30); if (v == null) return 'Use /tempo minutos (1 a 30).'; c.time = v; if (c.format === 'endless') c.format = 'dm'; return c; }
+  if (cmd === 'round') { const v = num(15, 300); if (v == null) return 'Use /round segundos (15 a 300).'; c.roundTime = v; c.format = 'rounds'; return c; }
+  if (cmd === 'rounds') { const v = num(1, 15); if (v == null) return 'Use /rounds número (1 a 15).'; c.target = v; c.format = 'rounds'; return c; }
+  if (cmd === 'abates') { const v = num(1, 50); if (v == null) return 'Use /abates número (1 a 50).'; c.target = v; if (c.format !== 'dm') c.format = 'dm'; return c; }
+  if (cmd === 'classes') { const v = ONOFF[normTxt(args[0])]; c.classes = v == null ? !c.classes : v; if (c.classes) c.duel = 'normal'; return c; }
+  if (cmd === 'armas') {
+    const q = args.map(normTxt).filter(Boolean); if (!q.length) return 'Use /armas awp deagle faca, ou /armas todas.';
+    if (q[0] === 'todas') { c.preset = 0; c.duel = 'normal'; c.classes = false; return c; }
+    const ids = [];
+    for (const t of q) { const i = WEAPONS.findIndex(w => !w.nade && (w.id === t || normTxt(w.name).startsWith(t) || (t === 'awp' && w.id === 'sniper') || (t === 'faca' && w.melee))); if (i < 0) return `Não conheço a arma "${t}". Armas: ${GUN_IDS().map(i => normTxt(WEAPONS[i].name)).join(', ')}, faca.`; if (!ids.includes(i)) ids.push(i); }
+    c.preset = WEAPON_PRESETS.findIndex(p => p[1] === 'custom'); c.weapons = ids; c.duel = 'normal'; c.classes = false; return c;
+  }
+  if (cmd === 'bots') {
+    let team = null, got = false;
+    for (const a of args) { const k = TEAM_WORDS[normTxt(a)]; const v = parseInt(a, 10);
+      if (k != null && !/^\d+$/.test(a)) team = k;
+      else if (Number.isFinite(v)) { const t = team == null ? 1 : team, n = clamp(v, 0, 6); got = true;
+        if (mode.net) c[t ? 'botsB' : 'botsA'] = n; else if (t === player.team) c.allies = Math.min(n, 4); else c.enemies = clamp(n, 1, 5); team = null; } }
+    if (!got) return 'Use /bots azul 3 laranja 1 (ou /bots 3 para o time azul).'; return c;
+  }
+  return 'Comando desconhecido.';
+}
+function sendRules(cfg) {
+  if (mode.net && Net.role !== 'host') { Net.send({ t: 'acmd', c: 'regras', a: [], cfg }, 'h'); return; }
+  const r = execServerCmd('regras', [], mode.net ? Net.myId : 'me', cfg);
+  if (r) sysChat(r, true);
+}
+// só os campos conhecidos, com o tipo certo (o pedido pode vir de um convidado)
+function cleanCfg(src, base) {
+  const out = clone(base); delete out.netBots;
+  if (!src || typeof src !== 'object') return out;
+  for (const k of Object.keys(X1_DEFAULT)) {
+    const d = X1_DEFAULT[k], v = src[k]; if (v == null) continue;
+    if (k === 'weapons') { if (Array.isArray(v)) out.weapons = v.map(Number).filter(i => Number.isInteger(i) && WEAPONS[i]).slice(0, 30); }
+    else if (typeof d === 'boolean') out[k] = !!v;
+    else if (typeof d === 'number') { const n = +v; if (Number.isFinite(n)) out[k] = clamp(n, -1, 1000); }
+    else if (typeof d === 'string') out[k] = String(v).slice(0, 20);
+  }
+  if (!MAPS.some(m => m.id === out.map)) out.map = base.map;
+  if (out.map !== base.map || !out.map.startsWith('c_')) delete out.customMap;
+  return resolveMapCfg(out);
+}
+function restartWith(cfg) {
+  closeAdmin();
+  if (mode.net) {
+    if (!Net.canStart(cfg)) return 'Precisa de alguém (ou bots) em cada time.';
+    Object.assign(X1, clone(cfg)); delete X1.netBots; saveX1();
+    Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); Net.startMatch(clone(X1));
+  } else { Object.assign(X1, clone(cfg)); saveX1(); startX1(clone(cfg)); }
+}
+// ---- menu de admin (tecla M): jogadores, câmera e regras
+let adminOpen = false, admTab = 'players', admDraft = null;
+function openAdmin() {
+  if (state !== 'playing' || !mode) return;
+  if (!isAdmin()) { sysChat('Só o admin abre esse menu.', true); return; }
+  adminOpen = true; held.clear(); closeChat();
+  if (paused) { paused = false; $('#pause').hidden = true; }
+  if (document.exitPointerLock && document.pointerLockElement) document.exitPointerLock();
+  admDraft = draftCfg(); renderAdmin(); $('#adminMenu').hidden = false;
+}
+function closeAdmin() {
+  if (!adminOpen) return;
+  adminOpen = false; $('#adminMenu').hidden = true;
+  if (state === 'playing' && !(mode && mode.over)) lockPointer();
+}
+const cidOf = c => c === player ? (mode.net ? Net.myId : 'me') : c.remote || c.netBot ? c.netId : 'bot:' + combatants.indexOf(c);
+function renderAdmin() {
+  const x1 = mode.type === 'x1', tabs = [['players', 'Jogadores'], ['cam', 'Câmera']].concat(x1 ? [['rules', 'Regras']] : []);
+  if (!tabs.some(t => t[0] === admTab)) admTab = 'players';
+  $('#admTabs').innerHTML = tabs.map(([k, t]) => `<button role="tab" aria-selected="${k === admTab}" data-t="${k}">${t}</button>`).join('');
+  $('#admTabs').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { admTab = b.dataset.t; renderAdmin(); });
+  $('#admApply').hidden = admTab !== 'rules';
+  $('#admApply').textContent = mode.net ? 'Aplicar e reiniciar para todos' : 'Aplicar e reiniciar';
+  const body = $('#admBody'), host = !mode.net || Net.role === 'host';
+  if (admTab === 'players') {
+    body.innerHTML = (x1 ? '' : '<p class="note">Times, mapa e regras só no x1 (sozinho ou online).</p>') + combatants.map((c, i) => {
+      const human = c === player || (c.remote && !c.isNetBot), tag = c === player ? 'você' : c.bot || c.isNetBot ? 'bot' : Admin.admins.has(c.netId) ? 'admin' : '';
+      return `<div class="admrow"><span class="nm"><i style="background:${hex(c.color)}"></i>${esc(c.name)} <small>${tag}${c.alive ? '' : ' · morto'}</small></span>` +
+        (x1 ? `<button class="btn" data-a="team" data-i="${i}">Time ${c.team ? 'azul → laranja' : 'laranja → azul'}</button>` : '') +
+        (c !== player ? `<button class="btn ${Admin.watch === c ? 'on' : ''}" data-a="watch" data-i="${i}">Assistir</button>` : '') +
+        (x1 && c.remote && !c.isNetBot ? [0, 1, 2].map(m => `<button class="btn" data-a="cam" data-m="${m}" data-i="${i}" title="Câmera dele">${['1ª', 'Costas', 'Frente'][m]}</button>`).join('') : '') +
+        (x1 && mode.net && host && c.remote && !c.isNetBot ? `<button class="btn ${Admin.admins.has(c.netId) ? 'on' : ''}" data-a="adm" data-i="${i}">Admin</button><button class="btn" data-a="kick" data-i="${i}">Expulsar</button>` : '') + '</div>';
+    }).join('');
+    body.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+      const c = combatants[+b.dataset.i]; if (!c) return; const a = b.dataset.a;
+      if (a === 'team') serverCmd('time', [cidOf(c), null]);
+      else if (a === 'watch') watchCombatant(Admin.watch === c ? null : c, 1);
+      else if (a === 'cam') serverCmd('camoutro', [c.netId, +b.dataset.m]);
+      else if (a === 'adm') serverCmd(Admin.admins.has(c.netId) ? 'tiraradmin' : 'admin', [c.netId]);
+      else if (a === 'kick') serverCmd('kick', [c.netId]);
+      setTimeout(() => adminOpen && admTab === 'players' && renderAdmin(), 250);
+    });
+  } else if (admTab === 'cam') {
+    const opts = [[0, '1ª pessoa'], [1, '3ª pessoa de costas'], [2, '3ª pessoa de frente']];
+    body.innerHTML = `<div class="formh">Sua câmera</div><div class="admcam">${opts.map(([m, t]) => `<button class="btn ${!Admin.watch && Admin.cam === m ? 'on' : ''}" data-m="${m}">${t}</button>`).join('')}</div>` +
+      `<div class="formh">Assistir alguém</div><div class="admcam">${combatants.filter(c => c !== player).map(c => `<button class="btn ${Admin.watch === c ? 'on' : ''}" data-w="${combatants.indexOf(c)}">${esc(c.name)}</button>`).join('') || '<span class="note">Ninguém na partida.</span>'}</div>` +
+      (Admin.watch ? `<div class="admcam">${opts.slice(1).map(([m, t]) => `<button class="btn ${Admin.watchCam === m ? 'on' : ''}" data-wm="${m}">${t}</button>`).join('')}<button class="btn" data-w="-1">Voltar para mim</button></div>` : '') +
+      `<p class="note">Também dá pelo chat: /cam costas, /cam frente, /ver nome.</p>`;
+    body.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { setCam(+b.dataset.m); renderAdmin(); });
+    body.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const i = +b.dataset.w; watchCombatant(i < 0 ? null : combatants[i], Admin.watchCam || 1); renderAdmin(); });
+    body.querySelectorAll('[data-wm]').forEach(b => b.onclick = () => { Admin.watchCam = +b.dataset.wm; renderAdmin(); });
+  } else {
+    body.innerHTML = `<p class="note" style="margin-top:0">Mude o que quiser e clique em Aplicar: a partida recomeça ${mode.net ? 'para todos, na mesma sala' : ''} com as regras novas.</p><div id="admForm" class="stack" style="gap:4px"></div>`;
+    renderX1Form($('#admForm'), !!mode.net, null, admDraft);
+  }
+}
+function applyAdminRules() { if (admDraft) sendRules(clone(admDraft)); }
 function setCam(m) {
   Admin.cam = m; Admin.watch = null;
   sysChat('Câmera: ' + CAM_NAMES[m] + (m ? '. Volte com /cam 1.' : '.'));
@@ -4625,7 +4809,7 @@ function idCombatant(id) {
   return remoteOf(id);
 }
 // roda no anfitrião (ou sozinho). Devolve texto de erro para quem pediu, ou nada.
-function execServerCmd(cmd, a, by) {
+function execServerCmd(cmd, a, by, cfgIn) {
   const net = mode.net, who = nameOfId(by), note = t => { if (net) t += ` (admin ${who})`; sysChat(t); if (net) Net.send({ t: 'anote', m: t }); };
   if (cmd === 'camoutro') {
     const id = String(a[0]), m = clamp(Math.round(+a[1]) || 0, 0, 2);
@@ -4645,10 +4829,16 @@ function execServerCmd(cmd, a, by) {
     const q = normTxt(a.join(' '));
     const m = MAPS.find(x => x.id === q) || MAPS.find(x => normTxt(x.name).startsWith(q) || x.id.startsWith(q)) || (q && MAPS.find(x => normTxt(x.name).includes(q)));
     if (!q || !m) return 'Mapas: ' + MAPS.map(x => x.id).join(', ') + '.';
-    const cfg = clone(mode.cfg); cfg.map = m.id; delete cfg.customMap;
-    if (net) { X1.map = m.id; Net.send({ t: 'anote', m: `Mapa: ${m.name} (admin ${who}).` }); Net.startMatch(cfg); }
-    else startX1(cfg);
+    const cfg = draftCfg(); cfg.map = m.id; delete cfg.customMap;
+    if (net) Net.send({ t: 'anote', m: `Mapa: ${m.name} (admin ${who}).` });
+    const e = restartWith(cfg); if (e) return e;
     sysChat(`Mapa: ${m.name}.`); return;
+  }
+  if (cmd === 'regras') {
+    const cfg = cleanCfg(cfgIn, mode.cfg), err = (mode.net && !Net.canStart(cfg)) ? 'Precisa de alguém (ou bots) em cada time.' : null;
+    if (err) return err;
+    if (net) Net.send({ t: 'anote', m: `${who} mudou as regras. ${cfgSummary(cfg)}` });
+    restartWith(cfg); sysChat('Regras novas: ' + cfgSummary(cfg)); return;
   }
   if (cmd === 'reiniciar') { if (net) Net.send({ t: 'anote', m: `Partida reiniciada (admin ${who}).` }); mode.restart(); sysChat('Partida reiniciada.'); return; }
   if (cmd === 'admin' || cmd === 'tiraradmin') {
@@ -4700,15 +4890,15 @@ function onAdminMsg(m) {
   switch (m.t) {
     case 'acmd': {
       if (Net.role !== 'host') return;
-      const err = Admin.admins.has(m.f) ? execServerCmd(String(m.c), Array.isArray(m.a) ? m.a : [], m.f) : 'Você não é admin.';
+      const err = Admin.admins.has(m.f) ? execServerCmd(String(m.c), Array.isArray(m.a) ? m.a : [], m.f, m.cfg) : 'Você não é admin.';
       if (err) Net.send({ t: 'anote', m: err, e: 1 }, m.f);
       return;
     }
-    case 'anote': sysChat(cleanChat(m.m), !!m.e); return;
+    case 'anote': sysChat(cleanChat(m.m, 240), !!m.e); return;
     case 'acam': if (m.id === Net.myId) { Admin.cam = clamp(+m.m || 0, 0, 2); Admin.watch = null; } return;
     case 'ateam': applyTeam(String(m.id), m.tm ? 1 : 0); return;
     case 'acfg': applyCfgKey(m.k, m.v); return;
-    case 'aadm': if (m.id === Net.myId) { Admin.me = !!m.on; } return;
+    case 'aadm': if (m.id === Net.myId) { Admin.me = !!m.on; $('#pAdmin').hidden = !Admin.me; if (Admin.me) sysChat(`Você virou admin: ${keyLabel(S.keys.adm)} abre o menu de admin, ou use /ajuda.`); } return;
   }
 }
 // ---- câmera em 3ª pessoa: de costas (por cima do ombro) ou de frente, para você ou para quem você assiste
@@ -4841,6 +5031,7 @@ function updateSocial() {
   if (isDown('chat') || pressed.has('Enter') || pressed.has('NumpadEnter')) { openChat(); return; }
   if (canInput() && isDown('spray')) trySpray();
   if (canInput() && isDown('cls')) openClassPick();
+  if (canInput() && isDown('adm')) openAdmin();
 }
 
 function enterPlaying() {
@@ -4849,6 +5040,7 @@ function enterPlaying() {
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
   $('#hud').hidden = false; dmgNums = []; if (player) $('#hud').style.setProperty('--hud-team', hex(player.color)); document.body.classList.toggle('pickup', !!(mode && mode.pickup)); applyLayout();
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
+  $('#pAdmin').hidden = !(mode && mode.type === 'x1' && isAdmin());
   $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para todos)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
   $('#eMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
@@ -4880,6 +5072,7 @@ function setPaused(p) {
 }
 function onEscape() {
   if (performance.now() - pausedAt < 400) return; // o mesmo Esc que soltou o mouse já pausou
+  if (adminOpen) { closeAdmin(); return; }
   if (classOpen) { if (mode && mode.started) closeClassPick(); return; }
   if (!$('#settings').hidden) { closeSettings(); return; }
   if (devOpen) { toggleDev(false); return; }
@@ -5249,8 +5442,9 @@ function chooseClass(id) {
 }
 $('#classClose').onclick = () => { if (!mode || !mode.started) chooseClass(myClass); else closeClassPick(); };
 // ---- formulário do x1 (usado contra bots e na sala online)
-function renderX1Form(root, online, onChange) {
-  const c = X1;
+function renderX1Form(root, online, onChange, cfgObj) {
+  const c = cfgObj || X1;
+  const saveX1 = () => { if (!cfgObj) window.__saveX1(); };
   const sel = (k, label, opts) => `<div class="row"><label for="x_${k}">${label}</label><select id="x_${k}" data-x="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(c[k]) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><span></span></div>`;
   const rng = (k, label, min, max, step, fmt = v => v) => `<div class="row"><label for="x_${k}">${label}</label><input type="range" id="x_${k}" data-x="${k}" min="${min}" max="${max}" step="${step}" value="${c[k]}"><output>${fmt(c[k])}</output></div>`;
   const chk = (k, label) => `<div class="row"><label for="x_${k}">${label}</label><input type="checkbox" id="x_${k}" data-x="${k}" ${c[k] ? 'checked' : ''}><span></span></div>`;
@@ -5268,6 +5462,13 @@ function renderX1Form(root, online, onChange) {
     rng('hp', 'Vida', 10, 300, 10) + chk('hsOnly', 'Só vale tiro na cabeça') + chk('infinite', 'Munição infinita') +
     ((c.duel && c.duel !== 'normal') || c.classes ? '' : sel('ground', 'Armas no chão', [['auto', 'Só no fy_pool_day'], ['on', 'Ligado em todos os mapas'], ['off', 'Desligado']]) +
       `<p class="note" style="margin:0 0 4px">Com armas no chão, todo mundo começa com faca e pistola e pega o resto no mapa: passe por cima para pegar, ${keyLabel(S.keys.use)} troca pela arma do chão e ${keyLabel(S.keys.drop)} larga a arma.</p>`);
+  if (online) {
+    h += `<div class="formh">Bots na sala</div>` +
+      rng('botsA', 'Bots no time laranja', 0, 6, 1) + rng('botsB', 'Bots no time azul', 0, 6, 1) +
+      (c.botsA || c.botsB ? sel('diff', 'Dificuldade dos bots', DIFF_NAMES.map((n, i) => [i, n])) +
+      sel('botWeapon', 'Arma dos bots', [[-1, 'Aleatória (das permitidas)']].concat(GUN_IDS().map(i => [i, WEAPONS[i].name]))) +
+      chk('botMove', 'Bots se movem') + chk('botShoot', 'Bots atacam') : `<p class="note" style="margin:0 0 4px">Com bots dá para jogar você e seu amigo juntos contra eles, ou completar os times.</p>`);
+  }
   if (!online) {
     h += `<div class="formh">Times e bots</div>` +
       rng('allies', 'Bots no seu time', 0, 4, 1) + rng('enemies', 'Bots no time inimigo', 1, 5, 1) +
@@ -5293,14 +5494,14 @@ function renderX1Form(root, online, onChange) {
       if (k === 'preset' && WEAPON_PRESETS[c.preset][1] !== 'custom') c.weapons = cfgWeapons(c);
       saveX1(); onChange && onChange();
       if (k === 'map' && state === 'menu') (MAPS.find(m => m.id === c.map) || MAPS[0]).build();
-      if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes') renderX1Form(root, online, onChange);
+      if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes' || k === 'botsA' || k === 'botsB') renderX1Form(root, online, onChange, cfgObj);
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
   });
   root.querySelectorAll('[data-w]').forEach(el => el.addEventListener('change', () => {
     c.weapons = [...root.querySelectorAll('[data-w]')].filter(e => e.checked).map(e => +e.dataset.w);
     c.preset = WEAPON_PRESETS.findIndex(p => p[1] === 'custom');
-    saveX1(); onChange && onChange(); renderX1Form(root, online, onChange);
+    saveX1(); onChange && onChange(); renderX1Form(root, online, onChange, cfgObj);
   }));
 }
 function cfgSummary(cfg) {
@@ -5484,10 +5685,10 @@ function renderNetLobby() {
   }
   const hc = $('#netHostCfg');
   hc.hidden = !host;
-  if (host && !hc.childElementCount) renderX1Form(hc, true, () => Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }));
+  if (host && !hc.childElementCount) renderX1Form(hc, true, () => { Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); renderNetLobby(); });
   if (!host) hc.innerHTML = '';
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
-  $('#bNetStart').textContent = Net.open && !Net.canStart() ? 'Precisa de alguém em cada time' : 'Iniciar partida';
+  $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
   $('#bNetBack').textContent = role ? 'Sair da sala' : 'Voltar';
 }
 $('#bNet').onclick = () => { initAudio(); openNetPanel(); };
@@ -5512,6 +5713,10 @@ $('#pSet').onclick = () => openSettings();
 $('#pRestart').onclick = () => mode.restart();
 $('#pMenu').onclick = () => goMenu();
 $('#eAgain').onclick = () => mode.restart();
+$('#eAdmin').onclick = () => openAdmin();
+$('#pAdmin').onclick = () => openAdmin();
+$('#admClose').onclick = () => closeAdmin();
+$('#admApply').onclick = () => applyAdminRules();
 $('#eMenu').onclick = () => goMenu();
 
 let setTab = 0;
@@ -5818,7 +6023,8 @@ renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
-window.__cs3 = { Admin, runCommand, get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
+window.__cs3 = { Admin, runCommand, openAdmin,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
