@@ -649,7 +649,7 @@ const ACTIONS = [
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
-  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1 },
+  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1 },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
@@ -1217,6 +1217,116 @@ function mesh(geo, color, sx, sy, sz, x = 0, y = 0, z = 0, parent = null) {
 // Mundo: mapas com colisão AABB
 // =====================================================================================
 let world = null, worldMeshes = [], colliders = [], mapInfo = null;
+// ---- texturas feitas no próprio jogo (canvas): areia, concreto, blocos de pedra, caixotes de madeira, metal
+// Tudo em tons de cinza claro: a cor de cada caixa do mapa continua valendo (a textura só dá o desenho).
+function srand(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
+const TEX_TILE = { ground: 3, concrete: 2, block: 3, crate: 1.2, metal: 1, plain: 2, grass: 3, tile: 2 };
+function texKind(hexv) {
+  if (hexv === C.sand || hexv === 0xd8c49a || hexv === 0xcdb88f) return 'ground';
+  if (hexv === C.wall || hexv === C.wallDark || hexv === 0xc9b48a) return 'block';
+  if (hexv === C.crate || hexv === C.crateDark || hexv === C.wood || hexv === 0x7a5636 || hexv === 0x5a4632) return 'crate';
+  if (hexv === C.concrete || hexv === C.floorDev) return 'concrete';
+  if (hexv === C.metal || hexv === C.metal2) return 'metal';
+  const c = new THREE.Color(hexv), hsl = {}; c.getHSL(hsl);
+  if (hsl.h > 0.2 && hsl.h < 0.45 && hsl.s > 0.25) return 'grass';
+  return 'plain';
+}
+const procTex = new Map();
+function makeTex(kind) {
+  if (procTex.has(kind)) return procTex.get(kind);
+  const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const g = cv.getContext('2d'), R = srand(kind.length * 977 + kind.charCodeAt(0) * 31);
+  const img = g.createImageData(N, N), d = img.data;
+  // ruído em camadas (valor) que repete sem emenda
+  const lat = (f, s) => { const r = srand(s), a = []; for (let i = 0; i < f * f; i++) a.push(r()); return (x, y) => {
+    const fx = x * f / N, fy = y * f / N, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+    const v = (i, j) => a[((j % f + f) % f) * f + ((i % f + f) % f)];
+    return lerp(lerp(v(x0, y0), v(x0 + 1, y0), sx), lerp(v(x0, y0 + 1), v(x0 + 1, y0 + 1), sx), sy); }; };
+  const n1 = lat(4, 11), n2 = lat(16, 23), n3 = lat(64, 37);
+  const base = { ground: 0.9, concrete: 0.9, block: 0.92, crate: 0.88, metal: 0.86, plain: 0.94, grass: 0.88 }[kind] || 0.9;
+  const amp = { ground: 0.16, concrete: 0.12, block: 0.1, crate: 0.08, metal: 0.06, plain: 0.1, grass: 0.2 }[kind] || 0.1;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    let v = base + ((n1(x, y) - 0.5) * 0.6 + (n2(x, y) - 0.5) * 0.3 + (n3(x, y) - 0.5) * 0.25 + (R() - 0.5) * 0.25) * amp * 2;
+    if (kind === 'crate') v += Math.sin((x * 0.11 + n2(x, y) * 6)) * 0.035;            // veios da madeira
+    if (kind === 'metal') v += (n3(x * 0.1, y * 4) - 0.5) * 0.05;                       // escovado
+    const k = (y * N + x) * 4, c = clamp(v, 0, 1) * 255;
+    d[k] = d[k + 1] = d[k + 2] = c; d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const line = (x0, y0, x1, y1, w, a) => { g.strokeStyle = `rgba(0,0,0,${a})`; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+  const hi = (x0, y0, x1, y1, w, a) => { g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+  if (kind === 'ground') {
+    for (let i = 0; i < 220; i++) { const x = R() * N, y = R() * N, r = 0.6 + R() * 2.2; g.fillStyle = `rgba(${R() < 0.5 ? '0,0,0' : '255,255,255'},${0.08 + R() * 0.14})`; g.beginPath(); g.ellipse(x, y, r, r * (0.6 + R() * 0.4), R() * 3, 0, 7); g.fill(); }
+  } else if (kind === 'grass') {
+    for (let i = 0; i < 1400; i++) { const x = R() * N, y = R() * N; line(x, y, x + (R() - 0.5) * 3, y - 2 - R() * 4, 1, 0.08 + R() * 0.1); }
+  } else if (kind === 'concrete') {
+    // placas com junta e algumas rachaduras finas
+    line(0, 1, N, 1, 3, 0.28); line(1, 0, 1, N, 3, 0.28); hi(0, 4, N, 4, 1, 0.12); hi(4, 0, 4, N, 1, 0.12);
+    for (let i = 0; i < 3; i++) { let x = R() * N, y = R() * N; g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); for (let j = 0; j < 7; j++) { x += (R() - 0.5) * 30; y += R() * 18; g.lineTo(x, y); } g.stroke(); }
+  } else if (kind === 'block') {
+    // blocos de pedra (estilo dust): 4 fileiras, juntas fundas e borda clara
+    const rows = 4, h = N / rows;
+    for (let r = 0; r < rows; r++) {
+      const off = r % 2 ? N / 4 : 0, y = r * h;
+      line(0, y + 1, N, y + 1, 4, 0.3); hi(0, y + 5, N, y + 5, 1.5, 0.15);
+      for (let k = 0; k < 3; k++) { const x = (off + k * N / 2) % N; line(x + 1, y, x + 1, y + h, 4, 0.3); hi(x + 5, y + 4, x + 5, y + h, 1.5, 0.12); }
+      for (let k = 0; k < 2; k++) { g.fillStyle = `rgba(0,0,0,${0.03 + R() * 0.06})`; g.fillRect((off + k * N / 2) % N, y, N / 2, h); }
+    }
+  } else if (kind === 'crate') {
+    // caixote: tábuas, moldura e travessa em X
+    for (let i = 1; i < 5; i++) line(0, i * N / 5, N, i * N / 5, 2, 0.32);
+    const F = 22; g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, 0, N, F); g.fillRect(0, N - F, N, F); g.fillRect(0, 0, F, N); g.fillRect(N - F, 0, F, N);
+    line(F, F, N - F, F, 3, 0.4); line(F, N - F, N - F, N - F, 3, 0.4); line(F, F, F, N - F, 3, 0.4); line(N - F, F, N - F, N - F, 3, 0.4);
+    line(0, 1, N, 1, 3, 0.5); line(1, 0, 1, N, 3, 0.5); line(0, N - 1, N, N - 1, 3, 0.5); line(N - 1, 0, N - 1, N, 3, 0.5);
+    g.save(); g.beginPath(); g.rect(F, F, N - 2 * F, N - 2 * F); g.clip(); g.fillStyle = 'rgba(0,0,0,0.1)';
+    g.translate(N / 2, N / 2); g.rotate(Math.PI / 4); g.fillRect(-N, -11, N * 2, 22); g.restore();
+    line(F + 6, F + 4, N - F - 4, N - F - 6, 2, 0.35); hi(F + 4, F + 8, N - F - 8, N - F - 4, 1.5, 0.12);
+    for (const [x, y] of [[11, 11], [N - 11, 11], [11, N - 11], [N - 11, N - 11]]) { g.fillStyle = 'rgba(30,30,30,0.6)'; g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); }
+  } else if (kind === 'metal') {
+    line(0, 1, N, 1, 3, 0.35); line(1, 0, 1, N, 3, 0.35); hi(0, 4, N, 4, 1, 0.2); hi(4, 0, 4, N, 1, 0.2);
+    for (const [x, y] of [[14, 14], [N - 14, 14], [14, N - 14], [N - 14, N - 14]]) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.arc(x + 1, y + 1, 5, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,0.25)'; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+  } else if (kind === 'plain') {
+    line(0, 1, N, 1, 2, 0.12); line(1, 0, 1, N, 2, 0.12);
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  procTex.set(kind, t); return t;
+}
+const texMatCache = new Map();
+function texMat(hexv, kind) {
+  const key = hexv + ':' + kind;
+  if (!texMatCache.has(key)) {
+    // a textura escurece um pouco a média: compensa clareando a cor
+    const col = new THREE.Color(hexv).multiplyScalar(1.1);
+    texMatCache.set(key, new THREE.MeshLambertMaterial({ color: col, map: makeTex(kind) }));
+  }
+  return texMatCache.get(key);
+}
+// junta caixas numa geometria só; a textura repete um número inteiro de vezes em cada face (casa com as quinas)
+function mergeBoxes(list, tile) {
+  const P = BOX.attributes.position, Nn = BOX.attributes.normal, U = BOX.attributes.uv, I = BOX.index;
+  const nv = P.count, ni = I.count;
+  const pos = new Float32Array(list.length * nv * 3), nor = new Float32Array(list.length * nv * 3), uv = new Float32Array(list.length * nv * 2);
+  const idx = new Uint32Array(list.length * ni);
+  const v = new THREE.Vector3(), nm = new THREE.Matrix3(), s = new THREE.Vector3(), q = new THREE.Quaternion(), tpos = new THREE.Vector3();
+  const reps = len => Math.max(1, Math.round(len / tile));
+  list.forEach((m, b) => {
+    m.matrixWorld.decompose(tpos, q, s); nm.getNormalMatrix(m.matrixWorld);
+    const sx = Math.abs(s.x), sy = Math.abs(s.y), sz = Math.abs(s.z);
+    for (let i = 0; i < nv; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld); pos.set([v.x, v.y, v.z], (b * nv + i) * 3);
+      v.fromBufferAttribute(Nn, i); const ax = Math.abs(v.x) > 0.5 ? 'x' : Math.abs(v.y) > 0.5 ? 'y' : 'z';
+      v.applyMatrix3(nm).normalize(); nor.set([v.x, v.y, v.z], (b * nv + i) * 3);
+      const du = ax === 'x' ? sz : sx, dv = ax === 'y' ? sz : sy;
+      uv[(b * nv + i) * 2] = U.getX(i) * reps(du); uv[(b * nv + i) * 2 + 1] = U.getY(i) * reps(dv);
+    }
+    for (let i = 0; i < ni; i++) idx[b * ni + i] = I.getX(i) + b * nv;
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere();
+  return geo;
+}
 // Junta todas as caixas do mapa da mesma cor num único InstancedMesh: centenas de chamadas de desenho viram poucas.
 // As caixas originais ficam invisíveis só para colisão de tiro (o raycast não liga para visibilidade).
 function bakeWorld() {
@@ -1229,6 +1339,15 @@ function bakeWorld() {
     groups.get(m.material).push(m);
   }
   for (const [material, list] of groups) {
+    // com texturas: as caixas da mesma cor viram uma malha só, com a textura repetindo no tamanho certo de cada face
+    const plainMat = material.isMeshLambertMaterial && !material.transparent && !material.map && material.opacity === 1 && (!material.emissive || !material.emissive.getHex());
+    const kind = S.video.tex !== false && plainMat && texKind(material.color.getHex());
+    if (kind && (list.length > 1 || kind !== 'plain')) {
+      const mm = new THREE.Mesh(mergeBoxes(list, TEX_TILE[kind]), texMat(material.color.getHex(), kind));
+      mm.castShadow = mm.receiveShadow = true; mm.userData.texBake = true;
+      list.forEach(m => { m.visible = false; }); world.add(mm);
+      continue;
+    }
     if (list.length < 2) continue;
     const im = new THREE.InstancedMesh(BOX, material, list.length);
     list.forEach((m, i) => { im.setMatrixAt(i, m.matrixWorld); m.visible = false; });
@@ -2283,6 +2402,119 @@ function updateFx(dt) {
 // Arma em primeira pessoa (modelo e animações)
 // =====================================================================================
 const vmRoot = new THREE.Group(); vmRoot.scale.setScalar(0.85); vmScene.add(vmRoot);
+// ---- acabamento das armas na mão: quinas arredondadas e materiais com brilho e textura
+// (metal escovado, madeira com veio, polímero e tecido nas luvas/mangas)
+const rboxCache = new Map();
+function roundedBox(w, h, d) {
+  const key = [w, h, d].map(v => v.toFixed(4)).join(',');
+  if (rboxCache.has(key)) return rboxCache.get(key);
+  const r = Math.min(w, h, d) * 0.24, geo = new THREE.BoxGeometry(w, h, d, 4, 4, 4);
+  const P = geo.attributes.position, N = geo.attributes.normal, v = new THREE.Vector3(), inner = new THREE.Vector3(w / 2 - r, h / 2 - r, d / 2 - r), c = new THREE.Vector3(), o = new THREE.Vector3();
+  for (let i = 0; i < P.count; i++) {
+    v.fromBufferAttribute(P, i);
+    c.set(clamp(v.x, -inner.x, inner.x), clamp(v.y, -inner.y, inner.y), clamp(v.z, -inner.z, inner.z));
+    o.subVectors(v, c); if (o.lengthSq() < 1e-12) continue;
+    o.normalize(); v.copy(c).addScaledVector(o, r); P.setXYZ(i, v.x, v.y, v.z); N.setXYZ(i, o.x, o.y, o.z);
+  }
+  rboxCache.set(key, geo); return geo;
+}
+const gunTexCache = new Map();
+function gunTex(kind) {
+  if (gunTexCache.has(kind)) return gunTexCache.get(kind);
+  const N = 128, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const g = cv.getContext('2d'), R = srand(kind.length * 131 + 7), img = g.createImageData(N, N), d = img.data;
+  const rowN = []; for (let y = 0; y < N; y++) rowN.push(R());
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    let v = 0.9;
+    if (kind === 'gunmetal' || kind === 'steel') v += (rowN[y] - 0.5) * 0.12 + (R() - 0.5) * 0.06;                   // escovado
+    else if (kind === 'gunwood') v += Math.sin(y * 0.35 + Math.sin(x * 0.05 + rowN[y] * 2) * 3) * 0.08 + (rowN[y] - 0.5) * 0.1 + (R() - 0.5) * 0.04;
+    else if (kind === 'cloth') v += ((x + y) % 4 < 2 ? 0.05 : -0.05) + ((x - y + 256) % 4 < 2 ? 0.03 : -0.03) + (R() - 0.5) * 0.06;
+    else v += (R() - 0.5) * 0.14;                                                                                      // polímero granulado
+    const k = (y * N + x) * 4, cc = clamp(v, 0, 1) * 255; d[k] = d[k + 1] = d[k + 2] = cc; d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; gunTexCache.set(kind, t); return t;
+}
+const gunMatCache = new Map();
+function gunMat(hexv, kind) {
+  const key = hexv + ':' + kind; if (gunMatCache.has(key)) return gunMatCache.get(key);
+  const P = { gunmetal: [0x3c3f46, 38], steel: [0x9aa0aa, 80], gunwood: [0x2a1e14, 18], polymer: [0x222428, 24], cloth: [0x0a0a0a, 5] }[kind];
+  const m = new THREE.MeshPhongMaterial({ color: new THREE.Color(hexv).multiplyScalar(1.08), map: gunTex(kind), specular: P[0], shininess: P[1] });
+  gunMatCache.set(key, m); return m;
+}
+function gunKind(hexv, sleeve) {
+  if (hexv === C.glove || hexv === sleeve) return 'cloth';
+  const c = new THREE.Color(hexv), hsl = {}; c.getHSL(hsl);
+  if (hsl.s < 0.18) return hsl.l > 0.55 ? 'steel' : 'gunmetal';
+  if (hsl.h > 0.03 && hsl.h < 0.13 && hsl.l < 0.5) return 'gunwood';
+  return 'polymer';
+}
+function polishVM(sleeve) {
+  if (S.video.tex === false) return;
+  vmRoot.traverse(m => {
+    if (!m.isMesh || !m.material || m.material.map || !m.material.color || m.material.transparent) return;
+    const hexv = m.material.color.getHex();
+    if (m.geometry === BOX) { m.geometry = roundedBox(Math.abs(m.scale.x), Math.abs(m.scale.y), Math.abs(m.scale.z)); m.scale.set(1, 1, 1); }
+    m.material = gunMat(hexv, gunKind(hexv, sleeve));
+  });
+  vmModels.forEach((vm, i) => { const f = vm && VM_DETAIL[WEAPONS[i].id]; if (f) f(vm.g, vm); });
+}
+// detalhes extras das armas principais (miras, quebra-chamas, serrilhas, carregador curvo, luneta com lente)
+const VM_GLASS = new THREE.MeshPhongMaterial({ color: 0x23609c, specular: 0xffffff, shininess: 140 }), VM_GLASS2 = new THREE.MeshPhongMaterial({ color: 0x0c1a2a, specular: 0x8899aa, shininess: 120 });
+function vmD(parent, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) {
+  const m = new THREE.Mesh(roundedBox(sx, sy, sz), gunMat(col, gunKind(col))); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
+}
+function vmC(parent, col, r, len, x, y, z, material) {
+  const m = new THREE.Mesh(CYL, material || gunMat(col, gunKind(col))); m.scale.set(r, len, r); m.position.set(x, y, z); m.rotation.x = Math.PI / 2; parent.add(m); return m;
+}
+const VM_DETAIL = {
+  rifle(g, vm) {
+    vmC(g, C.metal, 0.03, 0.025, 0, 0.05, -0.5); vmD(g, C.metal, 0.008, 0.032, 0.008, 0, 0.082, -0.5);
+    vmC(g, C.metal2, 0.031, 0.05, 0, 0.05, -0.56); vmC(g, C.black, 0.014, 0.052, 0, 0.05, -0.562);
+    vmC(g, C.metal, 0.022, 0.2, 0, 0.078, -0.29); vmD(g, C.metal2, 0.046, 0.018, 0.04, 0, 0.078, -0.16);
+    for (const y of [0.04, 0.018]) vmD(g, 0x4e3018, 0.068, 0.005, 0.16, 0, y, -0.28);
+    vmD(vm.mag, C.metal2, 0.044, 0.085, 0.066, 0, -0.105, -0.018, 0.32);
+    for (const y of [0.05, 0.0, -0.05]) vmD(vm.mag, C.metal, 0.047, 0.008, 0.072, 0, y, 0);
+  },
+  deagle(g, vm) {
+    const b = vm.bolt;
+    vmD(b, C.black, 0.04, 0.016, 0.012, 0, 0.034, 0.11); vmD(b, C.black, 0.01, 0.018, 0.012, 0, 0.034, -0.11);
+    for (let k = 0; k < 5; k++) vmD(b, C.metal, 0.053, 0.034, 0.004, 0, 0, 0.065 + k * 0.012);
+    vmC(b, C.black, 0.012, 0.006, 0, 0.005, -0.126);
+    vmD(g, C.metal, 0.012, 0.012, 0.065, 0, -0.05, -0.03); vmD(g, C.metal, 0.012, 0.04, 0.01, 0, -0.033, -0.062); vmD(g, C.metal2, 0.008, 0.03, 0.008, 0, -0.035, -0.012);
+  },
+  pistol(g, vm) {
+    const b = vm.bolt;
+    vmD(b, C.black, 0.034, 0.012, 0.01, 0, 0.028, 0.09); vmD(b, C.black, 0.008, 0.014, 0.01, 0, 0.028, -0.09);
+    for (let k = 0; k < 4; k++) vmD(b, C.metal, 0.045, 0.03, 0.004, 0, 0, 0.05 + k * 0.012);
+    vmC(b, C.black, 0.01, 0.006, 0, 0, -0.101);
+    vmD(g, C.metal, 0.012, 0.012, 0.055, 0, -0.042, -0.03); vmD(g, C.metal, 0.012, 0.035, 0.01, 0, -0.028, -0.057); vmD(g, C.metal2, 0.008, 0.026, 0.008, 0, -0.03, -0.012);
+  },
+  smg(g) {
+    vmC(g, C.metal2, 0.028, 0.04, 0, 0.04, -0.36); vmC(g, C.black, 0.012, 0.042, 0, 0.04, -0.362);
+    vmD(g, C.metal2, 0.032, 0.02, 0.03, 0, 0.085, 0.06); vmD(g, C.metal2, 0.008, 0.022, 0.008, 0, 0.086, -0.19);
+    vmD(g, C.black, 0.034, 0.1, 0.022, 0, 0, 0.29); vmD(g, C.metal2, 0.064, 0.012, 0.14, 0, 0.002, -0.1);
+  },
+  shotgun(g, vm) {
+    for (let k = 0; k < 5; k++) vmD(vm.bolt, 0x4a2c15, 0.061, 0.053, 0.006, 0, 0, -0.06 + k * 0.03);
+    vmD(g, 0xe8e8e8, 0.012, 0.012, 0.012, 0, 0.066, -0.54); vmC(g, C.metal2, 0.038, 0.02, 0, 0.045, -0.555);
+    vmD(g, C.black, 0.004, 0.03, 0.07, 0.031, 0.04, 0.02);
+  },
+  sniper(g, vm) {
+    vmC(g, C.metal, 0.068, 0.07, 0, 0.125, -0.21); vmC(g, C.metal, 0.062, 0.06, 0, 0.125, 0.09);
+    vmC(g, 0, 0.057, 0.004, 0, 0.125, -0.247, VM_GLASS); vmC(g, 0, 0.05, 0.004, 0, 0.125, 0.121, VM_GLASS2);
+    vmD(g, C.metal2, 0.03, 0.05, 0.03, 0, 0.09, -0.13); vmD(g, C.metal2, 0.03, 0.05, 0.03, 0, 0.09, 0.02);
+    vmD(g, C.metal2, 0.03, 0.028, 0.03, 0, 0.162, -0.05); vmD(g, C.metal2, 0.026, 0.03, 0.03, 0.036, 0.125, -0.05);
+    vmD(g, C.metal2, 0.05, 0.042, 0.08, 0, 0.05, -0.85); for (const z of [-0.83, -0.865]) vmD(g, C.black, 0.053, 0.01, 0.012, 0, 0.05, z);
+    vmD(vm.bolt, C.metal, 0.034, 0.034, 0.034, 0.045, 0, 0);
+  },
+  knife(g) {
+    for (const z of [-0.005, 0.03, 0.065]) vmD(g, C.metal2, 0.039, 0.049, 0.006, 0, 0, z);
+    vmD(g, C.metal2, 0.04, 0.05, 0.022, 0, 0, 0.1);
+    vmD(g, 0xc8ccd2, 0.008, 0.032, 0.032, 0, 0.002, -0.243, Math.PI / 4);
+    vmD(g, 0x8d939c, 0.0095, 0.008, 0.14, 0, 0.022, -0.13);
+  },
+};
 const vmModels = [];
 const flashMesh = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.9 }));
 flashMesh.visible = false; vmScene.add(flashMesh);
@@ -3010,7 +3242,7 @@ function clearCombatants() { clearBuilds(); combatants.length = 0; player = null
 function setupPlayer(sp, color = 0x4073e6, name = 'Jogador') {
   player = createCombatant(name, color, sp, true);
   player.group.visible = false; applySkin(player, mySkin()); applyCos(player, myCos());
-  buildViewModels(sleeveColor(color));
+  buildViewModels(sleeveColor(color)); polishVM(sleeveColor(color));
   pw.slots = []; pw.cur = 0; resetPlayerWeapons();
   pv.god = false; pv.noclip = false; pw.infinite = false;
 }
@@ -5590,7 +5822,7 @@ function applyTeam(id, tm) {
   const c = idCombatant(id); if (!c) return;
   const idx = combatants.filter(o => o !== c && o.team === tm).length;
   c.team = tm; c.spawnIdx = idx; c.color = shade(TEAM_COLORS[tm], idx); applySkin(c, c.skin);
-  if (c === player) { mode.setMyTeam(tm); buildViewModels(sleeveColor(c.color)); }
+  if (c === player) { mode.setMyTeam(tm); buildViewModels(sleeveColor(c.color)); polishVM(sleeveColor(c.color)); }
   if (!c.remote) respawn(c, teamSpawn(tm, idx));
   if (c.bot) c.bot.target = null;
 }
@@ -6496,7 +6728,7 @@ function renderSettings() {
   let h = '';
   if (setTab === 0) {
     h = R_('video', 'fov', 'Campo de visão (vertical)', 60, 100, 1) + `<p class="note" id="hfov"></p>` + Sel('video', 'res', 'Resolução interna', ['Baixa (70%)', 'Normal (100%)', 'Alta (tela retina)']) +
-      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
+      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
 ''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
