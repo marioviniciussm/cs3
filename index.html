@@ -453,6 +453,9 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
         <button class="tile" id="bChess"><svg><use href="#i-chess"/></svg><b>Xadrez FPS</b><small>Captura vira duelo</small></button>
         <button class="tile" id="bKr"><svg><use href="#i-cls"/></svg><b>Classes</b><small>Estilo Krunker</small></button>
         <button class="tile" id="bDm"><svg><use href="#i-dm"/></svg><b>Mata-mata</b><small>Todos contra todos</small></button>
+        <button class="tile" id="bGG"><svg><use href="#i-mark"/></svg><b>Gun game</b><small>Todas as armas</small></button>
+        <button class="tile" id="bRJ"><svg><use href="#i-dev"/></svg><b>Rocket jump</b><small>Foguete sem dano</small></button>
+        <button class="tile" id="bTest"><svg><use href="#i-dev"/></svg><b>Mapa de testes</b><small>Comandos liberados</small></button>
       </div>
       <div class="label">Treinar e personalizar</div>
       <div class="tiles">
@@ -464,7 +467,6 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       <div class="foot">
         <button class="link" id="bSet"><svg><use href="#i-set"/></svg>Configurações</button>
         <button class="link" id="bHelp"><svg><use href="#i-help"/></svg>Como jogar</button>
-        <button class="link" id="bDev"><svg><use href="#i-dev"/></svg>Mapa de testes</button>
       </div>
     </div>
     <div id="heroTag" hidden><span><b id="heroName"></b><small id="heroSkin"></small></span><button class="btn small" id="heroCosBtn">Acessórios</button><button class="btn small" id="heroSkinBtn">Trocar skin</button></div>
@@ -509,7 +511,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
       <div id="netRoster" hidden></div>
-      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button><button class="btn" data-g="horde">Hordas</button><button class="btn" data-g="test">Mapa de testes</button></div></div>
+      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button><button class="btn" data-g="horde">Hordas</button><button class="btn" data-g="test">Mapa de testes</button><button class="btn" data-g="rj">Rocket jump</button></div></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
       <button class="btn primary" id="bNetEnter" hidden>Entrar na Praça</button>
@@ -1712,7 +1714,49 @@ const MAPS = [
   { id: 'xadrez', name: 'Arena do Xadrez', build: () => buildChessArena() },
   { id: 'praca', name: 'Praça', build: () => buildPlaza() },
   { id: 'teste', name: 'Mapa de testes', build: () => buildTestRange() },
+  { id: 'rjump', name: 'Rocket jump (estilo TF2)', build: () => buildRocketJump() },
 ];
+// Rocket jump: percurso de plataformas cada vez mais altas; atire no chão (ou na parede) com o foguete de treino para subir
+function buildRocketJump() {
+  newWorld();
+  const HX = 16, HZ = 52;
+  walls(HX, HZ, 26, C.wall);
+  decal(0, 46, 12, 6, C.sideA);
+  const st = [
+    ['1', 0, 33, 30, 3, 6, C.concrete, 0], ['2', 0, 22, 30, 6.5, 5, C.wallDark, 0],
+    ['3', -8, 11, 5, 1, 5, C.crate, 8], ['', 2, 4, 5, 1, 5, C.crate, 10], ['', -6, -4, 5, 1, 5, C.crate, 12.5],
+    ['4', 0, -16, 30, 16, 6, C.concrete, 0], ['', 10, -26, 4, 1, 4, C.crateDark, 18], ['', 0, -31, 4, 1, 4, C.crateDark, 20],
+  ];
+  for (const [n, x, z, sx, sy, sz, col, y0] of st) { box(x, z, sx, sy, sz, col, y0); if (n) label(n, x, y0 + sy + 1.4, z + sz / 2 - 0.4, 1.2); }
+  // torre final com a bandeira
+  box(0, -44, 7, 22, 7, C.wallDark); pillar(0, -44, 0.01, C.orange);
+  const pole = mesh(CYL, 0xdddddd, 0.12, 3, 0.12, 0, 23.5, -44, world); const flag = mesh(BOX, C.orange, 1.4, 0.8, 0.05, 0.7, 24.6, -44, world);
+  label('Topo!', 0, 27, -44, 1.6);
+  label('Atire no chão e pule junto', 0, 4, 40, 1.6);
+  for (let i = 0; i < 6; i++) { const z = 48 - i * 1.2; }
+  const ta = teamLine([[0, 47], [-3, 47], [3, 47], [-6, 47], [6, 47]]), tb = teamLine([[0, 44], [-3, 44], [3, 44], [-6, 44], [6, 44]]);
+  ta.concat(tb).forEach(s => s.yaw = 0);
+  mapInfo = { name: 'Rocket jump', spawns: ta.concat(tb), teamSpawns: [ta, tb], waypoints: gridWaypoints(-HX + 2, HX - 2, 36, HZ - 2, 4), playerSpawn: ta[0], targets: [],
+    rjGoal: { x: 0, z: -44, y: 22, r: 3.6 } };
+  shadowSize(HZ + 4);
+}
+const RJ_KEY = 'cs3.rj.best';
+const rjCfg = () => Object.assign(clone(X1_DEFAULT), { map: 'rjump', format: 'endless', preset: WEAPON_PRESETS.findIndex(p => p[1] === 'custom'), weapons: [WI('rj'), WI('knife')], duel: 'normal', classes: false,
+  enemies: 0, allies: 0, botsA: 0, botsB: 0, infinite: true, sandbox: true, ground: 'off', customMap: undefined });
+const RJ = { t0: null, done: false,
+  tick() {
+    const G = mapInfo.rjGoal, P = player; if (!G || !P || !P.alive) return;
+    if (P.grounded && P.pos.y < 0.3) { if (this.t0 != null && !this.done && P.pos.z < 36) banner('Caiu!', 'Volte para o início e tente de novo', 1.2); this.t0 = null; this.done = false; return; }
+    if (this.t0 == null && !this.done && P.pos.y > 1) this.t0 = now;
+    if (!this.done && this.t0 != null && P.pos.y > G.y - 0.5 && Math.hypot(P.pos.x - G.x, P.pos.z - G.z) < G.r) {
+      this.done = true; const t = now - this.t0; let best = null; try { best = +localStorage.getItem(RJ_KEY) || null; } catch (e) {}
+      const rec = !best || t < best; if (rec) try { localStorage.setItem(RJ_KEY, t.toFixed(2)); } catch (e) {}
+      banner('Chegou no topo! 🚀', `${t.toFixed(1)} s${rec ? ' · novo recorde!' : ` · recorde ${best.toFixed(1)} s`}`, 3.5); play('round', 0.7);
+      if (mode.net) Net.send({ t: 'chat', m: `🚀 chegou no topo do Rocket jump em ${t.toFixed(1)} s` });
+    }
+  },
+  timer() { return this.t0 != null && !this.done ? `⏱ ${(now - this.t0).toFixed(1)} s` : ''; },
+};
 
 function buildTestRange() {
   newWorld();
@@ -1841,6 +1885,9 @@ const WEAPONS = [
   // a peça que a Dama arremessa (habilidade, não aparece na lista de armas)
   { id: 'pcthrow', name: 'Peça arremessada', snd: 'knife', hidden: true, proj: { kind: 'piece', speed: 30, grav: 7, r: 3 }, dmg: 100, pellets: 1, interval: 1, auto: false, mag: 1, reserve: 0, reload: 1, draw: 0.3, range: 300, falloff: 1, head: 1,
     base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1 },
+  // Rocket Jumper (como no TF2): foguete de treino sem dano nenhum, empurra forte quem atirou
+  { id: 'rj', name: 'Lança-foguete de treino', snd: 'rocket', proj: { kind: 'rocket', speed: 34, grav: 0, r: 4.2, push: 19, pushAll: 10 }, dmg: 0, pellets: 1, interval: 0.8, auto: false, mag: 4, reserve: 400, reload: 1.6, draw: 0.5, range: 300, falloff: 1, head: 1,
+    base: 0.002, move: 0.01, air: 0.02, perShot: 0, maxShot: 0, recover: 1, recoilP: 2.4, recoilY: 0.3, speed: 1 },
 ];
 // as 7 armas clássicas (padrão do x1 e do mata-mata); as novas são marcadas na lista ou vêm nas classes
 const CLASSIC_IDS = () => ['knife', 'pistol', 'deagle', 'smg', 'shotgun', 'rifle', 'sniper'].map(id => WEAPONS.findIndex(w => w.id === id));
@@ -2669,6 +2716,14 @@ function buildViewModels(sleeve, vmRoot_ = vmRoot, vmModels_ = vmModels) {
     hands(g, [0, -0.1, 0.04], [-0.02, -0.06, -0.26]);
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.04, -0.56), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
+  mk('rj', new THREE.Vector3(0.2, -0.17, -0.4), g => {
+    Cy(g, 0xd9a21b, 0.12, 0.85, 0, 0.04, -0.12); Cy(g, 0x23252a, 0.14, 0.06, 0, 0.04, 0.28); Cy(g, 0x23252a, 0.14, 0.06, 0, 0.04, -0.52);
+    for (const z of [-0.3, -0.1, 0.1]) Cy(g, 0x23252a, 0.125, 0.04, 0, 0.04, z);
+    X(g, C.metal, 0.06, 0.08, 0.12, -0.08, 0.13, -0.05); const mag = X(g, C.black, 0.04, 0.12, 0.05, 0, -0.08, 0.02, -0.2);
+    const bolt = Cy(g, 0x3a8fd9, 0.09, 0.05, 0, 0.04, -0.54);
+    hands(g, [0, -0.1, 0.04], [-0.02, -0.06, -0.26]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.04, -0.56), boltTravel: new THREE.Vector3(0, 0, 0) };
+  });
   mk('musket', new THREE.Vector3(0.22, -0.24, -0.44), g => {
     X(g, C.wood, 0.06, 0.075, 0.62, 0, 0.0, -0.18); Cy(g, C.metal2, 0.022, 0.62, 0, 0.045, -0.5); X(g, C.wood, 0.055, 0.1, 0.26, 0, -0.03, 0.24, 0.1);
     const bolt = X(g, C.metal, 0.03, 0.04, 0.05, 0.035, 0.05, 0.02); const mag = X(g, 0xb08a3a, 0.065, 0.02, 0.03, 0, 0.0, -0.45);
@@ -2741,7 +2796,7 @@ function resetPlayerWeapons() {
   pw.prev = idx; selectWeapon(idx, true); buildSlots();
 }
 function defaultSlot() {
-  for (const id of ['rifle', 'semi', 'lmg', 'minigun', 'smg', 'sniper', 'musket', 'crossbow', 'bow', 'blunder', 'rocket', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'sword', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
+  for (const id of ['rifle', 'semi', 'lmg', 'minigun', 'smg', 'sniper', 'musket', 'crossbow', 'bow', 'blunder', 'rocket', 'rj', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'sword', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
   return 0;
 }
 function selectWeapon(i, force) {
@@ -3625,7 +3680,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     topParts() {
       const a = myTeam, b = 1 - myTeam;
-      const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], ggLadder(cfg).length - 1) + 1}/${ggLadder(cfg).length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
+      const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], ggLadder(cfg).length - 1) + 1}/${ggLadder(cfg).length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? (mapInfo.rjGoal ? RJ.timer() || 'Rocket jump · chegue ao topo' : 'Modo infinito') : `Até ${cfg.target} abates`;
       return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: endless ? '∞' : fmtTime(this.timeLeft), hot: !endless && this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
     },
     top() {
@@ -3704,6 +3759,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         for (const c of combatants) if (c.alive && !c.remote && c.hp < c.maxHp && now - (c.lastHurt ?? -99) > 3) c.hp = Math.min(c.maxHp, c.hp + 28 * dt);
         Ab.tick(dt);
       }
+      if (mapInfo.rjGoal) RJ.tick();
       if (cfg.duel === 'gungame') {
         const key = this.score.join(',');
         if (key !== this.ggKey) {
@@ -5470,7 +5526,7 @@ function updateProj(dt) {
       const mine = p.owner && !p.owner.remote;
       if (p.w.proj.kind === 'rocket' || p.w.proj.kind === 'piece') {
         world.remove(p.mesh); ground.proj.splice(ground.proj.indexOf(p), 1);
-        explode(at, p.owner, p.w.proj.kind === 'piece' ? { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0 } : { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0.4, push: 15 });
+        explode(at, p.owner, p.w.proj.kind === 'piece' ? { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0 } : { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0.4, push: p.w.proj.push || 15, pushAll: p.w.proj.pushAll });
         continue;
       }
       // seta: acerta quem estiver no caminho ou crava na parede
@@ -5527,7 +5583,7 @@ function updateNades(dt) {
   }
 }
 function explode(pos, owner, o = {}) {
-  const RR = o.r || 7, MAX = o.dmg || 98, NAME = o.name || 'Granada HE';
+  const RR = o.r || 7, MAX = o.dmg ?? 98, NAME = o.name || 'Granada HE';
   play('boom', 1, pos); if (dist2(pos, camera.position) < 225) { pv.kick = 1; hurtT = Math.max(hurtT, 0.15); }
   const P = mapInfo.pool, wet = P && inWaterXZ({ pos }) && pos.y < P.y;
   const ball = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: wet ? 0xbfe6ff : 0xffb347, transparent: true, opacity: 0.9, depthWrite: false }));
@@ -5542,13 +5598,14 @@ function explode(pos, owner, o = {}) {
     const chest = chestPos(c), d = chest.distanceTo(pos); if (d > RR) continue;
     let dmg = MAX * Math.pow(1 - d / RR, 1.3);
     // foguete: empurra quem está perto (dá para dar "rocket jump") e machuca menos quem atirou
+    if (o.pushAll && c !== owner && !c.remote) { const k = c.pos.clone().add(new THREE.Vector3(0, 0.9, 0)).sub(pos); const L0 = Math.max(0.5, k.length()); c.vel.addScaledVector(k.normalize(), o.pushAll * (1 - Math.min(1, L0 / RR) * 0.6)); if (c.vel.y > 0) c.grounded = false; }
     if (o.push && c === owner) { const k = c.pos.clone().add(new THREE.Vector3(0, 0.9, 0)).sub(pos); const L0 = Math.max(0.5, k.length()); c.vel.addScaledVector(k.normalize(), o.push * (1 - Math.min(1, L0 / RR) * 0.6)); if (c.vel.y > 0) c.grounded = false; }
     if (c === owner && o.self != null) dmg *= o.self;
     const dir = chest.clone().sub(pos); const L = dir.length(); dir.normalize();
     raycaster.set(pos.clone().add(new THREE.Vector3(0, 0.2, 0)), dir); raycaster.far = Math.max(0.01, L - 0.3);
     if (raycaster.intersectObjects(worldMeshes, false).length) dmg *= 0.25;
     if (wet) dmg *= 0.6;
-    if (dmg >= 1) {
+    if (dmg >= 1 && MAX > 0) {
       const killed = damage(c, dmg, owner, NAME, 'body', dir);
       if (owner === player && c !== player) { showHit({ hit: true, head: false, kill: killed }); if (mode && mode.stats) mode.stats.hits++; }
     }
@@ -5633,7 +5690,7 @@ const CMD_HELP = [
   ['modo', '/modo rounds|mata|infinito|faca|awp|aleatoria|gungame|roleta|normal'],
   ['tempo', '/tempo 10 (minutos)  ·  /round 90 (segundos)  ·  /rounds 5 ou /abates 20 para vencer'],
   ['armas', '/armas awp deagle faca (ou todas)  ·  /classes on|off  ·  /bots azul 3 laranja 1'],
-  ['jogar', '/jogar praca|hordas|roleta|xadrez|mata|gungame|faca troca o modo de jogo de todo mundo'],
+  ['jogar', '/jogar praca|hordas|roleta|xadrez|mata|gungame|faca|rocket troca o modo de jogo de todo mundo'],
   ['onda', 'Hordas: /onda 5 pula para a onda 5  ·  /zumbis 10 solta mais zumbis  ·  /tanque solta um zumbi tanque'],
   ['regra', 'Roleta: /regra lua|faca|cabecao|1hp|troca|turbo|hs|vampiro força a regra agora'],
   ['cabecao', 'Diversão: /cabecao on|off  ·  /lua  ·  /lento (câmera lenta)  ·  /disco (festa)'],
@@ -5696,7 +5753,7 @@ function runCommand(txt) {
   }
   if (cmd === 'menuadm') { openAdmin(); return; }
   if (cmd === 'jogar') {
-    const id = JOGAR_WORDS[normTxt(args[0])]; if (!id) { sysChat('Use /jogar praca, hordas, roleta, xadrez, mata, gungame ou faca.', true); return; }
+    const id = JOGAR_WORDS[normTxt(args[0])]; if (!id) { sysChat('Use /jogar praca, hordas, roleta, xadrez, mata, gungame, faca ou rocket.', true); return; }
     if (Net.role === 'guest') { Net.send({ t: 'acmd', c: 'jogar', a: [id] }, 'h'); return; }
     const e = execJogar(id); if (e) sysChat(e, true); return;
   }
@@ -5981,7 +6038,7 @@ function applyCfgKey(k, v) {
   if (k === 'hp') for (const c of combatants) if (!c.remote) { c.maxHp = v; if (c.alive) c.hp = v; }
 }
 const JOGAR_WORDS = { praca: 'praca', 'praça': 'praca', lobby: 'praca', hordas: 'horde', horda: 'horde', zumbis: 'horde', zumbi: 'horde', roleta: 'roleta', caos: 'roleta', xadrez: 'chess', chess: 'chess',
-  mata: 'dm', 'mata-mata': 'dm', dm: 'dm', gungame: 'gungame', faca: 'knife', knife: 'knife' };
+  mata: 'dm', 'mata-mata': 'dm', dm: 'dm', gungame: 'gungame', faca: 'knife', knife: 'knife', rj: 'rj', rocket: 'rj', rocketjump: 'rj', foguete: 'rj' };
 const RULE_WORDS = { lua: 'lua', gravidade: 'lua', faca: 'faca', cabecao: 'cabeca', cabecoes: 'cabeca', cabeca: 'cabeca', '1hp': 'umhp', umhp: 'umhp', '1': 'umhp', vida: 'umhp', troca: 'troca', arma: 'troca',
   turbo: 'turbo', rapido: 'turbo', hs: 'hs', headshot: 'hs', vampiro: 'vampiro' };
 // troca o modo de jogo da sala inteira (anfitrião ou sozinho)
@@ -6527,7 +6584,7 @@ rangeOut($('#dmBots'), $('#dmBotsV')); rangeOut($('#dmKills'), $('#dmKillsV')); 
 $('#bDm').onclick = () => { initAudio(); $('#dmSetup').hidden = false; $('#mainButtons').hidden = true; };
 $('#bDmBack').onclick = () => { $('#dmSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bDmStart').onclick = () => startDeathmatch({ bots: +$('#dmBots').value, diff: +$('#dmDiff').value, kills: +$('#dmKills').value, time: +$('#dmTime').value });
-$('#bDev').onclick = () => startDev();
+
 $('#bAim').onclick = () => { initAudio(); $('#mainButtons').hidden = true; $('#aimSetup').hidden = false; renderAimSetup(); };
 $('#bAimBack').onclick = () => { $('#aimSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bAimStart').onclick = () => startAim();
@@ -6857,17 +6914,18 @@ function renderNetLobby() {
     ro.innerHTML = col(0) + col(1);
     ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
   }
-  const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test';
+  const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test', rjG = host && netGame === 'rj';
   ng.hidden = !host;
   ng.querySelectorAll('[data-g]').forEach(b => { b.classList.toggle('on', b.dataset.g === netGame); b.onclick = () => { netGame = b.dataset.g; renderNetLobby(); }; });
   const hc = $('#netHostCfg');
-  hc.hidden = !host || chessG || plazaG || hordeG || testG;
+  hc.hidden = !host || chessG || plazaG || hordeG || testG || rjG;
   if (host && !hc.childElementCount) renderX1Form(hc, true, () => { Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); renderNetLobby(); });
   if (!host) hc.innerHTML = '';
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
   $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
   if (plazaG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = Net.inMatch && Net.plazaOn ? 'Voltar para a Praça' : 'Abrir a Praça (amigos entram a qualquer hora)'; }
   if (hordeG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Começar as hordas (todo mundo no mesmo time)'; }
+  if (rjG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Abrir o Rocket jump (foguete sem dano)'; }
   if (testG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Abrir o mapa de testes (comandos liberados, sem fim)'; }
   $('#bNetEnter').hidden = !(role === 'guest' && Net.inMatch && Net.plazaOn && state !== 'playing');
   if (chessG) {
@@ -6883,7 +6941,7 @@ $('#bHost').onclick = () => Net.host(netName());
 $('#bJoin').onclick = () => { const code = ($('#netCode').value || '').trim().toUpperCase(); if (code.length < 4) { Net.setStatus('Digite o código que seu amigo passou.'); return; } Net.join(netName(), code); };
 $('#netCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
 var netGame = 'plaza';   // modo escolhido pelo anfitrião na sala: partida normal ou Xadrez FPS
-$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else if (netGame === 'plaza') startPlaza(); else if (netGame === 'horde') Horde.start(); else if (netGame === 'test') Net.startMatch(testCfg()); else Net.startMatch(clone(X1)); };
+$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else if (netGame === 'plaza') startPlaza(); else if (netGame === 'horde') Horde.start(); else if (netGame === 'test') Net.startMatch(testCfg()); else if (netGame === 'rj') Net.startMatch(rjCfg()); else Net.startMatch(clone(X1)); };
 // mapa de testes com amigos: x1 sem fim, sem bots, todas as armas; o anfitrião usa os comandos (/bots, /deus, /tamanho...)
 function testCfg() { return Object.assign(clone(X1_DEFAULT), { map: 'teste', format: 'endless', preset: 0, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: true }); }
 $('#bNetBack').onclick = () => {
@@ -8147,6 +8205,9 @@ function chLegend() {
 $('#chLegend').innerHTML = chLegend();
 $('#bChess').onclick = () => Chess.openLocal();
 $('#bHorde').onclick = () => Horde.start();
+$('#bGG').onclick = () => { initAudio(); Plaza.launch('gungame', false); };
+$('#bRJ').onclick = () => { initAudio(); Plaza.launch('rj', false); };
+$('#bTest').onclick = () => startDev();
 $('#bRoleta').onclick = () => startX1(Object.assign(clone(X1), { duel: 'roleta', format: 'rounds', target: Math.max(5, X1.target | 0), roundTime: 90, classes: false, preset: 0, customMap: undefined, map: X1.map && !X1.map.startsWith('c_') && X1.map !== 'praca' && X1.map !== 'xadrez' ? X1.map : 'duelo' }));
 
 // =====================================================================================
@@ -8386,6 +8447,7 @@ const Plaza = {
       return;
     }
     if (id === 'horde') { Horde.start({ fromPlaza }); return; }
+    if (id === 'rj') { const c = Object.assign(rjCfg(), { fromPlaza }); if (net) Net.startMatch(c); else startX1(c); return; }
     const cfg = Object.assign(clone(X1_DEFAULT), { map, fromPlaza, preset: 0, ground: 'auto', hp: 100, diff: 1, bhop: X1.bhop, classes: false, customMap: undefined });
     if (id === 'dm') Object.assign(cfg, { format: 'dm', target: 15, time: 10, duel: 'normal', enemies: 3, allies: 1 });
     if (id === 'gungame') Object.assign(cfg, { duel: 'gungame', enemies: 3 });
