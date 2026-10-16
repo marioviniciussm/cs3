@@ -509,7 +509,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
       <div id="netRoster" hidden></div>
-      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button><button class="btn" data-g="horde">Hordas</button></div></div>
+      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button><button class="btn" data-g="horde">Hordas</button><button class="btn" data-g="test">Mapa de testes</button></div></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
       <button class="btn primary" id="bNetEnter" hidden>Entrar na Praça</button>
@@ -1711,6 +1711,7 @@ const MAPS = [
   { id: 'pool', name: 'fy_pool_day (piscina)', build: buildPoolDay },
   { id: 'xadrez', name: 'Arena do Xadrez', build: () => buildChessArena() },
   { id: 'praca', name: 'Praça', build: () => buildPlaza() },
+  { id: 'teste', name: 'Mapa de testes', build: () => buildTestRange() },
 ];
 
 function buildTestRange() {
@@ -1740,7 +1741,9 @@ function buildTestRange() {
   const spawns = [];
   for (let i = 0; i < 12; i++) { const x = rand(-52, -18), z = rand(0, 48); spawns.push({ pos: new THREE.Vector3(x, 0, z), yaw: rand(0, Math.PI * 2) }); }
   const ps = { pos: new THREE.Vector3(0, 0, -50), yaw: Math.PI };
-  mapInfo = { name: 'Mapa de testes', spawns: spawns.filter(s => !collides(s.pos, 1.8)), waypoints: gridWaypoints(-54, 16, -20, 54, 6), playerSpawn: ps,
+  // times (x1 e salas online neste mapa): laranja na linha de tiro, azul na arena de bots
+  const tA = [0, -4, 4, -8, 8, -12].map(x => ({ pos: new THREE.Vector3(x, 0, -50), yaw: Math.PI })), tB = [[-35, 44], [-30, 44], [-40, 44], [-25, 44], [-45, 44], [-35, 40]].map(([x, z]) => ({ pos: new THREE.Vector3(x, 0, z), yaw: 0 }));
+  mapInfo = { name: 'Mapa de testes', spawns: spawns.filter(s => !collides(s.pos, 1.8)), teamSpawns: [tA, tB], waypoints: gridWaypoints(-54, 16, -20, 54, 6), playerSpawn: ps,
     targets: [[0, -40], [-3, -25], [3, 0]].map(([x, z]) => ({ pos: new THREE.Vector3(x, 0, z), yaw: 0 })) };
   if (!mapInfo.spawns.length) mapInfo.spawns.push({ pos: new THREE.Vector3(-35, 0, 10), yaw: 0 });
   sun.shadow.camera.left = sun.shadow.camera.bottom = -70; sun.shadow.camera.right = sun.shadow.camera.top = 70; sun.shadow.camera.updateProjectionMatrix();
@@ -3366,7 +3369,7 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0 };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game'], ['roleta', 'Roleta do caos (regra sorteada)']];
 const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
@@ -4295,6 +4298,7 @@ const Net = {
   },
   canStart(cfg = X1) {
     const n = this.teamSizes(), a = cfg.botsA | 0, b = cfg.botsB | 0;
+    if (cfg.sandbox || cfg.map === 'teste') return this.role === 'host';
     return this.role === 'host' && (this.roster.length >= 2 || a + b > 0) && n[0] + a > 0 && n[1] + b > 0;
   },
   // o anfitrião manda uma mensagem como se fosse um dos bots dele
@@ -4327,9 +4331,9 @@ function startDev() {
   initAudio();
   buildTestRange(); clearCombatants(); feedEl.innerHTML = '';
   setupPlayer(mapInfo.playerSpawn);
-  devSelected = null; devTimeScale = 1;
+  devSelected = null; devTimeScale = 1; applyPhysics(null);
   mode = {
-    type: 'dev', over: false, attackPlayer: true, botsFight: false, dmgNums: true,
+    type: 'dev', over: false, attackPlayer: true, botsFight: false, dmgNums: true, cfg: { gravity: 1, speed: 1, hp: 100, bhop: 1, infinite: false, hsOnly: false },
     enemies(a, b) { if (a === b) return false; if (a.isPlayer || b.isPlayer) return this.attackPlayer; return this.botsFight; },
     top() { return 'Mapa de testes (desenvolvedor)'; },
     onDeath(v) { if (v.isPlayer) v.respawnAt = now + 1.5; else if (v.cfg.respawn) v.respawnAt = now + 2; },
@@ -5690,7 +5694,8 @@ function runCommand(txt) {
   }
   if (cmd === 'lua') { runCommand(mode && mode.cfg && mode.cfg.gravity < 1 ? '/gravidade 1' : '/gravidade 0.3'); return; }
   if (!SERVER_CMDS.has(cmd)) { sysChat(`Comando desconhecido: /${w}. Digite /ajuda.`, true); return; }
-  if (!mode || mode.type !== 'x1') { sysChat('Esse comando funciona nas partidas de x1 (sozinho ou online).', true); return; }
+  if (mode && mode.type === 'dev' && (RULE_CMDS.has(cmd) || ['time', 'admin', 'tiraradmin', 'kick'].includes(cmd))) { sysChat('No mapa de testes sozinho: N põe bot, X tira. Para jogar com regras ou amigos aqui, use Online → Mapa de testes (ou /mapa teste numa partida).', true); return; }
+  if (!mode || (mode.type !== 'x1' && mode.type !== 'dev')) { sysChat('Esse comando funciona nas partidas de x1 (sozinho ou online) e no mapa de testes.', true); return; }
   if (RULE_CMDS.has(cmd)) { const r = ruleFromCmd(cmd, args); if (typeof r === 'string') sysChat(r, true); else sendRules(r); return; }
   // nomes viram ids aqui, de quem digitou, para o anfitrião não precisar adivinhar
   if (!mode.net && ['admin', 'tiraradmin', 'kick'].includes(cmd)) { sysChat('Jogando sozinho você já é o admin; esse comando é para salas online.', true); return; }
@@ -6830,17 +6835,18 @@ function renderNetLobby() {
     ro.innerHTML = col(0) + col(1);
     ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
   }
-  const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde';
+  const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test';
   ng.hidden = !host;
   ng.querySelectorAll('[data-g]').forEach(b => { b.classList.toggle('on', b.dataset.g === netGame); b.onclick = () => { netGame = b.dataset.g; renderNetLobby(); }; });
   const hc = $('#netHostCfg');
-  hc.hidden = !host || chessG || plazaG || hordeG;
+  hc.hidden = !host || chessG || plazaG || hordeG || testG;
   if (host && !hc.childElementCount) renderX1Form(hc, true, () => { Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); renderNetLobby(); });
   if (!host) hc.innerHTML = '';
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
   $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
   if (plazaG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = Net.inMatch && Net.plazaOn ? 'Voltar para a Praça' : 'Abrir a Praça (amigos entram a qualquer hora)'; }
   if (hordeG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Começar as hordas (todo mundo no mesmo time)'; }
+  if (testG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Abrir o mapa de testes (comandos liberados, sem fim)'; }
   $('#bNetEnter').hidden = !(role === 'guest' && Net.inMatch && Net.plazaOn && state !== 'playing');
   if (chessG) {
     const n = Net.teamSizes(), ok = Net.open && n[0] === 1 && n[1] === 1;
@@ -6855,7 +6861,9 @@ $('#bHost').onclick = () => Net.host(netName());
 $('#bJoin').onclick = () => { const code = ($('#netCode').value || '').trim().toUpperCase(); if (code.length < 4) { Net.setStatus('Digite o código que seu amigo passou.'); return; } Net.join(netName(), code); };
 $('#netCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
 var netGame = 'plaza';   // modo escolhido pelo anfitrião na sala: partida normal ou Xadrez FPS
-$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else if (netGame === 'plaza') startPlaza(); else if (netGame === 'horde') Horde.start(); else Net.startMatch(clone(X1)); };
+$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else if (netGame === 'plaza') startPlaza(); else if (netGame === 'horde') Horde.start(); else if (netGame === 'test') Net.startMatch(testCfg()); else Net.startMatch(clone(X1)); };
+// mapa de testes com amigos: x1 sem fim, sem bots, todas as armas; o anfitrião usa os comandos (/bots, /deus, /tamanho...)
+function testCfg() { return Object.assign(clone(X1_DEFAULT), { map: 'teste', format: 'endless', preset: 0, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: true }); }
 $('#bNetBack').onclick = () => {
   if (Net.role) { Net.send({ t: 'bye' }); Net.leave(); renderNetLobby(); return; }
   $('#netSetup').hidden = true; $('#mainButtons').hidden = false;
