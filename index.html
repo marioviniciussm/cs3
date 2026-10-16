@@ -273,6 +273,11 @@ button.mode:hover::after, button.mode:focus-visible::after { opacity: 1; transfo
 button.mode:not(.primary):hover, button.mode:not(.primary):focus-visible, button.tile:hover, button.tile:focus-visible { border-color: var(--accent); background: #252c34; outline: none; }
 button.mode.primary:hover, button.mode.primary:focus-visible { filter: brightness(1.06); outline: none; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tiles.modegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+button.tile b { font: 700 15px var(--display); letter-spacing: 0.02em; }
+button.tile small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; margin-top: -4px; }
+.modegrid button.tile { min-height: 86px; }
+.tiles:not(.modegrid) button.tile { min-height: 0; gap: 5px; padding: 9px 6px; } .tiles:not(.modegrid) button.tile svg { width: 20px; height: 20px; }
 button.tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 12px 6px; font-weight: 600; font-size: 13px; line-height: 1.15; text-align: center; min-height: 78px; }
 button.tile svg { width: 24px; height: 24px; color: var(--accent); }
 .foot { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -302,13 +307,15 @@ button.btn.primary:hover, button.btn.primary:focus-visible { filter: brightness(
   button.mode { padding: 9px 14px; } button.mode svg { width: 24px; height: 24px; } button.mode b { font-size: 17px; } button.mode small { font-size: 12.5px; }
   button.tile { min-height: 0; padding: 8px 4px; flex-direction: row; gap: 6px; font-size: 12.5px; } button.tile svg { width: 18px; height: 18px; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles.modegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .modegrid button.tile { min-height: 0; } button.tile small { display: none; }
 }
-@media (max-width: 420px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .tiles, .tiles.modegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* celular deitado: menu em duas colunas para tudo caber sem rolar */
 @media (max-height: 560px) and (min-width: 700px) {
   .side { width: min(780px, 100%); }
-  .home { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-areas: "l1 l2" "m t" "m f"; gap: 8px 12px; align-items: start; }
-  .home > :nth-child(1) { grid-area: l1; } .home > :nth-child(2) { grid-area: m; } .home > :nth-child(3) { grid-area: l2; } .home > :nth-child(4) { grid-area: t; } .home > :nth-child(5) { grid-area: f; }
+  .home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "l1 l2" "m g" "l3 g" "t f"; gap: 8px 12px; align-items: start; }
+  .home > :nth-child(1) { grid-area: l1; } .home > :nth-child(2) { grid-area: m; } .home > :nth-child(3) { grid-area: l2; } .home > :nth-child(4) { grid-area: g; }
+  .home > :nth-child(5) { grid-area: l3; } .home > :nth-child(6) { grid-area: t; } .home > :nth-child(7) { grid-area: f; }
   .foot button.link { padding: 6px 9px; font-size: 13px; }
   details.alert:not([open]) summary span { display: none; }
   .brand { gap: 10px; } .brand > div { display: flex; align-items: baseline; gap: 12px; }
@@ -435,14 +442,17 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <div class="home" id="mainButtons">
       <div class="label">Jogar</div>
       <div class="modes">
-        <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>X1 contra bots</b><small>Você escolhe mapa, regras, armas e times</small></span></button>
-        <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Sala com código, até 8 jogadores</small></span></button>
-        <button class="mode" id="bKr"><svg><use href="#i-cls"/></svg><span><b>Classes · infinito</b><small>Estilo Krunker: escolha classe e jogue sem fim</small></span></button>
-        <button class="mode" id="bPlaza"><svg><use href="#i-net"/></svg><span><b>Praça</b><small>Lobby aberto: passeie, xadrez nas mesas, vote no próximo modo</small></span></button>
-        <button class="mode" id="bChess"><svg><use href="#i-chess"/></svg><span><b>Xadrez FPS</b><small>Cada captura vira um duelo: a peça luta com a sua arma</small></span></button>
-        <button class="mode" id="bHorde"><svg><use href="#i-zombie"/></svg><span><b>Sobrevivência a hordas</b><small>Ondas de zumbis cada vez maiores. Sozinho ou com amigos</small></span></button>
-        <button class="mode" id="bRoleta"><svg><use href="#i-dice"/></svg><span><b>Roleta do caos</b><small>Cada round sorteia uma regra maluca: lua, só faca, cabeções, 1 de vida...</small></span></button>
-        <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
+        <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>Jogar contra bots</b><small>X1 do seu jeito: mapa, regras, armas e times</small></span></button>
+        <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Crie uma sala ou entre com o código</small></span></button>
+      </div>
+      <div class="label">Modos de jogo</div>
+      <div class="tiles modegrid">
+        <button class="tile" id="bPlaza"><svg><use href="#i-net"/></svg><b>Praça</b><small>Lobby aberto</small></button>
+        <button class="tile" id="bHorde"><svg><use href="#i-zombie"/></svg><b>Hordas</b><small>Zumbis em ondas</small></button>
+        <button class="tile" id="bRoleta"><svg><use href="#i-dice"/></svg><b>Roleta do caos</b><small>Regra por round</small></button>
+        <button class="tile" id="bChess"><svg><use href="#i-chess"/></svg><b>Xadrez FPS</b><small>Captura vira duelo</small></button>
+        <button class="tile" id="bKr"><svg><use href="#i-cls"/></svg><b>Classes</b><small>Estilo Krunker</small></button>
+        <button class="tile" id="bDm"><svg><use href="#i-dm"/></svg><b>Mata-mata</b><small>Todos contra todos</small></button>
       </div>
       <div class="label">Treinar e personalizar</div>
       <div class="tiles">
@@ -2467,6 +2477,12 @@ function vmD(parent, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) {
 function vmC(parent, col, r, len, x, y, z, material) {
   const m = new THREE.Mesh(CYL, material || gunMat(col, gunKind(col))); m.scale.set(r, len, r); m.position.set(x, y, z); m.rotation.x = Math.PI / 2; parent.add(m); return m;
 }
+function vmRecolor(g, map) {
+  g.traverse(m => {
+    if (!m.isMesh || !m.material) return;
+    for (const k in map) if (m.material === gunMat(+k, gunKind(+k))) { m.material = gunMat(map[k][0], map[k][1]); break; }
+  });
+}
 const VM_DETAIL = {
   rifle(g, vm) {
     vmC(g, C.metal, 0.03, 0.025, 0, 0.05, -0.5); vmD(g, C.metal, 0.008, 0.032, 0.008, 0, 0.082, -0.5);
@@ -2477,6 +2493,8 @@ const VM_DETAIL = {
     for (const y of [0.05, 0.0, -0.05]) vmD(vm.mag, C.metal, 0.047, 0.008, 0.072, 0, y, 0);
   },
   deagle(g, vm) {
+    // Deagle cromada: ferrolho e armação prateados, cabo de borracha preta
+    vmRecolor(g, { [C.metal2]: [0x9da3ac, 'steel'], [C.metal]: [0x7f858f, 'steel'], [C.black]: [0x1c1d20, 'polymer'] });
     const b = vm.bolt;
     vmD(b, C.black, 0.04, 0.016, 0.012, 0, 0.034, 0.11); vmD(b, C.black, 0.01, 0.018, 0.012, 0, 0.034, -0.11);
     for (let k = 0; k < 5; k++) vmD(b, C.metal, 0.053, 0.034, 0.004, 0, 0, 0.065 + k * 0.012);
@@ -2484,6 +2502,9 @@ const VM_DETAIL = {
     vmD(g, C.metal, 0.012, 0.012, 0.065, 0, -0.05, -0.03); vmD(g, C.metal, 0.012, 0.04, 0.01, 0, -0.033, -0.062); vmD(g, C.metal2, 0.008, 0.03, 0.008, 0, -0.035, -0.012);
   },
   pistol(g, vm) {
+    // pistola de polímero: armação e cabo pretos foscos, ferrolho cinza-escuro, carregador com base laranja
+    vmRecolor(g, { [C.metal2]: [0x34373d, 'gunmetal'], [C.metal]: [0x1f2023, 'polymer'] });
+    vmD(vm.mag, 0xd9822b, 0.032, 0.008, 0.042, 0, -0.018, 0);
     const b = vm.bolt;
     vmD(b, C.black, 0.034, 0.012, 0.01, 0, 0.028, 0.09); vmD(b, C.black, 0.008, 0.014, 0.01, 0, 0.028, -0.09);
     for (let k = 0; k < 4; k++) vmD(b, C.metal, 0.045, 0.03, 0.004, 0, 0, 0.05 + k * 0.012);
