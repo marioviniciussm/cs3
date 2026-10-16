@@ -1821,6 +1821,10 @@ function placeArm(c, A, side, handLocal) {
   elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole);
   setArm(A, _sh, _el, _hand);
 }
+// animações do corpo em 3ª pessoa (você em 3ª pessoa, bots e o inimigo no online): faca, recarga, construir e granada
+function startAnim(c, kind, dur, alt) { if (c) c.anim = { kind, t: 0, dur: Math.max(0.1, dur || 0.3), alt: !!alt }; }
+const ease = k => 1 - (1 - k) * (1 - k), env = (k, a, b) => clamp(Math.min(k / a, (1 - k) / b), 0, 1);
+const _fore = new THREE.Vector3(), _ih = new THREE.Vector3();
 function animateModel(c, dt) {
   c.group.position.copy(c.pos);
   c.group.rotation.y = c.yaw;
@@ -1853,11 +1857,46 @@ function animateModel(c, dt) {
   // a arma acompanha a mira na altura do ombro direito; o tranco do tiro empurra para trás
   c.gun.position.set(0.1, 1.38 + Math.sin(p) * 0.08, -0.32 * Math.cos(p) + c.recoilAnim * 0.07);
   c.gun.rotation.set(p + c.recoilAnim * 0.12, 0, 0);
-  c.head.rotation.x = p * 0.5;
+  c.head.rotation.x = p * 0.5; c.head.rotation.z = 0;
+  if (c.isPlayer) c.scoped = !!pw.zoom;
+  const A = c.anim; if (A) { A.t += dt; if (A.t >= A.dur) c.anim = null; }
+  const k = A ? A.t / A.dur : 0;
+  _fore.copy(c.fore);
+  let throwing = false;
+  if (A && A.kind === 'melee') {
+    if (A.alt) { const s = Math.sin(Math.PI * k); c.gun.position.z -= 0.45 * s; c.gun.position.y += 0.05 * s; c.gun.rotation.x -= 0.25 * s; }   // estocada
+    else { const a = lerp(1.2, -1.1, ease(k)), s = Math.sin(Math.PI * k);                                                                         // corte de lado
+      c.gun.position.x = 0.12 + Math.sin(a) * 0.32; c.gun.position.z = -0.12 - Math.cos(a) * 0.32; c.gun.position.y += 0.12 * s; c.gun.rotation.y = a * 0.9; c.gun.rotation.z = -0.6 * s; }
+  } else if (A && A.kind === 'reload') {
+    // inclina a arma, a mão esquerda tira o pente, vai até a cintura, pega outro e encaixa
+    const e = env(k, 0.12, 0.12); c.gun.rotation.z = 0.55 * e; c.gun.rotation.x -= 0.3 * e; c.gun.position.y -= 0.07 * e; c.gun.position.x -= 0.04 * e;
+    const well = _ih.set(0, -0.15, -0.14), belt = new THREE.Vector3(-0.12, -0.5, 0.3);
+    if (k > 0.15 && k < 0.85) { const q = (k - 0.15) / 0.7, d = q < 0.4 ? q / 0.4 : q > 0.6 ? (1 - q) / 0.4 : 1; _fore.copy(well).lerp(belt, Math.sin(d * Math.PI / 2)); }
+    else _fore.lerp(well, k < 0.15 ? k / 0.15 : (1 - k) / 0.15);
+  } else if (A && A.kind === 'build') {
+    // martelada: sobe e desce
+    const sw = k < 0.4 ? -1.1 * ease(k / 0.4) : -1.1 + 1.5 * ease((k - 0.4) / 0.6); c.gun.rotation.x += sw; c.gun.position.y += 0.15 * Math.sin(Math.PI * k);
+  } else if (A && A.kind === 'throw') throwing = true;
+  else if (c.scoped && !c.oneHand) {
+    // olhando pela luneta: arma sobe até o olho e a cabeça encosta na coronha
+    c.gun.position.set(0.07, 1.56 + Math.sin(p) * 0.1, -0.2 * Math.cos(p)); c.head.rotation.z = 0.18; c.head.rotation.x = p * 0.8 + 0.08;
+  }
   c.gun.updateMatrix();
-  placeArm(c, c.armR, 1, c.grip);
-  if (c.oneHand) { _hand.set(-0.22, 1.0, -0.05); _sh.set(-0.25, 1.44, 0); _pole.set(-1, -0.3, 0.5); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armL, _sh, _el, _hand); }
-  else placeArm(c, c.armL, -1, c.fore);
+  if (c.gunParts) c.gunParts.visible = !throwing;
+  if (throwing) {
+    // granada: braço vai para trás do ombro e lança para a frente
+    if (!c.nadeHand) { c.nadeHand = mesh(SPHERE, 0x3f5130, 0.09, 0.11, 0.09, 0, 0, 0, c.upper); }
+    c.nadeHand.visible = k < 0.55;
+    const back = new THREE.Vector3(0.32, 1.78, 0.32), front = new THREE.Vector3(0.22, 1.5, -0.6);
+    _hand.copy(k < 0.45 ? new THREE.Vector3(0.25, 1.45, -0.2).lerp(back, ease(k / 0.45)) : back.clone().lerp(front, ease((k - 0.45) / 0.55)));
+    _sh.set(0.25, 1.44, 0); _pole.set(1, -0.2, 0.6); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armR, _sh, _el, _hand); c.nadeHand.position.copy(_hand);
+    _hand.set(-0.15, 1.4, -0.4); _sh.set(-0.25, 1.44, 0); _pole.set(-1, -0.4, 0.3); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armL, _sh, _el, _hand);
+  } else {
+    if (c.nadeHand) c.nadeHand.visible = false;
+    placeArm(c, c.armR, 1, c.grip);
+    if (c.oneHand) { _hand.set(-0.22, 1.0, -0.05); _sh.set(-0.25, 1.44, 0); _pole.set(-1, -0.3, 0.5); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armL, _sh, _el, _hand); }
+    else placeArm(c, c.armL, -1, _fore);
+  }
   c.vis.position.y = 0; c.vis.rotation.x = 0;
   if (c.mdl && c.mdl.rig) poseRig(c);
 }
@@ -2354,7 +2393,7 @@ function updateWeapons(dt) {
 function tryReload() {
   const s = active();
   if (s.w.melee || s.w.nade || s.w.build || pw.reloadT || pw.drawT > 0 || s.mag >= s.w.mag || (!pw.infinite && s.reserve <= 0)) return;
-  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; play('magOut', 0.8);
+  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; play('magOut', 0.8); startAnim(player, 'reload', s.w.reload);
 }
 function showHit(res) { if (res.hit) { hitT = 0.3; hitHead = res.head; hitKill = res.kill; if (S.audio.hit) play(res.kill ? 'kill' : res.head ? 'head' : 'hit', 0.9); } }
 function tryMelee(alt) {
@@ -2363,9 +2402,9 @@ function tryMelee(alt) {
   pw.nextFire = now + (alt ? w.altInterval : w.interval); pw.lastShot = now;
   pv.swing = 1; pv.swingAlt = alt; pv.swingSide = -pv.swingSide;
   const dir = thirdOn() ? new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')) : new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const res = meleeAttack(player, w, shotEye(), dir, alt);
+  const res = meleeAttack(player, w, shotEye(), dir, alt); startAnim(player, 'melee', alt ? 0.45 : 0.3, alt);
   play(res.hit ? 'knifeHit' : res.wall ? 'knifeWall' : 'knife', 0.9);
-  if (mode && mode.net) Net.send({ t: 'shot', w: active().wi });
+  if (mode && mode.net) Net.send({ t: 'shot', w: active().wi, al: alt ? 1 : 0 });
   showHit(res);
 }
 function tryFire(pressedNow) {
@@ -2523,12 +2562,12 @@ function updateBot(c, dt) {
         if (to.length() < w.range + 0.1 && aim.angleTo(to) < 25 * DEG) {
           const alt = Math.random() < 0.3;
           b.nextFire = now + (alt ? w.altInterval : w.interval) * rand(1, 1.5);
-          const r = meleeAttack(c, w, eye, to.clone().normalize(), alt);
-          if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w) });
+          const r = meleeAttack(c, w, eye, to.clone().normalize(), alt); startAnim(c, 'melee', alt ? 0.45 : 0.3, alt);
+          if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), al: alt ? 1 : 0 });
           c.recoilAnim = 1; play(r.hit ? 'knifeHit' : 'knife', 1, c.pos);
         }
       } else if (aim.angleTo(to) < 6 * DEG) {
-        if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); }
+        if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); startAnim(c, 'reload', w.reload); }
         else {
           c.weapon.magNow--;
           b.nextFire = now + w.interval * (w.auto ? 1 : rand(1.1, 1.7));
@@ -3165,7 +3204,7 @@ function endX1(team) {
 // ---- jogador remoto (online)
 function netState() {
   const p = player;
-  return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp) };
+  return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp), r: pw.reloadT > 0 ? 1 : 0, z: pw.zoom ? 1 : 0 };
 }
 const a2v = a => new THREE.Vector3(a[0], a[1], a[2]);
 const remoteOf = id => (id && mode && ((mode.remotes && mode.remotes.get(id)) || (mode.netBots && mode.netBots.get(id)))) || null;
@@ -3185,6 +3224,8 @@ function onRemoteState(r, m) {
   if (m.w !== r.wi && WEAPONS[m.w]) { r.wi = m.w; setGunShape(r, WEAPONS[m.w]); }
   if (m.a && !r.alive) { respawn(r, { pos: r.net.tp.clone(), yaw: m.y }); }
   if (r.alive) r.hp = m.h;
+  if (m.r && !r._rl && WEAPONS[r.wi]) startAnim(r, 'reload', WEAPONS[r.wi].reload);
+  r._rl = !!m.r; r.scoped = !!m.z;
 }
 // passos (correndo; andando com Shift é silencioso, como no CS) e barulho de queda dos outros jogadores
 function updateOtherSounds(dt) {
@@ -3244,14 +3285,15 @@ function onNetMsg(m) {
       Net.inMatch = true; startX1(m.cfg, Net, m.ro.map(q => q.id)); break;
     case 'lobby': Net.inMatch = false; if (inGame) { goMenu(); openNetPanel(); } else renderNetLobby(); break;
     case 's': if (r) onRemoteState(r, m); break;
-    case 'bs': if (inGame && Array.isArray(m.l)) for (const e of m.l) { const b = Array.isArray(e) && remoteOf(String(e[0])); if (b && b.isNetBot) onRemoteState(b, { p: e[1], v: e[2], y: e[3], x: e[4], c: e[5], w: e[6], a: e[7], h: e[8] }); } break;
+    case 'bs': if (inGame && Array.isArray(m.l)) for (const e of m.l) { const b = Array.isArray(e) && remoteOf(String(e[0])); if (b && b.isNetBot) onRemoteState(b, { p: e[1], v: e[2], y: e[3], x: e[4], c: e[5], w: e[6], a: e[7], h: e[8], r: e[9] }); } break;
     case 'shot': if (r) {
       const w = WEAPONS[m.w]; if (!w) break;
       r.recoilAnim = 1; play(w.melee ? 'knife' : w.snd, 1, r.pos);
+      if (w.melee) startAnim(r, 'melee', m.al ? 0.45 : 0.3, !!m.al);
       if (m.a && m.b) tracer(a2v(m.a), a2v(m.b));
       if (w.proj && m.pp && m.pv) { const pp = a2v(m.pp), vv = a2v(m.pv); if (isFinite(pp.x + pp.y + pp.z + vv.x + vv.y + vv.z) && vv.length() < 200) spawnProj(w, pp, vv, r); }
     } break;
-    case 'build': if (inGame && Net.byId(m.f) && BUILD_KINDS[m.k]) { const bp = a2v(m.p); if (isFinite(bp.x + bp.y + bp.z) && bp.length() < 500) placeBuild(String(m.id).slice(0, 24), m.k, bp, m.a ? 1 : 0, m.f); } break;
+    case 'build': if (inGame && Net.byId(m.f) && BUILD_KINDS[m.k]) { startAnim(r, 'build', 0.35); const bp = a2v(m.p); if (isFinite(bp.x + bp.y + bp.z) && bp.length() < 500) placeBuild(String(m.id).slice(0, 24), m.k, bp, m.a ? 1 : 0, m.f); } break;
     case 'bhit': if (inGame) hitBuild(builds.get(String(m.id)), clamp(+m.d || 0, 0, 500), false); break;
     case 'hit': { const a = m.f === 'h' && m.by ? remoteOf(String(m.by)) || r : r; if (a && !mode.over && player.alive) damage(player, +m.d || 0, a, String(m.w || ''), m.z, null); break; }
     case 'dead': if (r && r.alive) {
@@ -3469,7 +3511,7 @@ const Net = {
     if (this.sendAcc >= 1 / 30 && player) { this.sendAcc = 0; this.send(netState()); }
     if (this.role === 'host' && mode && mode.netBots && mode.netBots.size && (this.botAcc = (this.botAcc || 0) + dt) >= 1 / 20) {
       this.botAcc = 0;
-      this.send({ t: 'bs', l: [...mode.netBots.values()].map(b => [b.netId, v3a(b.pos), v3a(b.vel), +b.yaw.toFixed(3), +(b.pitch || 0).toFixed(3), +(b.crouch || 0).toFixed(2), WEAPONS.indexOf(b.weapon.w), b.alive ? 1 : 0, Math.ceil(b.hp)]) });
+      this.send({ t: 'bs', l: [...mode.netBots.values()].map(b => [b.netId, v3a(b.pos), v3a(b.vel), +b.yaw.toFixed(3), +(b.pitch || 0).toFixed(3), +(b.crouch || 0).toFixed(2), WEAPONS.indexOf(b.weapon.w), b.alive ? 1 : 0, Math.ceil(b.hp), b.bot && b.bot.reloadT > 0 ? 1 : 0]) });
     }
   },
 };
@@ -4550,7 +4592,7 @@ function tryBuild(alt) {
   pw.nextFire = now + w.interval;
   if (!spot) { play('empty', 0.8); return; }
   const id = 'b' + (Net.myId || '') + (++buildSeq);
-  placeBuild(id, kind, spot.p, spot.ax, Net.myId || 'me');
+  placeBuild(id, kind, spot.p, spot.ax, Net.myId || 'me'); startAnim(player, 'build', 0.35);
   if (!pw.infinite) s.mag--;
   pv.kick = 0.6;
   if (mode && mode.net) Net.send({ t: 'build', id, k: kind, p: v3a(spot.p), a: spot.ax });
@@ -4627,7 +4669,7 @@ function throwNade() {
   const i = pw.cur, s = pw.slots[i]; if (!s || !s.w.nade || pw.drawT > 0) return;
   const fwd = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
   const p = eyePos(player).addScaledVector(fwd, 0.4), v = fwd.multiplyScalar(17).add(new THREE.Vector3(0, 3, 0)).add(player.vel.clone().multiplyScalar(0.6));
-  spawnNade(p, v, player, 1.6);
+  spawnNade(p, v, player, 1.6); startAnim(player, 'throw', 0.5);
   if (mode && mode.net) Net.send({ t: 'nade', p: v3a(p), v: v3a(v) });
   play('knife', 0.8);
   pw.slots.splice(i, 1);
@@ -4700,7 +4742,7 @@ function onGroundMsg(m) {
   if (!pickupOn()) return;
   if (m.t === 'pick') { const it = ground.items.find(x => x.id === m.id); if (it) { removeItem(it); if (it.home && !mode.rounds) mode._respawnItems = (mode._respawnItems || []).concat([{ at: now + 20, it }]); } }
   if (m.t === 'drop' && WEAPONS[m.w] && !ground.items.some(x => x.id === m.id)) spawnItem(m.w, a2v(m.p), { id: String(m.id).slice(0, 16), mag: +m.m || 0, reserve: +m.r || 0, vel: a2v(m.v) });
-  if (m.t === 'nade' && remoteOf(m.f)) spawnNade(a2v(m.p), a2v(m.v), remoteOf(m.f), 1.6);
+  if (m.t === 'nade' && remoteOf(m.f)) { spawnNade(a2v(m.p), a2v(m.v), remoteOf(m.f), 1.6); startAnim(remoteOf(m.f), 'throw', 0.5); }
 }
 // =====================================================================================
 // Chat e spray na partida
@@ -6196,7 +6238,7 @@ requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
 window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
-window.__cs3 = { Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
