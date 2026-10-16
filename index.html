@@ -3455,6 +3455,7 @@ function startX1(cfgIn, net, ids) {
   if (cfg.chess && !cfg.teamWeapons) delete cfg.chess;
   if (cfg.duel === 'chess' && !cfg.teamWeapons) cfg.duel = 'normal';
   Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; Rol.spinR = null;
+  FUN.slow = 1; FUN.heads = false; if (FUN.disco) applyFun('disco', null, false);
   const hpOf = t => cfg.teamHp ? cfg.teamHp[t] : cfg.hp;
   $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
@@ -4024,7 +4025,7 @@ function onNetMsg(m) {
       if (m.z && HZ_KINDS[m.z]) { rb.summon = false; rb.maxHp = rb.hp = clamp(+m.hp || 100, 1, 5000); Horde.look(rb, HZ_KINDS[m.z]); }
     } break;
     case 'rtc': Voice.onMsg(m); break;
-    case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': onAdminMsg(m); break;
+    case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': case 'afun': onAdminMsg(m); break;
     case 'kicked': Net.kicked = true; break;
     case 'pick': case 'drop': case 'nade': if (inGame) onGroundMsg(m); break;
     case 'chat': { const p = Net.byId(m.f); if (inGame && p) addChat(p.name, r ? r.color : TEAM_COLORS[p.team], cleanChat(m.m)); break; }
@@ -4109,7 +4110,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['hz', 'roll', 'chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['afun', 'hz', 'roll', 'chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye', 'tblreq', 'pvote', 'pjoinreq']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -5571,13 +5572,25 @@ const CMD_HELP = [
   ['modo', '/modo rounds|mata|infinito|faca|awp|aleatoria|gungame|roleta|normal'],
   ['tempo', '/tempo 10 (minutos)  ·  /round 90 (segundos)  ·  /rounds 5 ou /abates 20 para vencer'],
   ['armas', '/armas awp deagle faca (ou todas)  ·  /classes on|off  ·  /bots azul 3 laranja 1'],
+  ['jogar', '/jogar praca|hordas|roleta|xadrez|mata|gungame|faca troca o modo de jogo de todo mundo'],
+  ['onda', 'Hordas: /onda 5 pula para a onda 5  ·  /zumbis 10 solta mais zumbis  ·  /tanque solta um zumbi tanque'],
+  ['regra', 'Roleta: /regra lua|faca|cabecao|1hp|troca|turbo|hs|vampiro força a regra agora'],
+  ['cabecao', 'Diversão: /cabecao on|off  ·  /lua  ·  /lento (câmera lenta)  ·  /disco (festa)'],
+  ['tamanho', '/tamanho Ana 2 (gigante; 0.5 = mini)  ·  /matar Ana  ·  /deus Ana  ·  /voar Ana'],
+  ['puxar', '/puxar Ana traz até você  ·  /ir Ana vai até ela  ·  /arma Ana awp dá uma arma'],
   ['menu', 'Tecla M (ou Pausa → Menu de admin) abre o menu com tudo isso'],
 ];
 const CMD_ALIAS = { help: 'ajuda', '?': 'ajuda', camera: 'cam', 'câmera': 'cam', spec: 'ver', assistir: 'ver', team: 'time', map: 'mapa', restart: 'reiniciar', rr: 'reiniciar', mode: 'modo', time_: 'tempo', weapons: 'armas', classe: 'classes', bot: 'bots', kills: 'abates', alvo: 'abates', menu: 'menuadm',
-  gravity: 'gravidade', grav: 'gravidade', speed: 'velocidade', vel: 'velocidade', hp: 'vida', ammo: 'municao', 'munição': 'municao', headshot: 'hs', unadmin: 'tiraradmin', expulsar: 'kick' };
+  gravity: 'gravidade', grav: 'gravidade', speed: 'velocidade', vel: 'velocidade', hp: 'vida', ammo: 'municao', 'munição': 'municao', headshot: 'hs', unadmin: 'tiraradmin', expulsar: 'kick',
+  modojogo: 'jogar', play: 'jogar', wave: 'onda', zumbi: 'zumbis', zombies: 'zumbis', tank: 'tanque', rule: 'regra', cabecoes: 'cabecao', bighead: 'cabecao', cabeca: 'cabecao',
+  size: 'tamanho', escala: 'tamanho', kill: 'matar', slay: 'matar', god: 'deus', fly: 'voar', noclip: 'voar', bring: 'puxar', trazer: 'puxar', goto: 'ir', give: 'arma', dar: 'arma',
+  slowmo: 'lento', camlenta: 'lento', festa: 'disco', party: 'disco', moon: 'lua' };
+const FUN_CMDS = new Set(['cabecao', 'lento', 'disco', 'tamanho', 'matar', 'deus', 'voar', 'puxar', 'ir', 'arma']);
+const FUN_TARGET = new Set(['tamanho', 'matar', 'deus', 'voar', 'puxar', 'ir', 'arma']);
+const FUN = { heads: false, slow: 1, disco: false };
 const CFG_CMDS = { gravidade: ['gravity', 0.1, 4], velocidade: ['speed', 0.3, 3], vida: ['hp', 1, 1000], bhop: ['bhop', 0, 3], municao: ['infinite'], hs: ['hsOnly'] };
 const RULE_CMDS = new Set(['modo', 'tempo', 'round', 'rounds', 'abates', 'armas', 'classes', 'bots']);
-const SERVER_CMDS = new Set(['time', 'mapa', 'reiniciar', 'admin', 'tiraradmin', 'kick', 'camoutro', 'regras', ...RULE_CMDS, ...Object.keys(CFG_CMDS)]);
+const SERVER_CMDS = new Set(['time', 'mapa', 'reiniciar', 'admin', 'tiraradmin', 'kick', 'camoutro', 'regras', 'onda', 'zumbis', 'tanque', 'regra', ...FUN_CMDS, ...RULE_CMDS, ...Object.keys(CFG_CMDS)]);
 const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function sysChat(txt, err) { if (mode && mode.noFeed) return; addChat(err ? 'Comando' : 'Admin', err ? 0xd9534f : 0xf2a03a, txt, true); }
 // acha um jogador pelo nome (pedaço do nome serve); "eu" é você
@@ -5621,11 +5634,26 @@ function runCommand(txt) {
     watchCombatant(c === player ? null : c, m); if (c === player) setCam(m); return;
   }
   if (cmd === 'menuadm') { openAdmin(); return; }
+  if (cmd === 'jogar') {
+    const id = JOGAR_WORDS[normTxt(args[0])]; if (!id) { sysChat('Use /jogar praca, hordas, roleta, xadrez, mata, gungame ou faca.', true); return; }
+    if (Net.role === 'guest') { Net.send({ t: 'acmd', c: 'jogar', a: [id] }, 'h'); return; }
+    const e = execJogar(id); if (e) sysChat(e, true); return;
+  }
+  if (cmd === 'lua') { runCommand(mode && mode.cfg && mode.cfg.gravity < 1 ? '/gravidade 1' : '/gravidade 0.3'); return; }
   if (!SERVER_CMDS.has(cmd)) { sysChat(`Comando desconhecido: /${w}. Digite /ajuda.`, true); return; }
   if (!mode || mode.type !== 'x1') { sysChat('Esse comando funciona nas partidas de x1 (sozinho ou online).', true); return; }
   if (RULE_CMDS.has(cmd)) { const r = ruleFromCmd(cmd, args); if (typeof r === 'string') sysChat(r, true); else sendRules(r); return; }
   // nomes viram ids aqui, de quem digitou, para o anfitrião não precisar adivinhar
   if (!mode.net && ['admin', 'tiraradmin', 'kick'].includes(cmd)) { sysChat('Jogando sozinho você já é o admin; esse comando é para salas online.', true); return; }
+  if (FUN_TARGET.has(cmd)) {
+    // /tamanho Ana 2 · /arma Ana awp · /matar Ana (sem nome = você mesmo)
+    let extra = null, rest = args.slice();
+    if (cmd === 'tamanho' || cmd === 'arma') extra = rest.length > 1 ? rest.pop() : cmd === 'tamanho' && rest.length === 1 && Number.isFinite(parseFloat(rest[0])) ? rest.pop() : null;
+    if ((cmd === 'deus' || cmd === 'voar') && rest.length && ONOFF[normTxt(rest[rest.length - 1])] != null) extra = rest.pop();
+    const c = rest.length ? findCombatant(rest.join(' ')) : player;
+    if (!c) { sysChat('Ninguém com esse nome: ' + rest.join(' '), true); return; }
+    serverCmd(cmd, [cidOf(c), extra, cidOf(player)]); return;
+  }
   if (['time', 'admin', 'tiraradmin', 'kick'].includes(cmd)) {
     let team = null; const rest = [];
     for (const a of args) { const k = TEAM_WORDS[normTxt(a)]; if (cmd === 'time' && team == null && k != null && rest.length) team = k; else rest.push(a); }
@@ -5802,6 +5830,56 @@ function execServerCmd(cmd, a, by, cfgIn) {
     if (net) Net.send({ t: 'anote', m: `${who} mudou as regras. ${cfgSummary(cfg)}` });
     restartWith(cfg); sysChat('Regras novas: ' + cfgSummary(cfg)); return;
   }
+  if (cmd === 'jogar') { const e = execJogar(String(a[0])); if (e) return e; if (net) Net.send({ t: 'anote', m: `Modo novo (admin ${who}).` }); return; }
+  if (cmd === 'onda' || cmd === 'zumbis' || cmd === 'tanque') {
+    const H = mode.horde; if (!H) return 'Esse comando é das hordas. Use /jogar hordas.';
+    const n = Math.round(parseFloat(a[0]));
+    if (cmd === 'onda') {
+      if (!Number.isFinite(n) || n < 1) return 'Use /onda número (1 a 50).';
+      for (const z of Horde.zombies()) if (z.alive) damage(z, 1e6, null, 'Admin', 'body', null);
+      H.wave = clamp(n, 1, 50) - 1; H.toSpawn = 0; H.breakUntil = now + 1.5; Horde.sync(mode);
+      note(`Pulando para a onda ${H.wave + 1}.`); return;
+    }
+    const k = cmd === 'tanque' ? 1 : clamp(Number.isFinite(n) ? n : 5, 1, 30);
+    for (let i = 0; i < k; i++) { if (cmd === 'tanque') H.tankDue = true; Horde.spawn(mode); }
+    note(cmd === 'tanque' ? 'Um zumbi tanque apareceu!' : `${k} zumbis a mais!`); return;
+  }
+  if (cmd === 'regra') {
+    if (mode.cfg.duel !== 'roleta') return 'Só na Roleta do caos (use /modo roleta ou /jogar roleta).';
+    const id = RULE_WORDS[normTxt(a[0])]; if (!id) return 'Regras: ' + ROL.map(r => r.id).join(', ') + '.';
+    Rol.apply(mode, id, true); mode.rlNext = now + RL_EVERY; if (net) Net.send({ t: 'roll', r: id, n: mode.rounds ? 0 : RL_EVERY });
+    note(`Regra forçada: ${Rol.def(id).name}.`); return;
+  }
+  if (FUN_CMDS.has(cmd)) {
+    const tgt = a[0] != null ? String(a[0]) : null, c = FUN_TARGET.has(cmd) ? idCombatant(tgt) : null;
+    if (FUN_TARGET.has(cmd) && !c) return 'Esse jogador não está na partida.';
+    const on = ONOFF[normTxt(a[1])];
+    let v = null, txt = '';
+    if (cmd === 'cabecao') { v = ONOFF[normTxt(a[0])]; if (v == null) v = !FUN.heads; txt = v ? 'Cabeções para todo mundo!' : 'Cabeças de volta ao normal.'; }
+    else if (cmd === 'lento') { v = FUN.slow < 1 ? 1 : 0.4; txt = v < 1 ? 'Câmera lenta! (/lento de novo volta)' : 'Velocidade normal.'; }
+    else if (cmd === 'disco') { v = !FUN.disco; txt = v ? 'Festa! 🪩 (/disco de novo apaga)' : 'Fim da festa.'; }
+    else if (cmd === 'tamanho') { v = parseFloat(String(a[1] ?? '').replace(',', '.')); if (!Number.isFinite(v)) v = (c.sizeK || 1) === 1 ? 2 : 1; v = clamp(v, 0.3, 4); txt = `${c.name} agora tem tamanho ${v}.`; }
+    else if (cmd === 'matar') { txt = `${c.name} foi fulminado.`; }
+    else if (cmd === 'deus') { v = on != null ? on : !c.godK; txt = `${c.name}: modo deus ${v ? 'ligado' : 'desligado'}.`; }
+    else if (cmd === 'voar') { v = on != null ? on : !c.flyK; txt = `${c.name}: voo ${v ? 'ligado (espaço sobe, agachar desce)' : 'desligado'}.`; }
+    else if (cmd === 'puxar' || cmd === 'ir') {
+      const me = idCombatant(String(a[2] || by)); if (!me) return 'Não achei você na partida.';
+      const from = cmd === 'puxar' ? me : c, to = cmd === 'puxar' ? c : me;
+      if (from === to) return 'Escolha outra pessoa.';
+      const d = new THREE.Vector3(-Math.sin(from.yaw), 0, -Math.cos(from.yaw)).multiplyScalar(1.6);
+      v = [+(from.pos.x + d.x).toFixed(2), +(from.pos.y + 0.1).toFixed(2), +(from.pos.z + d.z).toFixed(2)];
+      txt = cmd === 'puxar' ? `${c.name} foi puxado até ${me.name}.` : `${me.name} foi até ${c.name}.`;
+      const moved = cmd === 'puxar' ? c : me, mid = cidOf(moved);
+      if (net) Net.send({ t: 'afun', k: 'tp', id: mid, v }); applyFun('tp', mid, v); note(txt); return;
+    }
+    else if (cmd === 'arma') {
+      const t = normTxt(a[1]); const i = t ? WEAPONS.findIndex(w => w.id === t || normTxt(w.name).startsWith(t) || (t === 'awp' && w.id === 'sniper') || (t === 'faca' && w.id === 'knife')) : -1;
+      if (i < 0) return 'Use /arma nome awp (ou deagle, shotgun, rocket...).';
+      v = i; txt = `${c.name} ganhou ${WEAPONS[i].name}.`;
+    }
+    const id = tgt;
+    if (net) Net.send({ t: 'afun', k: cmd, id, v }); applyFun(cmd, id, v); note(txt); return;
+  }
   if (cmd === 'reiniciar') { if (net) Net.send({ t: 'anote', m: `Partida reiniciada (admin ${who}).` }); mode.restart(); sysChat('Partida reiniciada.'); return; }
   if (cmd === 'admin' || cmd === 'tiraradmin') {
     if (!net) return 'Sozinho você já é o admin.';
@@ -5839,6 +5917,37 @@ function applyCfgKey(k, v) {
   if (k === 'hsOnly') mode.hsOnly = v;
   if (k === 'hp') for (const c of combatants) if (!c.remote) { c.maxHp = v; if (c.alive) c.hp = v; }
 }
+const JOGAR_WORDS = { praca: 'praca', 'praça': 'praca', lobby: 'praca', hordas: 'horde', horda: 'horde', zumbis: 'horde', zumbi: 'horde', roleta: 'roleta', caos: 'roleta', xadrez: 'chess', chess: 'chess',
+  mata: 'dm', 'mata-mata': 'dm', dm: 'dm', gungame: 'gungame', faca: 'knife', knife: 'knife' };
+const RULE_WORDS = { lua: 'lua', gravidade: 'lua', faca: 'faca', cabecao: 'cabeca', cabecoes: 'cabeca', cabeca: 'cabeca', '1hp': 'umhp', umhp: 'umhp', '1': 'umhp', vida: 'umhp', troca: 'troca', arma: 'troca',
+  turbo: 'turbo', rapido: 'turbo', hs: 'hs', headshot: 'hs', vampiro: 'vampiro' };
+// troca o modo de jogo da sala inteira (anfitrião ou sozinho)
+function execJogar(id) {
+  if (id === 'praca') { startPlaza(); return; }
+  if (!JOGAR_WORDS[id] && !Object.values(JOGAR_WORDS).includes(id)) return 'Modo desconhecido.';
+  if (mode && mode.over) $('#end').hidden = true;
+  Plaza.launch(id, false);
+}
+// comandos de diversão: cada um aplica no próprio jogo (o boneco de cada um é dele)
+function applyFun(k, id, v) {
+  const c = id != null ? idCombatant(String(id)) : null;
+  if (k === 'cabecao') { FUN.heads = !!v; for (const o of combatants) Rol.head(o, FUN.heads); return; }
+  if (k === 'lento') { FUN.slow = clamp(+v || 1, 0.2, 1); return; }
+  if (k === 'disco') { FUN.disco = !!v; if (!FUN.disco) { scene.background = SKY; scene.fog.color.copy(SKY); sun.color.setHex(0xfff1dc); } return; }
+  if (!c) return;
+  if (k === 'tamanho') { c.sizeK = clamp(+v || 1, 0.3, 4); c.group.scale.setScalar(c.sizeK * (c.zSc || 1)); return; }
+  if (c.remote) return;
+  if (k === 'matar') { if (c.alive) { damage(c, 1e6, null, 'Raio do admin', 'head', new THREE.Vector3(0, -1, 0)); } return; }
+  if (k === 'deus') { c.godK = !!v; if (c === player) pv.god = c.godK; else if (c.cfg) { c.cfg.invuln = c.godK; c.invuln = c.godK; } return; }
+  if (k === 'voar') { c.flyK = !!v; if (c === player) pv.noclip = c.flyK; return; }
+  if (k === 'tp' && Array.isArray(v)) { const p = a2v(v); if (isFinite(p.x + p.y + p.z) && p.length() < 500) { c.pos.copy(p); c.vel.set(0, 0, 0); } return; }
+  if (k === 'arma' && WEAPONS[v] && c === player) {
+    let i = pw.slots.findIndex(s => s.wi === +v);
+    if (i < 0) { const w = WEAPONS[+v]; pw.slots.push({ w, wi: +v, mag: w.mag, reserve: w.reserve }); i = pw.slots.length - 1; buildSlots(); }
+    selectWeapon(i, true); return;
+  }
+  if (k === 'arma' && WEAPONS[v] && c.bot) { c.cfg.weapon = +v; applyBot(c, c.cfg); }
+}
 function applyTeam(id, tm) {
   const c = idCombatant(id); if (!c) return;
   const idx = combatants.filter(o => o !== c && o.team === tm).length;
@@ -5860,6 +5969,7 @@ function onAdminMsg(m) {
     case 'acam': if (m.id === Net.myId) { Admin.cam = clamp(+m.m || 0, 0, 2); Admin.watch = null; } return;
     case 'ateam': applyTeam(String(m.id), m.tm ? 1 : 0); return;
     case 'acfg': applyCfgKey(m.k, m.v); return;
+    case 'afun': applyFun(String(m.k), m.id, m.v); return;
     case 'aadm': if (m.id === Net.myId) { Admin.me = !!m.on; $('#pAdmin').hidden = !Admin.me; if (Admin.me) sysChat(`Você virou admin: ${keyLabel(S.keys.adm)} abre o menu de admin, ou use /ajuda.`); } return;
   }
 }
@@ -6979,7 +7089,8 @@ function frame(t) {
   if (world && !world.userData.baked) bakeWorld();
   if (state === 'playing' && mode) {
     heroFade(1);   // o escurecido da troca de câmera do menu nunca fica preso na partida
-    const sim = worldActive() ? dt * (mode.type === 'dev' ? devTimeScale : 1) : 0;
+    const sim = worldActive() ? dt * (mode.type === 'dev' ? devTimeScale : 1) * FUN.slow : 0;
+    if (FUN.disco) { const hh = (performance.now() / 2600) % 1; scene.background = new THREE.Color().setHSL(hh, 0.7, 0.55); scene.fog.color.copy(scene.background); sun.color.setHSL((hh + 0.5) % 1, 0.8, 0.7); }
     now += sim;
     if (sim > 0) {
       player.invuln = pv.god;
@@ -8185,7 +8296,7 @@ const Plaza = {
       sg.tex.needsUpdate = true;
     }
   },
-  launch(id) {
+  launch(id, fromPlaza = true) {
     this.go = null; this.votes.clear();
     const maps = ['duelo', 'aim', 'patio', 'arena', 'pool', 'xadrez'], map = maps[Math.floor(Math.random() * maps.length)];
     const net = mode && mode.net ? Net : null;
@@ -8194,8 +8305,8 @@ const Plaza = {
       else Chess.openLocal();
       return;
     }
-    if (id === 'horde') { Horde.start({ fromPlaza: true }); return; }
-    const cfg = Object.assign(clone(X1_DEFAULT), { map, fromPlaza: true, preset: 0, ground: 'auto', hp: 100, diff: 1, bhop: X1.bhop, classes: false, customMap: undefined });
+    if (id === 'horde') { Horde.start({ fromPlaza }); return; }
+    const cfg = Object.assign(clone(X1_DEFAULT), { map, fromPlaza, preset: 0, ground: 'auto', hp: 100, diff: 1, bhop: X1.bhop, classes: false, customMap: undefined });
     if (id === 'dm') Object.assign(cfg, { format: 'dm', target: 15, time: 10, duel: 'normal', enemies: 3, allies: 1 });
     if (id === 'gungame') Object.assign(cfg, { duel: 'gungame', enemies: 3 });
     if (id === 'knife') Object.assign(cfg, { duel: 'knife', format: 'rounds', target: 3, enemies: 1 });
