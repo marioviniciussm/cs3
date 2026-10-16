@@ -274,6 +274,7 @@ button.mode:not(.primary):hover, button.mode:not(.primary):focus-visible, button
 button.mode.primary:hover, button.mode.primary:focus-visible { filter: brightness(1.06); outline: none; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tiles.modegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.micbar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; } .micbar i { display: block; height: 100%; width: 0; background: var(--accent, #f2a03a); transition: width 0.08s; }
 button.tile b { font: 700 15px var(--display); letter-spacing: 0.02em; }
 button.tile small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; margin-top: -4px; }
 .modegrid button.tile { min-height: 86px; }
@@ -589,6 +590,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <button class="btn" id="pClass" hidden>Trocar classe</button>
     <button class="btn" id="pAdmin" hidden>Menu de admin</button>
     <button class="btn" id="pChess" hidden>Tabuleiro e opções do xadrez</button>
+    <p class="note" id="pMic" hidden></p>
     <button class="btn" id="pSaveMap" hidden>Salvar este mapa nos meus</button>
     <button class="btn" id="pRestart">Reiniciar</button>
     <button class="btn" id="pMenu">Menu principal</button>
@@ -659,11 +661,11 @@ const ACTIONS = [
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
   ['ab1', 'Habilidade 1 (Xadrez FPS)', 'KeyQ'], ['ab2', 'Habilidade 2 (Xadrez FPS)', 'KeyE'], ['topView', 'Ver o tabuleiro de cima (Xadrez FPS)', 'KeyV'],
-  ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
+  ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true },
-  audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1 },
+  audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
   touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
@@ -1101,6 +1103,7 @@ function initAudio() {
   if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
   try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
   master = actx.createGain(); master.connect(actx.destination); applyVolume();
+  if (S.audio.outId && typeof actx.setSinkId === 'function') actx.setSinkId(S.audio.outId).catch(() => {});
   const SR = actx.sampleRate;
   const make = (dur, fn) => { const n = Math.floor(dur * SR), b = actx.createBuffer(1, n, SR), d = b.getChannelData(0); let st = { lp: 0 }; for (let i = 0; i < n; i++) d[i] = clamp(fn(i / SR, Math.random() * 2 - 1, st), -1, 1); return b; };
   const shot = (dur, decay, hz, lp, gain) => make(dur, (t, w, s) => { s.lp += (w - s.lp) * lp; const env = Math.exp(-t * decay); const th = Math.sin(2 * Math.PI * hz * t * (1 - 0.4 * t / dur)) * Math.exp(-t * decay * 0.7); const cr = t < 0.01 ? w * (1 - t / 0.01) : 0; let v = (s.lp * 1.4 + th * 0.8 + cr * 0.6) * env * gain; if (t < 0.002) v *= t / 0.002; return v; });
@@ -6413,9 +6416,16 @@ function goMenu() {
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   if (wasNet && Net.role) openNetPanel();
 }
+// no pause do online: mostra se o seu microfone está saindo e deixa ligar de novo
+function pauseMic() {
+  const el = $('#pMic'), on = mode && mode.net && S.audio.voice; el.hidden = !on; if (!on) return;
+  el.innerHTML = Voice.micState === 'on' ? `🎤 Seu microfone está saindo${Voice.micLabel ? ' (' + esc(Voice.micLabel) + ')' : ''}${S.audio.ptt ? `, segurando ${keyLabel(S.keys.talk)}` : ''}. Troque o aparelho em Configurações → Áudio.`
+    : `🔇 Seu microfone não está saindo (o navegador não liberou). <button class="btn small" id="pMicOn">Ligar microfone</button>`;
+  const b = el.querySelector('#pMicOn'); if (b) b.onclick = async () => { b.disabled = true; await Voice.setMic(); pauseMic(); };
+}
 function setPaused(p) {
   if (state !== 'playing') return;
-  paused = p; $('#pause').hidden = !p; if (p) $('#pSaveMap').hidden = !(mode && mode.cfg && mode.cfg.customMap && !hasMyMap(mode.cfg.customMap)); if (!p) $('#chess').hidden = true; if (p) { pausedAt = performance.now(); closeChat(); }
+  paused = p; $('#pause').hidden = !p; if (p) pauseMic(); if (p) $('#pSaveMap').hidden = !(mode && mode.cfg && mode.cfg.customMap && !hasMyMap(mode.cfg.customMap)); if (!p) $('#chess').hidden = true; if (p) { pausedAt = performance.now(); closeChat(); }
   if (p) { if (document.exitPointerLock && locked()) document.exitPointerLock(); }
   else lockPointer();
   updateLockHint();
@@ -6895,9 +6905,8 @@ const Voice = {
     this._micP = (async () => {
       initAudio();
       try {
-        this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-        this.micState = 'on';
-        if (actx) { const src = actx.createMediaStreamSource(this.mic); this.myAn = actx.createAnalyser(); this.myAn.fftSize = 512; src.connect(this.myAn); }
+        this.mic = await this.getMic();
+        this.micState = 'on'; this.watchMic();
       } catch (e) {
         // sem microfone (ou não permitido): manda silêncio e continua ouvindo os outros
         this.micState = 'off';
@@ -6907,6 +6916,36 @@ const Voice = {
       return this.mic;
     })();
     return this._micP;
+  },
+  // microfone escolhido nas configurações (se sumiu, volta para o padrão do sistema)
+  async getMic() {
+    const base = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    if (S.audio.micId) { try { return await navigator.mediaDevices.getUserMedia({ audio: Object.assign({ deviceId: { exact: S.audio.micId } }, base) }); } catch (e) { if (e && e.name === 'NotAllowedError') throw e; } }
+    return navigator.mediaDevices.getUserMedia({ audio: base });
+  },
+  watchMic() {
+    if (!actx || !this.mic) return;
+    try { if (this.mySrc) this.mySrc.disconnect(); } catch (e) {}
+    this.mySrc = actx.createMediaStreamSource(this.mic); this.myAn = actx.createAnalyser(); this.myAn.fftSize = 512; this.mySrc.connect(this.myAn);
+    const t = this.mic.getAudioTracks()[0]; this.micLabel = t ? t.label : '';
+  },
+  // troca o microfone (ou tenta de novo depois de negado) sem derrubar as conexões: cada conexão só troca a faixa de áudio
+  async setMic() {
+    initAudio();
+    let next;
+    try { next = await this.getMic(); } catch (e) { this.micState = 'off'; this.micErr = e && e.name; renderNetLobby(); return false; }
+    const old = this.mic; this.mic = next; this._micP = Promise.resolve(next); this.micState = 'on'; this.micErr = ''; this.watchMic();
+    const tr = next.getAudioTracks()[0];
+    for (const P of this.peers.values()) {
+      const snd = P.pc.getSenders().find(x => !x.track || x.track.kind === 'audio');
+      if (snd) await snd.replaceTrack(tr).catch(() => {});
+      else { P.pc.addTrack(tr, next); this.renegotiate(P); }
+    }
+    if (old && old !== next) for (const t of old.getTracks()) t.stop();
+    renderNetLobby(); return true;
+  },
+  async renegotiate(P) {
+    try { const o = await P.pc.createOffer(); await P.pc.setLocalDescription(o); Net.send({ t: 'rtc', k: 'reoffer', sdp: P.pc.localDescription.sdp }, P.id); } catch (e) {}
   },
   // quem tem o id "menor" liga para o outro; assim cada par abre uma conexão só
   async sync() {
@@ -6929,7 +6968,7 @@ const Voice = {
   },
   async call(id) {
     const P = this.make(id), pc = P.pc;
-    if (!pc.getSenders().length) pc.addTransceiver('audio', { direction: 'recvonly' });
+    if (!pc.getSenders().length) pc.addTransceiver('audio', { direction: 'sendrecv' });
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     Net.send({ t: 'rtc', k: 'offer', sdp: pc.localDescription.sdp }, id);
   },
@@ -6943,6 +6982,12 @@ const Voice = {
         const P = this.make(id);
         await P.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
         for (const c of P.pending) await P.pc.addIceCandidate(c).catch(() => {}); P.pending = [];
+        const ans = await P.pc.createAnswer(); await P.pc.setLocalDescription(ans);
+        Net.send({ t: 'rtc', k: 'answer', sdp: P.pc.localDescription.sdp }, id);
+      } else if (m.k === 'reoffer' && typeof m.sdp === 'string') {
+        // a outra pessoa ligou o microfone depois: mesma conexão, nova oferta
+        const P = this.peers.get(id); if (!P) return;
+        await P.pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
         const ans = await P.pc.createAnswer(); await P.pc.setLocalDescription(ans);
         Net.send({ t: 'rtc', k: 'answer', sdp: P.pc.localDescription.sdp }, id);
       } else if (m.k === 'answer' && typeof m.sdp === 'string') {
@@ -6983,7 +7028,9 @@ const Voice = {
   update(dt) {
     if (!this.peers.size && !this.myAn) return;
     const inGame = state === 'playing' && mode && mode.net && player;
-    if (this.myAn) this.myLevel = lerp(this.myLevel, this.rms(this.myAn), 0.5);
+    // apertar para falar: o microfone só manda som com a tecla segurada
+    if (this.mic && this.micState === 'on') { const on = !S.audio.ptt || (state === 'playing' && isHeld('talk') && !chatOpen); for (const t of this.mic.getAudioTracks()) if (t.enabled !== on) t.enabled = on; this.pttOn = on; }
+    if (this.myAn) this.myLevel = lerp(this.myLevel, this.pttOn === false ? 0 : this.rms(this.myAn), 0.5);
     for (const P of this.peers.values()) {
       if (!P.an) continue;
       P.level = lerp(P.level, this.rms(P.an), 0.5);
@@ -7000,6 +7047,11 @@ const Voice = {
       P.gain.gain.setTargetAtTime(v, actx.currentTime, 0.05);
       if (P.pan) P.pan.pan.setTargetAtTime(pan, actx.currentTime, 0.05);
     }
+  },
+  // saída de som escolhida (Chrome e Edge recentes; nos outros fica a saída padrão do sistema)
+  async setOut(id) {
+    initAudio(); if (!actx || typeof actx.setSinkId !== 'function') return false;
+    try { await actx.setSinkId(id || ''); return true; } catch (e) { return false; }
   },
   talking() { return Net.roster.filter(p => p.id === Net.myId ? this.myLevel > 0.02 && this.micState === 'on' : (this.peers.get(p.id) || {}).talk > 0); },
 };
@@ -7041,9 +7093,9 @@ function renderNetLobby() {
     const h = Net.byId('h');
     html = Net.open ? `Conectado à sala de <b>${esc(h ? h.name : 'anfitrião')}</b>. ${Net.inMatch ? 'Tem uma partida rolando: você entra na próxima.' : 'Aguardando o anfitrião iniciar.'}` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
   } else html = esc(Net.status);
-  if (role && S.audio.voice) html += `<br><span class="note">${Voice.micState === 'on' ? '🎤 Voice chat ligado: todo mundo da sala ouve você.' : Voice.micState === 'off' ? 'Sem microfone (não liberado): você ouve os outros, mas eles não te ouvem.' : 'Voice chat: o navegador vai pedir o microfone quando alguém entrar.'}</span>`;
+  if (role && S.audio.voice) html += `<br><span class="note">${Voice.micState === 'on' ? '🎤 Voice chat ligado: todo mundo da sala ouve você.' : Voice.micState === 'off' ? 'Sem microfone (não liberado): você ouve os outros, mas eles não te ouvem. <button class="btn small" id="bMicRetry">Ligar microfone</button>' : 'Voice chat: o navegador vai pedir o microfone quando alguém entrar.'}</span>`;
   if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Tem gente com versão diferente do jogo. Recarreguem a página (Ctrl+F5).</span>';
-  st.innerHTML = html;
+  st.innerHTML = html; const mr = st.querySelector('#bMicRetry'); if (mr) mr.onclick = () => Voice.setMic();
   // times
   const ro = $('#netRoster');
   ro.hidden = !(role && Net.roster.length);
@@ -7127,6 +7179,39 @@ function applyShadows() {
   for (const c of combatants) c.group.traverse(o => { if (o.isMesh) o.castShadow = q === 2; });
 }
 function applySettings() { applyVolume(); renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows(); scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); resize(); }
+// aba de áudio: lista os aparelhos (os nomes só aparecem depois de liberar o microfone) e mostra o nível ao vivo
+async function micSettings(body) {
+  const selM = body.querySelector('#s_mic'), selO = body.querySelector('#s_out'), note = body.querySelector('#sMicNote'), lvl = body.querySelector('#sMicLvl');
+  const fill = async () => {
+    let devs = []; try { devs = await navigator.mediaDevices.enumerateDevices(); } catch (e) {}
+    const opt = (list, cur, kind) => `<option value="">Padrão do sistema</option>` + list.filter(d => d.kind === kind && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      .map((d, i) => `<option value="${esc(d.deviceId)}" ${d.deviceId === cur ? 'selected' : ''}>${esc(d.label || (kind === 'audioinput' ? 'Microfone ' : 'Saída ') + (i + 1))}</option>`).join('');
+    selM.innerHTML = opt(devs, S.audio.micId, 'audioinput'); selO.innerHTML = opt(devs, S.audio.outId, 'audiooutput');
+    const canOut = typeof AudioContext !== 'undefined' && typeof AudioContext.prototype.setSinkId === 'function';
+    selO.disabled = !canOut;
+    const st = Voice.micState === 'on' ? `Microfone ligado${Voice.micLabel ? ': ' + Voice.micLabel : ''}.` : Voice.micState === 'off' ? 'O microfone está desligado (o navegador não liberou). Clique em Testar microfone e permita o acesso no aviso do navegador; se você negou antes, libere no cadeado ao lado do endereço.' : '';
+    note.textContent = [st, devs.some(d => d.kind === 'audioinput' && d.label) ? '' : 'Os nomes dos aparelhos aparecem depois que você libera o microfone (Testar microfone).', canOut ? '' : 'Este navegador não deixa escolher a saída: use a do sistema.'].filter(Boolean).join(' ');
+  };
+  const startTest = async () => {
+    initAudio(); stopMicTest();
+    try { micTest.s = await Voice.getMic(); } catch (e) { note.textContent = 'O navegador não liberou o microfone. Clique no cadeado ao lado do endereço e permita o microfone.'; return; }
+    micTest.src = actx.createMediaStreamSource(micTest.s); micTest.an = actx.createAnalyser(); micTest.an.fftSize = 512; micTest.src.connect(micTest.an);
+    if (Voice.micState === 'off' && Voice.peers.size) await Voice.setMic();
+    await fill(); note.textContent = 'Fale alguma coisa: a barra deve se mexer. ' + note.textContent;
+  };
+  await fill();
+  selM.onchange = async () => { S.audio.micId = selM.value; saveSettings(); if (Voice.mic && Voice.micState === 'on') await Voice.setMic(); if (micTest.s) await startTest(); else fill(); };
+  selO.onchange = async () => { S.audio.outId = selO.value; saveSettings(); const ok = await Voice.setOut(S.audio.outId); play('rifle', 0.6); if (!ok) note.textContent = 'Não deu para trocar a saída neste navegador.'; };
+  body.querySelector('#sMicTest').onclick = startTest;
+  const tick = () => {
+    if (!document.body.contains(lvl)) { stopMicTest(); return; }
+    const an = micTest.an || Voice.myAn; lvl.style.width = an ? Math.min(100, Voice.rms(an) * 900).toFixed(0) + '%' : '0%';
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+const micTest = { s: null, an: null, src: null };
+function stopMicTest() { if (micTest.s) for (const t of micTest.s.getTracks()) t.stop(); try { if (micTest.src) micTest.src.disconnect(); } catch (e) {} micTest.s = micTest.an = micTest.src = null; }
 function renderSettings() {
   $('#setTabs').innerHTML = TABS.map((t, i) => `<button role="tab" data-t="${i}" aria-selected="${i === setTab}">${t}</button>`).join('');
   $('#setTabs').querySelectorAll('button').forEach(b => b.onclick = () => { setTab = +b.dataset.t; capturing = null; renderSettings(); });
@@ -7141,6 +7226,12 @@ function renderSettings() {
 ''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
+      `<h3 style="margin-top:10px">Microfone e saída</h3>` +
+      `<div class="row"><label for="s_mic">Microfone (entrada)</label><select id="s_mic"><option value="">Padrão do sistema</option></select><span></span></div>` +
+      `<div class="row"><label for="s_out">Saída de som (fone ou caixa)</label><select id="s_out"><option value="">Padrão do sistema</option></select><span></span></div>` +
+      T_('audio', 'ptt', `Apertar para falar (segure ${keyLabel(S.keys.talk)})`) +
+      `<div class="row"><label>Nível do microfone</label><div class="micbar"><i id="sMicLvl"></i></div><span></span></div>` +
+      `<div class="row"><span></span><button class="btn small" id="sMicTest">Testar microfone</button><span></span></div><p class="note" id="sMicNote"></p>` +
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
@@ -7217,6 +7308,7 @@ function renderSettings() {
   body.querySelectorAll('[data-hfg]').forEach(b => b.onclick = () => { S.hud.fg = b.dataset.hfg; S.hud.accent = b.dataset.hac; saveSettings(); applyLayout(); renderSettings(); });
   body.querySelectorAll('[data-hv]').forEach(el => el.onchange = () => { setLayout('hud', el.dataset.hv, { hide: !el.checked }); saveSettings(); });
   const test = body.querySelector('#sTest'); if (test) test.onclick = () => play('rifle', 0.9);
+  if (body.querySelector('#s_mic')) micSettings(body);
   drawPreview(); hfov();
 }
 function hfov() { const el = $('#hfov'); if (!el) return; const hf = 2 * Math.atan(Math.tan(S.video.fov * 0.5 * DEG) * innerWidth / innerHeight) / DEG; el.textContent = `≈ ${hf.toFixed(0)}° horizontal nesta janela`; }
