@@ -1526,7 +1526,13 @@ function capsuleGeo(r, len) {
   const g = new THREE.LatheGeometry(pts, 12); g.computeVertexNormals(); capCache.set(key, g); return g;
 }
 // tronco: cintura fina, peito largo e ombros arredondados
-const TORSO_GEO = (() => { const g = new THREE.LatheGeometry([[0.0001, 0], [0.15, 0.01], [0.175, 0.1], [0.185, 0.22], [0.215, 0.38], [0.225, 0.5], [0.2, 0.58], [0.13, 0.635], [0.0001, 0.65]].map(([x, y]) => new THREE.Vector2(x, y)), 14); g.computeVertexNormals(); return g; })();
+// tronco: quadril, cintura fina, peito largo e ombros arredondados (sem caixa no peito)
+const TORSO_PROF = [[0.0001, 0], [0.15, 0.01], [0.172, 0.08], [0.162, 0.17], [0.17, 0.26], [0.198, 0.36], [0.222, 0.45], [0.23, 0.52], [0.214, 0.575], [0.165, 0.62], [0.08, 0.645], [0.0001, 0.65]];
+const TORSO_GEO = (() => { const g = new THREE.LatheGeometry(TORSO_PROF.map(([x, y]) => new THREE.Vector2(x, y)), 20); g.computeVertexNormals(); return g; })();
+// colete ajustado ao corpo: placa da frente e de trás seguindo a curva do peito
+const vestPlate = front => { const pr = TORSO_PROF.filter(([, y]) => y >= 0.2 && y <= 0.54).map(([x, y]) => new THREE.Vector2(x + 0.022, y));
+  const g = new THREE.LatheGeometry(pr, 9, front ? Math.PI - 0.95 : -0.95, 1.9); g.computeVertexNormals(); return g; };
+const VEST_F = vestPlate(true), VEST_B = vestPlate(false);
 const HELMET_GEO = new THREE.SphereGeometry(0.5, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
 const UP = new THREE.Vector3(0, 1, 0), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q1 = new THREE.Quaternion();
 function aimSeg(m, from, to) { m.position.copy(from); _v1.subVectors(to, from).normalize(); m.quaternion.setFromUnitVectors(UP, _v1); }
@@ -1551,7 +1557,13 @@ function bodyKit(c) {
 }
 const PART = {
   torso: (M) => { const m = new THREE.Mesh(TORSO_GEO, M.shirt); m.scale.set(1.15, 1, 0.72); return m; },
-  vest: (M) => { const m = new THREE.Mesh(BOX, M.vest); m.scale.set(0.46, 0.34, 0.3); return m; },
+  vest: (M) => {
+    const g = new THREE.Group(); M.vest.side = THREE.DoubleSide;
+    for (const geo of [VEST_F, VEST_B]) { const m = new THREE.Mesh(geo, M.vest); m.scale.set(1.15, 1, 0.72); m.position.y = -0.32; g.add(m); }
+    for (const x of [-0.115, 0.115]) { const st = new THREE.Mesh(BOX, M.vest); st.scale.set(0.06, 0.025, 0.3); st.position.set(x, 0.22, 0); g.add(st); }   // alças no ombro
+    for (const x of [-0.075, 0.075]) { const pc = new THREE.Mesh(BOX, M.gear); pc.scale.set(0.085, 0.09, 0.04); pc.position.set(x, -0.06, -0.19); g.add(pc); }   // bolsos
+    return g;
+  },
   belt: (M) => { const m = new THREE.Mesh(CYL, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
   pelvis: (M) => { const m = new THREE.Mesh(SPHERE, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
   head: (M) => {
@@ -1608,6 +1620,7 @@ function buildModel(c) {
   add(PART.pelvis(M), upper, 'body', 0, HIP_Y + 0.02, 0);
   const torso = add(PART.torso(M), upper, 'body', 0, 0.9, 0);
   add(PART.vest(M), upper, null, 0, 1.22, 0);
+  const trap = add(new THREE.Mesh(SPHERE, M.shirt), upper, null, 0, 1.5, 0.01); trap.scale.set(0.3, 0.09, 0.19);   // trapézio liga ombros e pescoço
   add(PART.belt(M), upper, null, 0, 0.95, 0);
   const neck = add(new THREE.Mesh(CYL, M.skin), upper, null, 0, 1.54, 0); neck.scale.set(0.1, 0.08, 0.1);
   const head = add(PART.head(M), upper, 'head', 0, 1.69, 0);
@@ -1841,6 +1854,7 @@ function animateModel(c, dt) {
   if (c.oneHand) { _hand.set(-0.22, 1.0, -0.05); _sh.set(-0.25, 1.44, 0); _pole.set(-1, -0.3, 0.5); elbowPos(_el, _sh, _hand, ARM_A, ARM_B, _pole); setArm(c.armL, _sh, _el, _hand); }
   else placeArm(c, c.armL, -1, c.fore);
   c.vis.position.y = 0; c.vis.rotation.x = 0;
+  if (c.mdl && c.mdl.rig) poseRig(c);
 }
 
 function damage(victim, amount, attacker, weapon, zone, dir) {
@@ -3962,6 +3976,77 @@ async function attachModel(c, sk) {
     if (die) { mdl.die = mx.clipAction(die); mdl.die.setLoop(THREE.LoopOnce); mdl.die.clampWhenFinished = true; }
     mdl.cur = mdl.idle; mdl.idle.play();
   }
+  // sem animação de verdade (ou só uma pose parada): o jogo mexe os ossos
+  const moving = T.clips.some(cl => cl.duration > 0.05 && cl.tracks.some(t => t.times.length > 1));
+  if (!moving) { const rig = findRig(root); if (rig) { mdl.rig = rig; if (mdl.mixer) { mdl.mixer.stopAllAction(); mdl.mixer = null; } } }
+}
+// ---- modelo com esqueleto mas sem animação (vem em T-pose): o jogo dobra os ossos de braços, pernas e cabeça
+// para seguirem o boneco normal (mãos na arma, passos, agachar e olhar para cima e para baixo)
+function boneInfo(name) {
+  let n = String(name || ''), side = '';
+  const vrm = n.match(/j_?bip_?([lrc])_?/i); if (vrm) { side = vrm[1].toLowerCase() === 'l' ? 'l' : vrm[1].toLowerCase() === 'r' ? 'r' : ''; n = n.slice(vrm.index + vrm[0].length); }
+  n = n.replace(/^.*mixamorig\d*[:_]?/i, '').replace(/^(def|org|mch|bip0*1|b)[-_ .:]/i, '').replace(/^bip0*1/i, '');
+  if (!side) {
+    if (/left/i.test(n)) side = 'l'; else if (/right/i.test(n)) side = 'r';
+    else if (/[._ -]l(\.\d+)?$|^l[._ -]/i.test(n)) side = 'l'; else if (/[._ -]r(\.\d+)?$|^r[._ -]/i.test(n)) side = 'r';
+    else if (/^L(?=[A-Z])/.test(n)) side = 'l'; else if (/^R(?=[A-Z])/.test(n)) side = 'r';
+  }
+  const core = n.replace(/left|right/ig, '').replace(/[._ -][lr](\.\d+)?$|^[lr][._ -]/i, '').replace(/^[LR](?=[A-Z])/, '').toLowerCase().replace(/[^a-z]/g, '');
+  let part = null;
+  if (/^(upperarm|uparm|arm|armupper|upperarmtwist)$/.test(core)) part = 'up';
+  else if (/^(forearm|lowerarm|elbow|armlower)$/.test(core)) part = 'fo';
+  else if (/^(hand|wrist)$/.test(core)) part = 'hand';
+  else if (/^(upleg|thigh|upperleg|legupper|hip)$/.test(core) && side) part = 'th';
+  else if (/^(leg|lowerleg|shin|calf|knee|leglower)$/.test(core)) part = 'sh';
+  else if (/^(foot|ankle)$/.test(core)) part = 'ft';
+  else if (/^(head)$/.test(core)) part = 'head';
+  else if (/^(neck)$/.test(core)) part = 'neck';
+  return { side, part };
+}
+function findRig(root) {
+  const R = { l: {}, r: {}, c: {} };
+  root.traverse(o => { if (!o.isBone) return; const { side, part } = boneInfo(o.name); if (!part) return; const k = side || 'c'; if (!R[k][part]) R[k][part] = o; });
+  const arm = s => R[s].up && R[s].fo && R[s].hand, leg = s => R[s].th && R[s].sh && R[s].ft;
+  if (!(arm('l') && arm('r')) && !(leg('l') && leg('r'))) return null;
+  const all = []; for (const s of ['l', 'r']) for (const k of ['up', 'fo', 'hand', 'th', 'sh', 'ft']) if (R[s][k]) all.push(R[s][k]);
+  for (const k of ['head', 'neck']) if (R.c[k]) all.push(R.c[k]);
+  return { R, arms: arm('l') && arm('r'), legs: leg('l') && leg('r'), rest: all.map(b => [b, b.quaternion.clone()]) };
+}
+const _rq = new THREE.Quaternion(), _rq2 = new THREE.Quaternion(), _ra = new THREE.Vector3(), _rb = new THREE.Vector3(), _rc = new THREE.Vector3(), _rd = new THREE.Vector3(), _re = new THREE.Vector3(), _rf = new THREE.Vector3();
+// gira o osso (no mundo) para que o ponto "from" passe a apontar para "to"
+function boneAim(bone, from, to) {
+  bone.getWorldPosition(_ra); _rb.subVectors(from, _ra); _rc.subVectors(to, _ra);
+  if (_rb.lengthSq() < 1e-8 || _rc.lengthSq() < 1e-8) return;
+  _rq.setFromUnitVectors(_rb.normalize(), _rc.normalize());
+  bone.getWorldQuaternion(_rq2); _rq2.premultiply(_rq);
+  bone.parent.getWorldQuaternion(_rq); bone.quaternion.copy(_rq.invert().multiply(_rq2));
+  bone.updateMatrixWorld(true);
+}
+const wp = (o, out) => o.getWorldPosition(out);
+function poseRig(c) {
+  const rig = c.mdl.rig, R = rig.R;
+  for (const [b, q] of rig.rest) b.quaternion.copy(q);
+  c.mdl.root.updateMatrixWorld(true); c.vis.updateMatrixWorld(true);
+  if (rig.arms) for (const [s, A, side] of [['l', c.armL, -1], ['r', c.armR, 1]]) {
+    const up = R[s].up, fo = R[s].fo, hd = R[s].hand;
+    const S = wp(up, new THREE.Vector3()), E0 = wp(fo, new THREE.Vector3()), H0 = wp(hd, new THREE.Vector3());
+    const a = S.distanceTo(E0), b = E0.distanceTo(H0);
+    const ourSh = c.upper.localToWorld(_rd.set(side * 0.25, 1.44, 0)), ourHand = wp(A.hand, _re);
+    const T = S.clone().addScaledVector(ourHand.sub(ourSh), (a + b) / (ARM_A + ARM_B));
+    const pole = _rf.set(side * 0.7, -1, 0.35).applyQuaternion(c.group.quaternion);
+    const E = elbowPos(new THREE.Vector3(), S, T, a, b, pole);
+    boneAim(up, E0, E); boneAim(fo, wp(hd, new THREE.Vector3()), T);
+  }
+  if (rig.legs) c.legs.forEach((L, i) => {
+    const s = i ? 'r' : 'l', th = R[s].th, sh = R[s].sh, ft = R[s].ft;
+    const ourHip = wp(L.hip, new THREE.Vector3()), ourKnee = wp(L.knee, new THREE.Vector3()), ourFoot = L.knee.localToWorld(new THREE.Vector3(0, -LEG_B, 0));
+    const K0 = wp(sh, new THREE.Vector3()), P = wp(th, new THREE.Vector3());
+    boneAim(th, K0, P.clone().addScaledVector(ourKnee.sub(ourHip).normalize(), P.distanceTo(K0)));
+    const K = wp(sh, new THREE.Vector3()), F0 = wp(ft, new THREE.Vector3());
+    boneAim(sh, F0, K.clone().addScaledVector(ourFoot.sub(wp(L.knee, new THREE.Vector3())).normalize(), K.distanceTo(F0)));
+  });
+  const head = R.c.head || R.c.neck;
+  if (head) { _rq.setFromAxisAngle(_ra.set(1, 0, 0).applyQuaternion(c.group.quaternion), clamp(c.pitch, -1.1, 1.1) * 0.5); head.getWorldQuaternion(_rq2); _rq2.premultiply(_rq); head.parent.getWorldQuaternion(_rq); head.quaternion.copy(_rq.invert().multiply(_rq2)); }
 }
 function isGunMesh(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun) return true; if (o === c.vis) return false; } return false; }
 function animateCustom(c, dt) {
@@ -3980,6 +4065,7 @@ function animateCustom(c, dt) {
   // modelo sem animação: um balanço simples ao andar
   if (!d.mixer) d.root.position.y = Math.abs(Math.sin(c.walk)) * 0.04 * clamp(sp / 5, 0, 1);
   else d.root.position.y = 0;
+  if (d.rig) { d.root.position.y = c.upper.position.y; d.root.scale.y = 1; return; }
   d.root.position.y -= c.crouch * 0.35; d.root.scale.y = 1 - c.crouch * 0.12;
 }
 
