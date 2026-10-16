@@ -2173,9 +2173,11 @@ function createCombatant(name, color, sp, isPlayer) {
   combatants.push(c);
   return c;
 }
-function eyePos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + (c.isPlayer ? lerp(1.62, 1.08, c.crouch) : 1.62), c.pos.z); }
-function chestPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.21 * (1 - c.crouch * 0.3), c.pos.z); }
-function headPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.69 * (1 - c.crouch * 0.3), c.pos.z); }
+// /tamanho: olhos, peito e cabeça acompanham a escala do boneco
+const SZ = c => c.sizeK || 1;
+function eyePos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + (c.isPlayer ? lerp(1.62, 1.08, c.crouch) : 1.62) * SZ(c), c.pos.z); }
+function chestPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.21 * (1 - c.crouch * 0.3) * SZ(c), c.pos.z); }
+function headPos(c) { return new THREE.Vector3(c.pos.x, c.pos.y + 1.69 * (1 - c.crouch * 0.3) * SZ(c), c.pos.z); }
 
 const _sh = new THREE.Vector3(), _hand = new THREE.Vector3(), _el = new THREE.Vector3(), _pole = new THREE.Vector3();
 function setArm(A, sh, el, hand) { aimSeg(A.up, sh, el); aimSeg(A.fo, el, hand); A.el.position.copy(el); A.hand.position.copy(hand); A.hand.quaternion.copy(A.fo.quaternion); }
@@ -2864,10 +2866,10 @@ function updateCamera(dt) {
   }
   if (!p.alive) {
     const k = Math.min(1, p.deathT / 0.6);
-    camera.position.set(p.pos.x, p.pos.y + lerp(1.62, 0.35, k * k), p.pos.z);
+    camera.position.set(p.pos.x, p.pos.y + lerp(1.62, 0.35, k * k) * SZ(p), p.pos.z);
     camera.rotation.set(p.pitch, p.yaw, 0.6 * k);
   } else {
-    const eye = lerp(1.62, 1.08, p.crouch) - pv.landDip + by;
+    const eye = lerp(1.62, 1.08, p.crouch) * SZ(p) - pv.landDip + by;
     camera.position.set(p.pos.x + Math.cos(p.yaw) * bx, p.pos.y + eye, p.pos.z - Math.sin(p.yaw) * bx);
     camera.rotation.set(p.pitch + (pv.recoil.x + pw.punch.x * 0.5) * DEG, p.yaw + (pv.recoil.y - pw.punch.y * 0.5) * DEG, pv.roll);
   }
@@ -5981,6 +5983,7 @@ function thirdCam(c, m) {
   let dist;
   if (m === 2) { _tcD.set(-Math.sin(c.yaw), 0.12, -Math.cos(c.yaw)).normalize(); dist = 2.4; }
   else { _tcD.copy(_tcF).negate().addScaledVector(new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)), 0.22); _tcD.y += 0.18; _tcD.normalize(); dist = 3.2; }
+  dist *= SZ(c);
   // não atravessa parede: encosta a câmera antes dela
   if (worldMeshes.length) { _tcRay.set(_tcE, _tcD); _tcRay.far = dist; const h = _tcRay.intersectObjects(worldMeshes, false)[0]; if (h) dist = Math.max(0.35, h.distance - 0.25); }
   camera.position.copy(_tcE).addScaledVector(_tcD, dist);
