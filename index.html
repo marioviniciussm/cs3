@@ -615,6 +615,11 @@ addEventListener('keydown', e => {
   // Backspace, aspas/barra da busca rápida do Firefox, F-teclas) ficam desligados enquanto se joga.
   // Ctrl+W/T/N o navegador não deixa bloquear fora da tela cheia: para esses existe a opção de tela cheia.
   if (state === 'playing' && !typing && (e.ctrlKey || e.metaKey || e.altKey || /^F([4-9]|10)$/.test(e.code) || ['Backspace', 'Quote', 'Slash', 'ContextMenu'].includes(e.code))) e.preventDefault();
+  if (e.code === 'F11' && state === 'playing' && !touchOn()) {
+    e.preventDefault();
+    if (document.fullscreenElement) { try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); document.exitFullscreen(); } catch (err) {} }
+    else pcFullscreen(true);
+  }
   if (e.code === 'Escape' && state === 'playing') onEscape();
   if (!e.repeat) { held.add(e.code); pressed.add(e.code); }
 });
@@ -667,8 +672,12 @@ const locked = () => document.pointerLockElement === canvas || (touchOn() && sta
 // mouse "cru" (sem a aceleração do sistema) quando o navegador suporta; senão o modo normal
 // tela cheia de verdade no PC: com ela o Chrome deixa o jogo segurar todas as teclas (até Ctrl+W, Ctrl+T e Esc;
 // segure Esc para sair da tela cheia)
-function pcFullscreen() {
-  if (touchOn() || !S.controls.fullscreen) return;
+// F11 do navegador NÃO é a tela cheia da página: nela o Chrome não deixa travar teclas e Ctrl+T/W/N continuam
+// abrindo abas. Por isso, se a janela já ocupa a tela inteira (F11), o jogo troca para a tela cheia dele no
+// próximo clique, e o F11 apertado durante a partida também passa a usar a tela cheia do jogo.
+const browserFull = () => !document.fullscreenElement && innerWidth >= screen.width - 2 && innerHeight >= screen.height - 2;
+function pcFullscreen(force) {
+  if (touchOn() || !(force || S.controls.fullscreen || browserFull() || document.fullscreenElement)) return;
   const lockKeys = () => { try { const k = navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(); if (k && k.catch) k.catch(() => {}); } catch (e) {} };
   if (document.fullscreenElement) { lockKeys(); return; }
   try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (r && r.then) r.then(lockKeys, () => {}); } catch (e) {}
@@ -6017,7 +6026,7 @@ function renderSettings() {
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
-    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador)') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') +
+    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador; F11 na partida faz o mesmo)') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') +
       `<p class="note">Recoil estilo CS: o primeiro tiro vai exatamente na mira. Segurando o tiro, cada arma sobe sempre no mesmo desenho (a metralhadora sobe reto e depois puxa para a esquerda e para a direita); puxe o mouse para baixo e para o lado contrário para compensar. Correndo, pulando ou logo depois de cair a mira abre muito: pare ou ande com Shift para acertar.</p>` +
       `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla (ou botão do mouse). Esc cancela.</p>` +
       ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
