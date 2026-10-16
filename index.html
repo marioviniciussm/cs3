@@ -213,6 +213,8 @@ body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
 body.touch .big { font-size: 24px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
+#chCur { position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.6); pointer-events: none; z-index: 5; }
+.netgame { display: flex; gap: 8px; margin-top: 4px; } .netgame .btn { flex: 1; } .netgame .btn.on { border-color: var(--accent, #f2a03a); color: var(--accent, #f2a03a); }
 #chHint { left: 50%; bottom: 120px; transform: translateX(-50%); font-family: var(--body); font-size: 16px; text-align: center; max-width: 80vw; }
 #abHud { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
 #abHud .ab { position: relative; min-width: 150px; padding: 6px 10px 6px 8px; background: rgba(10,12,15,0.72); border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #59626d; display: flex; align-items: center; gap: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); overflow: hidden; }
@@ -393,6 +395,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <div id="speed"></div>
   <div id="banner"></div>
   <div class="box" id="chHint" hidden></div>
+  <div id="chCur" hidden></div>
   <div id="abHud" hidden></div>
   <div id="killcam" hidden><div class="kcbar top"><b>REPLAY</b> <span id="kcInfo"></span></div><div class="kcbar bot">Clique, toque ou aperte Espaço para pular</div></div>
   <div class="panel" id="scoreboard"><h2 id="sbTitle">Placar</h2><table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="sbBody"></tbody></table></div>
@@ -490,6 +493,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
       <div id="netRoster" hidden></div>
+      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button></div></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
       <button class="btn" id="bNetChess" hidden>Jogar Xadrez FPS (1 contra 1)</button>
@@ -618,7 +622,7 @@ const ACTIONS = [
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
-  ['ab1', 'Habilidade 1 (Xadrez FPS)', 'KeyQ'], ['ab2', 'Habilidade 2 (Xadrez FPS)', 'KeyE'],
+  ['ab1', 'Habilidade 1 (Xadrez FPS)', 'KeyQ'], ['ab2', 'Habilidade 2 (Xadrez FPS)', 'KeyE'], ['topView', 'Ver o tabuleiro de cima (Xadrez FPS)', 'KeyV'],
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
@@ -673,14 +677,26 @@ addEventListener('keydown', e => {
   // Ctrl+W/T/N o navegador não deixa bloquear fora da tela cheia: para esses existe a opção de tela cheia.
   if (state === 'playing' && !typing && (e.ctrlKey || e.metaKey || e.altKey || /^F([4-9]|10)$/.test(e.code) || ['Backspace', 'Quote', 'Slash', 'ContextMenu'].includes(e.code))) e.preventDefault();
   if (e.code === 'F11' && state === 'playing' && !touchOn()) {
-    e.preventDefault();
+    e.preventDefault(); fsToggleAt = performance.now();
     if (document.fullscreenElement) { try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); document.exitFullscreen(); } catch (err) {} }
     else pcFullscreen(true);
   }
-  if (e.code === 'Escape' && state === 'playing') onEscape();
+  if (e.code === 'Escape' && state === 'playing' && !e.repeat) { escDownAt = performance.now(); if (!typing) onEscape(); }
   if (!e.repeat) { held.add(e.code); pressed.add(e.code); }
 });
-addEventListener('keyup', e => held.delete(e.code));
+// Esc em tela cheia (F11): dependendo do navegador, o aperto do Esc é engolido (só solta o mouse ou nem isso)
+// e a página recebe só o "soltar" da tecla. Se o keydown não chegou, o keyup abre a pausa do mesmo jeito.
+let escDownAt = -1e9, fsToggleAt = -1e9;
+addEventListener('keyup', e => {
+  held.delete(e.code);
+  if (e.code === 'Escape' && state === 'playing' && !paused && performance.now() - escDownAt > 1500 && !(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT'))) onEscape();
+});
+// saiu da tela cheia no meio da partida (segurou Esc, ou o navegador tirou): pausa, como no Esc
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) return;
+  try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch (e) {}
+  if (state === 'playing' && !paused && !touchOn() && performance.now() - fsToggleAt > 800 && !devOpen && !classOpen && !adminOpen && !(mode && mode.over)) setPaused(true);
+});
 let blurAt = -1e9;
 addEventListener('blur', () => { held.clear(); blurAt = performance.now(); });
 addEventListener('mousedown', e => {
@@ -1272,6 +1288,52 @@ function buildDuelo() {
   finishSmall('Duelo', 12, 21, [[0, 19.5], [-4, 19.5], [4, 19.5], [-8, 19.5], [8, 19.5]], [[0, -19.5], [4, -19.5], [-4, -19.5], [8, -19.5], [-8, -19.5]]);
 }
 
+// Arena do Xadrez (duelos do Xadrez FPS): castelo com piso quadriculado, peças gigantes caídas e de pé como
+// cobertura, muretas de pedra e duas torres nos fundos para quem gosta de altura (a Torre com a sniper agradece).
+function buildChessArena() {
+  newWorld();
+  const HX = 15, HZ = 22, stone = 0x8d9096, stoneDk = 0x6d7076;
+  walls(HX, HZ, 5, stone);
+  // piso quadriculado numa textura só (64 casas de 3,75 m não pesam nada)
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#4f5964' : '#d9dce0'; g.fillRect(i * 16, j * 16, 16, 16); }
+  const tex = new THREE.CanvasTexture(cv); tex.magFilter = THREE.NearestFilter; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(HX * 2 / 15, HZ * 2 / 15);
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(HX * 2, HZ * 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
+  fl.rotation.x = -Math.PI / 2; fl.position.y = 0.012; fl.receiveShadow = true; world.add(fl);
+  // ameias no alto das paredes
+  for (let x = -HX + 1; x <= HX - 1; x += 2.5) { box(x, HZ + 0.5, 1.2, 0.8, 1, stoneDk, 5, false); box(x, -HZ - 0.5, 1.2, 0.8, 1, stoneDk, 5, false); }
+  for (let z = -HZ + 1; z <= HZ - 1; z += 2.5) { box(HX + 0.5, z, 1, 0.8, 1.2, stoneDk, 5, false); box(-HX - 0.5, z, 1, 0.8, 1.2, stoneDk, 5, false); }
+  // peças gigantes (de pé) com colisão de caixa no corpo
+  const piece = (pc, x, z, sc, rot = 0) => {
+    const m = chPieceMesh(pc, sc); m.position.set(x, 0, z); m.rotation.y = rot; world.add(m);
+    box(x, z, 1.25 * sc, m.userData.top * 0.92, 1.25 * sc, stoneDk, 0, true).visible = false;   // colisão e bloqueio de tiro
+  };
+  // peça caída: deitada no chão, vira uma cobertura baixa e comprida
+  const fallen = (pc, x, z, sc, rot) => {
+    const m = chPieceMesh(pc, sc); m.rotation.set(0, rot, Math.PI / 2, 'YXZ'); m.position.set(x, 0.7 * sc, z); world.add(m);
+    const L = m.userData.top, cx = x - Math.cos(rot) * L / 2, cz = z + Math.sin(rot) * L / 2, a = Math.abs(Math.cos(rot)) > 0.7;
+    box(cx, cz, a ? L * 0.9 : 1.3 * sc, 1.2 * sc, a ? 1.3 * sc : L * 0.9, stoneDk, 0, true).visible = false;
+  };
+  piece('wR', 0, 0, 1.15); box(0, 0, 4.2, 0.5, 4.2, stoneDk);           // torre no centro, num pedestal
+  piece('wB', -8, 8, 0.95); piece('bB', 8, -8, 0.95);
+  piece('wN', 9, 5, 1.0, -Math.PI / 2); piece('bN', -9, -5, 1.0, Math.PI / 2);
+  piece('wP', -4, 12, 0.9); piece('bP', 4, -12, 0.9); piece('wP', 5, 14, 0.9); piece('bP', -5, -14, 0.9);
+  fallen('wQ', 6, 4, 0.8, 0); fallen('bQ', -6, -4, 0.8, Math.PI);
+  fallen('bK', -3, 7, 0.7, Math.PI / 2); fallen('wK', 3, -7, 0.7, -Math.PI / 2);
+  // muretas de pedra (a mesma ideia da habilidade da Torre)
+  sym(-9, 13, 4, 1.1, 0.7, stone); sym(9, 11, 0.7, 1.1, 3.4, stone); sym(0, 17, 5, 1.1, 0.7, stone);
+  sym(-12, 0, 0.7, 1.1, 5, stone); sym(-4, 3, 2.6, 1.1, 0.7, stone);
+  // torres dos fundos com rampa
+  for (const sgn of [1, -1]) {
+    const z = sgn * 19, x = sgn * 11;
+    box(x, z, 4, 3, 4, stoneDk);
+    for (let i = 0; i < 5; i++) box(x - sgn * (3.2 + i * 0.9), z, 0.9, 0.6 * (5 - i), 2, stone);
+    for (const [ox, oz] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]]) box(x + ox, z + oz, 0.7, 0.7, 0.7, stoneDk, 3, true);
+  }
+  decal(0, 20.2, 9, 2.6, C.sideA); decal(0, -20.2, 9, 2.6, C.sideB);
+  finishSmall('Arena do Xadrez', HX, HZ, [[0, 20.2], [-3, 20.2], [3, 20.2], [-6, 20.2], [6, 20.2]], [[0, -20.2], [3, -20.2], [-3, -20.2], [6, -20.2], [-6, -20.2]]);
+}
+
 // Aim: o clássico aim_map. Campo aberto, caixas na altura da cintura.
 function buildAim() {
   newWorld();
@@ -1484,6 +1546,7 @@ const MAPS = [
   { id: 'patio', name: 'Pátio', build: buildPatio },
   { id: 'arena', name: 'Arena (grande)', build: () => buildArena() },
   { id: 'pool', name: 'fy_pool_day (piscina)', build: buildPoolDay },
+  { id: 'xadrez', name: 'Arena do Xadrez', build: () => buildChessArena() },
 ];
 
 function buildTestRange() {
@@ -2399,6 +2462,8 @@ function updatePlayer(dt) {
   if (!p.alive) { look.x = look.y = 0; return; }
   const input = canInput();
   updateAssist(p);
+  // visão de cima do tabuleiro: o mouse move um cursor sobre o tabuleiro em vez de girar a câmera
+  if (input && mode && mode.topV) { mode.topLook(look.x + tLook.x * 6, look.y + tLook.y * 6); look.x = look.y = tLook.x = tLook.y = 0; }
   if (input) {
     const z = pw.zoom ? S.controls.zoomSens * zoomMult() : 1;
     const k = S.controls.sens * 0.022 * DEG * z;
@@ -2423,7 +2488,7 @@ function updatePlayer(dt) {
   pv.recoil.x *= dec; pv.recoil.y *= dec;
 
   let h = 0, v = 0;
-  if (input) { h = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0) + tMove.x; v = (isHeld('forward') ? 1 : 0) - (isHeld('back') ? 1 : 0) + tMove.y; }
+  if (input && !(mode && mode.topV)) { h = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0) + tMove.x; v = (isHeld('forward') ? 1 : 0) - (isHeld('back') ? 1 : 0) + tMove.y; }
   const fwd = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw)), rgt = new THREE.Vector3(Math.cos(p.yaw), 0, -Math.sin(p.yaw));
 
   if (pv.noclip) {
@@ -2524,6 +2589,7 @@ function updateCamera(dt) {
   camera.fov = Math.abs(camera.fov - target) < 0.5 ? target : lerp(camera.fov, target, Math.min(1, dt * 25));
   camera.updateProjectionMatrix();
   applyThirdCam();
+  if (mode && mode.topV) mode.topCam();
 }
 
 function computeSpread() {
@@ -2957,7 +3023,7 @@ function startX1(cfgIn, net, ids) {
   if (cfg.chess && !(typeof cfg.chess === 'object' && CH_W[cfg.chess.a] && CH_W[cfg.chess.d] && (cfg.chess.ac === 'w' || cfg.chess.ac === 'b'))) delete cfg.chess;
   if (cfg.chess && !cfg.teamWeapons) delete cfg.chess;
   if (cfg.duel === 'chess' && !cfg.teamWeapons) cfg.duel = 'normal';
-  Ab.reset(null); setHint(''); document.body.classList.remove('noweap');
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true;
   const hpOf = t => cfg.teamHp ? cfg.teamHp[t] : cfg.hp;
   $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
@@ -5510,7 +5576,7 @@ function goMenu() {
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
-  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#pChess').hidden = true; $('#chess').hidden = true;
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; $('#pChess').hidden = true; $('#chess').hidden = true;
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
@@ -5535,7 +5601,7 @@ function onEscape() {
   if (mode && mode.over) return;
   if (paused) setPaused(false);
   // na tela cheia do jogo as teclas ficam travadas e o Esc não solta o mouse sozinho: o próprio jogo pausa
-  else if (document.pointerLockElement === canvas || document.fullscreenElement) setPaused(true);
+  else setPaused(true);
 }
 function toggleDev(open) {
   devOpen = open;
@@ -6142,20 +6208,29 @@ function renderNetLobby() {
     ro.innerHTML = col(0) + col(1);
     ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
   }
+  const ng = $('#netGame'), chessG = host && netGame === 'chess';
+  ng.hidden = !host;
+  ng.querySelectorAll('[data-g]').forEach(b => { b.classList.toggle('on', b.dataset.g === netGame); b.onclick = () => { netGame = b.dataset.g; renderNetLobby(); }; });
   const hc = $('#netHostCfg');
-  hc.hidden = !host;
+  hc.hidden = !host || chessG;
   if (host && !hc.childElementCount) renderX1Form(hc, true, () => { Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); renderNetLobby(); });
   if (!host) hc.innerHTML = '';
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
   $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
+  if (chessG) {
+    const n = Net.teamSizes(), ok = Net.open && n[0] === 1 && n[1] === 1;
+    $('#bNetStart').disabled = !ok;
+    $('#bNetStart').textContent = !ok ? 'Xadrez FPS é 1 contra 1: uma pessoa em cada time' : Chess.online && Chess.st && !Chess.result ? 'Continuar o Xadrez FPS' : 'Iniciar Xadrez FPS';
+  }
   $('#bNetBack').textContent = role ? 'Sair da sala' : 'Voltar';
-  $('#bNetChess').hidden = !host || !Net.open; $('#bNetChess').textContent = Chess.online && Chess.st && !Chess.result ? 'Continuar o Xadrez FPS' : 'Jogar Xadrez FPS (1 contra 1)';
+  $('#bNetChess').hidden = true; $('#bNetChess').textContent = Chess.online && Chess.st && !Chess.result ? 'Continuar o Xadrez FPS' : 'Jogar Xadrez FPS (1 contra 1)';
 }
 $('#bNet').onclick = () => { initAudio(); openNetPanel(); };
 $('#bHost').onclick = () => Net.host(netName());
 $('#bJoin').onclick = () => { const code = ($('#netCode').value || '').trim().toUpperCase(); if (code.length < 4) { Net.setStatus('Digite o código que seu amigo passou.'); return; } Net.join(netName(), code); };
 $('#netCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
-$('#bNetStart').onclick = () => Net.startMatch(clone(X1));
+var netGame = 'x1';   // modo escolhido pelo anfitrião na sala: partida normal ou Xadrez FPS
+$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else Net.startMatch(clone(X1)); };
 $('#bNetBack').onclick = () => {
   if (Net.role) { Net.send({ t: 'bye' }); Net.leave(); renderNetLobby(); return; }
   $('#netSetup').hidden = true; $('#mainButtons').hidden = false;
@@ -6495,7 +6570,7 @@ const CH_NAME = { P: 'Peão', N: 'Cavalo', B: 'Bispo', R: 'Torre', Q: 'Dama', K:
 const CH_FEM = { Q: true, R: true };
 const CH_GLYPH = { K: '♚\uFE0E', Q: '♛\uFE0E', R: '♜\uFE0E', B: '♝\uFE0E', N: '♞\uFE0E', P: '♟\uFE0E' };
 const CH_VAL = { P: 100, N: 300, B: 320, R: 500, Q: 900, K: 20000 };
-const CH_MAPS = ['duelo', 'aim', 'patio'];
+const CH_MAPS = ['xadrez'];
 const chColorName = (c, p) => c === 'w' ? (CH_FEM[p] ? 'branca' : 'branco') : (CH_FEM[p] ? 'preta' : 'preto');
 const chPieceName = (pc) => CH_NAME[pc[1]] + ' ' + chColorName(pc[0], pc[1]);
 const chSqName = sq => 'abcdefgh'[sq & 7] + (8 - (sq >> 3));
@@ -6648,7 +6723,7 @@ function chBotMove(st, level) {
 }
 
 // ---- Xadrez no mundo do jogo: tabuleiro gigante no chão, você anda por ele e arrasta as peças
-const CHW_SQ = 3, CHW_LIFT = 1.3;
+const CHW_SQ = 2.4, CHW_LIFT = 0.7, CHW_PS = 0.55;   // casa de 2,4 m; peças menores que um jogador (rei ~1,9 m)
 const chSqPos = sq => new THREE.Vector3(((sq & 7) - 3.5) * CHW_SQ, 0, ((sq >> 3) - 3.5) * CHW_SQ);
 const chPosSq = (x, z) => { const c = Math.floor(x / CHW_SQ + 4), r = Math.floor(z / CHW_SQ + 4); return c >= 0 && c < 8 && r >= 0 && r < 8 ? r * 8 + c : -1; };
 let CH_MATS = null;
@@ -6668,7 +6743,7 @@ function chLathe(pts, m) {
 }
 function chPart(geo, m, x, y, z, sx = 1, sy = 1, sz = 1) { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.scale.set(sx, sy, sz); me.castShadow = me.receiveShadow = true; return me; }
 // peça 3D (uns 2 a 4 metros de altura), com o "pé" no chão
-function chPieceMesh(pc) {
+function chPieceMesh(pc, sc = 1.2) {
   const m = chMats()[pc[0]], g = new THREE.Group(), t = pc[1];
   const SPH = new THREE.SphereGeometry(1, 20, 14), BX = new THREE.BoxGeometry(1, 1, 1);
   const base = [[0, 0], [1.0, 0], [1.0, 0.16], [0.86, 0.26], [0.8, 0.4]];
@@ -6697,14 +6772,14 @@ function chPieceMesh(pc) {
     g.add(chLathe(base.concat([[0.68, 0.55], [0.46, 0.9], [0.32, 2.0], [0.62, 2.15], [0.62, 2.22], [0.36, 2.3], [0.5, 2.66], [0, 2.7]]), m));
     g.add(chPart(BX, m, 0, 3.05, 0, 0.17, 0.66, 0.17)); g.add(chPart(BX, m, 0, 3.12, 0, 0.5, 0.17, 0.17)); top = 3.4;
   }
-  g.scale.setScalar(1.2);
+  g.scale.setScalar(sc);
   if (pc[0] === 'b') g.rotation.y = Math.PI;   // cavalo olha para o adversário
-  g.userData.top = top * 1.2;
+  g.userData.top = top * sc;
   return g;
 }
 function buildChessWorld() {
   newWorld();
-  const H = 22;
+  const H = 16;
   box(0, 0, H * 2, 1, H * 2, C.concrete, -1);
   box(0, H + 0.5, H * 2 + 2, 4, 1, C.wall); box(0, -H - 0.5, H * 2 + 2, 4, 1, C.wall);
   box(H + 0.5, 0, 1, 4, H * 2, C.wall); box(-H - 0.5, 0, 1, 4, H * 2, C.wall);
@@ -6713,13 +6788,13 @@ function buildChessWorld() {
   for (let sq = 0; sq < 64; sq++) { const p = chSqPos(sq); box(p.x, p.z, CHW_SQ, 0.14, CHW_SQ, ((sq >> 3) + (sq & 7)) % 2 ? 0x56606b : 0xd3d7dc, 0, false); }
   for (let i = 0; i < 8; i++) {
     const x = (i - 3.5) * CHW_SQ, z = (i - 3.5) * CHW_SQ, e = 4 * CHW_SQ + 1.6;
-    label('abcdefgh'[i], x, 0.6, e, 0.8); label('abcdefgh'[i], x, 0.6, -e, 0.8);
-    label(String(8 - i), e, 0.6, z, 0.8); label(String(8 - i), -e, 0.6, z, 0.8);
+    label('abcdefgh'[i], x, 0.5, e, 0.6); label('abcdefgh'[i], x, 0.5, -e, 0.6);
+    label(String(8 - i), e, 0.5, z, 0.6); label(String(8 - i), -e, 0.5, z, 0.6);
   }
-  decal(0, 18, 14, 3, C.sideA); decal(0, -18, 14, 3, C.sideB);
-  const ta = teamLine([[0, 17.5], [-4, 17.5], [4, 17.5]]), tb = teamLine([[0, -17.5], [4, -17.5], [-4, -17.5]]);
+  decal(0, 13.5, 12, 2.4, C.sideA); decal(0, -13.5, 12, 2.4, C.sideB);
+  const ta = teamLine([[0, 13.5], [-3, 13.5], [3, 13.5]]), tb = teamLine([[0, -13.5], [3, -13.5], [-3, -13.5]]);
   mapInfo = { name: 'Tabuleiro', spawns: ta.concat(tb), teamSpawns: [ta, tb], waypoints: [], playerSpawn: ta[0], targets: [] };
-  shadowSize(26);
+  shadowSize(18);
 }
 function startChessWorld() {
   initAudio();
@@ -6779,7 +6854,7 @@ function makeChessWorldMode(net, myTeam) {
       for (const g of this.pieces.values()) root.remove(g);
       this.pieces.clear(); marks.clear();
       const st = Chess.st;
-      for (let sq = 0; sq < 64; sq++) if (st.b[sq]) { const g = chPieceMesh(st.b[sq]); g.position.copy(chSqPos(sq)).setY(0.14); g.userData.sq = sq; g.traverse(o => { o.userData.sq = sq; }); root.add(g); this.pieces.set(sq, g); }
+      for (let sq = 0; sq < 64; sq++) if (st.b[sq]) { const g = chPieceMesh(st.b[sq], CHW_PS); g.position.copy(chSqPos(sq)).setY(0.14); g.userData.sq = sq; g.traverse(o => { o.userData.sq = sq; }); root.add(g); this.pieces.set(sq, g); }
       const L = st.last;
       if (L) { marks.add(tile(M.last, L.from)); marks.add(tile(L.fail ? M.cap : M.last, L.to)); }
       const key = L ? `${L.from}-${L.to}-${st.n}-${st.turn}` : '';
@@ -6792,8 +6867,28 @@ function makeChessWorldMode(net, myTeam) {
       marks.children.filter(o => o.userData.tg).forEach(o => marks.remove(o));
       for (const m of list) { const t = tile(m.cap >= 0 ? M.cap : M.tgt, m.to); t.userData.tg = 1; marks.add(t); }
     },
+    topV: false, cur: { x: 0, y: 0 },
+    setTop(on) {
+      this.topV = on; this.cur.x = this.cur.y = 0;
+      $('#chCur').hidden = !on; chCanvas.style.visibility = on ? 'hidden' : '';
+      if (player) player.group.visible = on;
+      if (!on && this.drag) this.cancelDrag();
+    },
+    topLook(dx, dy) {
+      const k = S.controls.sens * 0.0012;
+      this.cur.x = clamp(this.cur.x + dx * k * innerHeight / innerWidth, -0.98, 0.98); this.cur.y = clamp(this.cur.y - dy * k, -0.98, 0.98);
+    },
+    topCam() {
+      const b = Chess.my === 'b';
+      const half = 4 * CHW_SQ + 1.4, hgt = half / (Math.tan(35 * DEG) * Math.min(1, innerWidth / innerHeight));
+      camera.position.set(0, hgt + 0.14, 0.01 * (b ? -1 : 1));
+      camera.rotation.set(-Math.PI / 2, b ? Math.PI : 0, 0);
+      camera.fov = 70; camera.updateProjectionMatrix();
+      const c = $('#chCur'); c.style.left = ((this.cur.x + 1) / 2 * innerWidth) + 'px'; c.style.top = ((1 - this.cur.y) / 2 * innerHeight) + 'px';
+      chCanvas.style.visibility = 'hidden'; if (player) player.group.visible = true;
+    },
     aim() {
-      camera.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera); ray.far = 40;
+      camera.updateMatrixWorld(); ray.setFromCamera(this.topV ? this.cur : { x: 0, y: 0 }, camera); ray.far = this.topV ? 60 : 40;
       const hits = ray.intersectObjects([...this.pieces.values()], true);
       const gp = ray.ray.intersectPlane(plane, tmp) ? tmp.clone() : null;
       return { sq: hits.length ? hits[0].object.userData.sq : -1, dist: hits.length ? hits[0].distance : 99, ground: gp };
@@ -6805,7 +6900,7 @@ function makeChessWorldMode(net, myTeam) {
         if (!c.alive || c.remote) continue;
         for (const [sq, g] of this.pieces) {
           if (this.drag && this.drag.sq === sq) continue;
-          const dx = c.pos.x - g.position.x, dz = c.pos.z - g.position.z, d = Math.hypot(dx, dz), R = 1.25;
+          const dx = c.pos.x - g.position.x, dz = c.pos.z - g.position.z, d = Math.hypot(dx, dz), R = 0.8;
           if (d < R) { const k = d > 0.01 ? (R - d) / d : 1; c.pos.x += (d > 0.01 ? dx : 1) * k; c.pos.z += (d > 0.01 ? dz : 0) * k; }
         }
       }
@@ -6820,6 +6915,7 @@ function makeChessWorldMode(net, myTeam) {
         const h = this.remoteHold, g = this.pieces.get(h.s);
         if (g && h.s >= 0) { g.position.x += (h.x - g.position.x) * Math.min(1, dt * 12); g.position.z += (h.z - g.position.z) * Math.min(1, dt * 12); g.position.y = 0.14 + CHW_LIFT; }
       }
+      if (canInput() && isDown('topView')) this.setTop(!this.topV);
       if (this.duelAt > 0 && now >= this.duelAt) { this.duelAt = -1; const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); return; } }
       this.updateDrag(dt);
     },
@@ -6829,9 +6925,10 @@ function makeChessWorldMode(net, myTeam) {
       const own = a.sq >= 0 && Chess.st.b[a.sq] && Chess.st.b[a.sq][0] === Chess.my;
       const grabKey = isDown('fire') || isDown('use'), dropKey = !isHeld('fire') && !isHeld('use');
       if (!this.drag) {
+        if (this.topV) a.dist = 0;
         hover.visible = myTurn && own && a.dist < 22;
         if (hover.visible) { const p = chSqPos(a.sq); hover.position.set(p.x, 0.18, p.z); }
-        setHint(myTurn ? (own && a.dist < 22 ? `Segure o clique para pegar ${CH_FEM[Chess.st.b[a.sq][1]] ? 'a' : 'o'} ${CH_NAME[Chess.st.b[a.sq][1]]} (${WEAPONS[WI(CH_W[Chess.st.b[a.sq][1]])].name})` : 'Sua vez: mire numa peça sua e segure o clique') : Chess.result ? Chess.endText() : Chess.pending ? 'Duelo!' : Chess.thinking ? 'O bot está pensando…' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot');
+        setHint(myTurn ? (own && a.dist < 22 ? `Segure o clique para pegar ${CH_FEM[Chess.st.b[a.sq][1]] ? 'a' : 'o'} ${CH_NAME[Chess.st.b[a.sq][1]]} (${WEAPONS[WI(CH_W[Chess.st.b[a.sq][1]])].name})` : (this.topV ? 'Visão de cima: leve o cursor até uma peça sua e segure o clique (V volta)' : 'Sua vez: mire numa peça sua e segure o clique (V: ver de cima)')) : Chess.result ? Chess.endText() : Chess.pending ? 'Duelo!' : Chess.thinking ? 'O bot está pensando…' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot');
         if (myTurn && own && a.dist < 22 && grabKey) {
           const moves = chLegal(Chess.st, a.sq);
           this.drag = { sq: a.sq, moves, g: this.pieces.get(a.sq), byKey: isDown('use') };
@@ -7041,8 +7138,7 @@ const Chess = {
   // contra o bot
   openLocal() {
     initAudio(); this.online = false; this.load();
-    if (!this.st || chResult(this.st)) this.newLocal(this.my);
-    else { this.msg = 'Partida salva: continue de onde parou.'; this.enter(); }
+    this.newLocal(this.my);
   },
   newLocal(my) {
     this.online = false; this.my = my; this.st = chNew(); this.result = null; this.pending = null; this.sel = -1;
@@ -7060,7 +7156,7 @@ const Chess = {
   show() { $('#chess').hidden = false; this.result = this.st ? chResult(this.st) : null; this.render(); },
   hide() { $('#chess').hidden = true; },
   exit() { this.hide(); if (state === 'playing' && paused) setPaused(false); },
-  canMove() { return this.st && !this.result && !this.pending && !this.thinking && this.st.turn === this.my; },
+  canMove() { return !!this.st && !this.result && !this.pending && this.st.turn === this.my; },
   click(sq) {
     if (!this.canMove()) return;
     const p = this.st.b[sq];
@@ -7096,11 +7192,14 @@ const Chess = {
     return r.winner == null ? `${r.why}: empate.` : r.winner === this.my ? `${r.why}: você venceu a partida!` : `${r.why}: ${this.online ? 'seu amigo venceu' : 'o bot venceu'}.`;
   },
   maybeBot() {
-    if (this.online || this.result || this.pending || this.st.turn === this.my || this.thinking) return;
+    // sem vez do bot: cancela qualquer espera antiga (antes, uma espera velha deixava "o bot está pensando" preso na sua vez)
+    if (this.online || this.result || this.pending || !this.st || this.st.turn === this.my) { this.thinking = false; this.botTok = null; return; }
+    if (this.thinking && this.botSt === this.st) return;
     this.thinking = true; this.render();
-    const tok = this.botTok = {}, st0 = this.st;
+    const tok = this.botTok = {}, st0 = this.botSt = this.st;
     setTimeout(() => {
-      if (tok !== this.botTok || st0 !== this.st) return;
+      if (tok !== this.botTok) return;
+      if (st0 !== this.st) { this.thinking = false; this.botTok = null; this.maybeBot(); return; }
       if (!this.thinking || !(state === 'playing' && mode && mode.type === 'chessw')) { this.thinking = false; return; }
       const m = chBotMove(this.st, this.level); this.thinking = false;
       if (!m) { this.after(); return; }
