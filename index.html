@@ -214,7 +214,7 @@ body.touch .big { font-size: 24px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
 #chCur { position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.6); pointer-events: none; z-index: 5; }
-.netgame { display: flex; gap: 8px; margin-top: 4px; } .netgame .btn { flex: 1; } .netgame .btn.on { border-color: var(--accent, #f2a03a); color: var(--accent, #f2a03a); }
+.netgame { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; } .netgame .btn { min-width: 0; padding-inline: 8px; } .netgame .btn.on { border-color: var(--accent, #f2a03a); color: var(--accent, #f2a03a); }
 #tbl { background: rgba(8,10,13,0.82); }
 #chHint { left: 50%; bottom: 120px; transform: translateX(-50%); font-family: var(--body); font-size: 16px; text-align: center; max-width: 80vw; }
 #abHud { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
@@ -274,6 +274,15 @@ button.mode:not(.primary):hover, button.mode:not(.primary):focus-visible, button
 button.mode.primary:hover, button.mode.primary:focus-visible { filter: brightness(1.06); outline: none; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tiles.modegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#toasts { position: fixed; right: 16px; top: 16px; z-index: 40; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: min(340px, calc(100vw - 32px)); }
+#toasts > div { background: rgba(14,16,20,0.92); color: #e9edf0; border-left: 3px solid var(--accent, #f2a03a); padding: 9px 12px; font: 13px/1.4 var(--body, sans-serif); box-shadow: 0 6px 18px rgba(0,0,0,0.35); pointer-events: auto; animation: tIn 0.25s ease-out; }
+#toasts b { display: block; font-size: 14px; } #toasts .btn { margin-top: 6px; }
+@keyframes tIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.lvbar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; } .lvbar i { display: block; height: 100%; background: var(--accent, #f2a03a); }
+.achs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.achs div { padding: 6px 8px; background: rgba(255,255,255,0.05); font-size: 12px; line-height: 1.3; } .achs div b { display: block; font-size: 13px; } .achs .off { opacity: 0.38; filter: grayscale(1); }
+.fr { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: rgba(255,255,255,0.05); } .fr span { flex: 1; min-width: 0; } .fr small { display: block; opacity: 0.75; }
+.fdot { width: 9px; height: 9px; border-radius: 50%; background: #666; flex: none; } .fdot.on { background: #4cd27a; } .fdot.room { background: #f2a03a; }
 #edHud { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6; background: rgba(10,12,16,0.72); color: #e9edf0; padding: 8px 14px; border-left: 3px solid var(--accent, #f2a03a); font: 13px/1.45 var(--body, sans-serif); max-width: min(92vw, 860px); text-align: center; pointer-events: none; }
 #edHud small { opacity: 0.8; } #edHud .edcol { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; border: 1px solid #fff; }
 .micbar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; } .micbar i { display: block; height: 100%; width: 0; background: var(--accent, #f2a03a); transition: width 0.08s; }
@@ -465,7 +474,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
         <button class="tile" id="bAim"><svg><use href="#i-aim"/></svg>Treino de mira</button>
         <button class="tile" id="bSkins"><svg><use href="#i-skin"/></svg>Skins e spray</button>
         <button class="tile" id="bMapEd"><svg><use href="#i-map"/></svg>Editor de mapa</button>
-        <button class="tile" id="bHist"><svg><use href="#i-hist"/></svg>Histórico</button>
+        <button class="tile" id="bProf"><svg><use href="#i-hist"/></svg><span id="profTile">Perfil</span></button>
       </div>
       <div class="foot">
         <button class="link" id="bSet"><svg><use href="#i-set"/></svg>Configurações</button>
@@ -491,6 +500,11 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       <button class="btn primary" id="bAimStart">Começar treino</button>
       <button class="btn" id="bAimBack">Voltar</button>
     </div>
+    <div class="panel stack" id="profPanel" hidden style="gap:8px">
+      <h2>Perfil</h2>
+      <div id="profBody" class="stack" style="gap:8px"></div>
+      <div class="btnrow"><button class="btn" id="bHist">Histórico de x1</button><button class="btn primary" id="bProfBack">Voltar</button></div>
+    </div>
     <div class="panel stack" id="histPanel" hidden style="gap:8px">
       <h2>Histórico de x1</h2>
       <div id="histBody" class="stack" style="gap:8px"></div>
@@ -514,6 +528,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
       <div id="netRoster" hidden></div>
+      <div id="netFriends" hidden></div>
       <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button><button class="btn" data-g="horde">Hordas</button><button class="btn" data-g="test">Mapa de testes</button><button class="btn" data-g="rj">Rocket jump</button></div></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
@@ -1875,6 +1890,7 @@ const RJ = { t0: null, done: false,
     if (!this.done && this.t0 != null && P.pos.y > G.y - 0.5 && Math.hypot(P.pos.x - G.x, P.pos.z - G.z) < G.r) {
       this.done = true; const t = now - this.t0; let best = null; try { best = +localStorage.getItem(RJ_KEY) || null; } catch (e) {}
       const rec = !best || t < best; if (rec) try { localStorage.setItem(RJ_KEY, t.toFixed(2)); } catch (e) {}
+      Prof.unlock('rj'); Prof.addXp(40);
       banner('Chegou no topo! 🚀', `${t.toFixed(1)} s${rec ? ' · novo recorde!' : ` · recorde ${best.toFixed(1)} s`}`, 3.5); play('round', 0.7);
       if (mode.net) Net.send({ t: 'chat', m: `🚀 chegou no topo do Rocket jump em ${t.toFixed(1)} s` });
     }
@@ -2469,6 +2485,8 @@ function damage(victim, amount, attacker, weapon, zone, dir) {
     victim.deathVel = victim.vel.clone(); victim.deathDir = dir ? dir.clone() : null; victim.deathZone = zone;
     victim.alive = false; victim.deaths++; victim.deathT = 0; victim.vel.set(0, 0, 0);
     if (attacker && attacker !== victim) attacker.kills++;
+    if (attacker === player && victim !== player) Prof.onKill(victim, weapon, zone === 'head');
+    if (victim === player) Prof.onDeath();
     victim.lastDeath = { attacker, weapon, head: zone === 'head' };
     addFeed(attacker, victim, weapon, zone === 'head');
     if (mode) mode.onDeath(victim, attacker);
@@ -4155,7 +4173,7 @@ function renderMEPanel() {
 function meSaveMap() {
   const L = loadMyMaps(); if (!ME.id) ME.id = Math.random().toString(36).slice(2, 8);
   const e = { id: ME.id, map: sanitizeMap(ME.map) }, k = L.findIndex(x => x.id === ME.id);
-  if (k >= 0) L.splice(k, 1); L.unshift(e); saveMyMaps(L); refreshCustomMaps();
+  if (k >= 0) L.splice(k, 1); L.unshift(e); saveMyMaps(L); refreshCustomMaps(); Prof.unlock('mapper');
 }
 // ---- editor em 3D: você voa dentro do mapa e põe ou tira caixas com a mira (estilo editor do Krunker)
 const ED_PIECES = [['Caixote', 1.2, 1.2, 1.2], ['Caixa grande', 2.4, 2.4, 2.4], ['Muro baixo', 3, 1.1, 0.6], ['Parede', 4, 3, 0.5], ['Parede de lado', 0.5, 3, 4],
@@ -4245,6 +4263,176 @@ function edUpdate() {
     `<br><small>Clique põe · botão direito tira · rodinha ou 1-9 troca a peça · ${keyLabel(S.keys.reload)} cor · ${keyLabel(S.keys.use)} copia a caixa da mira · Z desfaz · X espelho · O/P nascimento laranja/azul · Esc salva e testa</small>`;
   if (H._h !== html) { H._h = html; H.innerHTML = html; }
 }
+// =====================================================================================
+// Perfil: nível (XP), estatísticas, conquistas e amigos. Fica neste aparelho; os amigos se acham direto pelo PeerJS
+// com um código fixo de cada um (cs3f-CÓDIGO), sem servidor nosso.
+// =====================================================================================
+const PROF_KEY = 'cs3.web.profile';
+const ACH = [
+  ['first', '🩸', 'Primeiro sangue', 'Faça o primeiro abate'], ['hs10', '🎯', 'Mira na cabeça', '10 abates na cabeça'], ['k100', '🎖️', 'Veterano', '100 abates'],
+  ['k500', '👑', 'Lenda', '500 abates'], ['knife', '🔪', 'Na faca', 'Abata alguém com a faca'], ['triple', '⚡', 'Triplo', '3 abates em 5 segundos'],
+  ['win1', '🏅', 'Primeira vitória', 'Vença uma partida'], ['win10', '🏆', 'Campeão', 'Vença 10 partidas'], ['gg', '🔫', 'Arsenal completo', 'Vença um gun game'],
+  ['night', '🦉', 'Coruja', 'Vença uma partida à noite'], ['rj', '🚀', 'Foguete humano', 'Chegue ao topo do Rocket jump'], ['wave5', '🧟', 'Sobrevivente', 'Vença a onda 5 nas hordas'],
+  ['wave10', '💀', 'Imortal', 'Vença a onda 10 nas hordas'], ['online', '🌐', 'Em grupo', 'Termine uma partida online'], ['friend', '🤝', 'Amizade', 'Adicione um amigo'],
+  ['mapper', '🧱', 'Arquiteto', 'Salve um mapa no editor'], ['lv5', '⭐', 'Subindo', 'Chegue ao nível 5'], ['lv10', '🌟', 'Experiente', 'Chegue ao nível 10'],
+];
+const cleanFc = v => { const s = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return s.length >= 4 && s.length <= 8 ? s : ''; };
+function toast(title, sub = '', btn = null, ms = 4500) {
+  let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
+  const d = document.createElement('div'); d.innerHTML = `<b>${esc(title)}</b>${esc(sub)}`;
+  if (btn) { const b = document.createElement('button'); b.className = 'btn small primary'; b.textContent = btn[0]; b.onclick = () => { d.remove(); btn[1](); }; d.appendChild(document.createElement('br')); d.appendChild(b); }
+  box.appendChild(d); setTimeout(() => d.remove(), ms); while (box.children.length > 4) box.firstChild.remove();
+}
+const Prof = {
+  d: null, recent: [],
+  load() {
+    const v = loadJSON(PROF_KEY);
+    this.d = Object.assign({ xp: 0, fc: '', st: {}, ach: {}, friends: [] }, v);
+    this.d.st = Object.assign({ k: 0, d: 0, hs: 0, w: 0, m: 0, knife: 0, waves: 0 }, this.d.st);
+    if (!Array.isArray(this.d.friends)) this.d.friends = [];
+    if (!cleanFc(this.d.fc)) { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; this.d.fc = Array.from({ length: 6 }, () => A[Math.floor(Math.random() * A.length)]).join(''); this.save(); }
+  },
+  save() { try { localStorage.setItem(PROF_KEY, JSON.stringify(this.d)); } catch (e) {} },
+  name() { return (loadJSON('cs3.web.net').name || '').trim() || 'Jogador'; },
+  isFriend(fc) { fc = cleanFc(fc); return !!fc && this.d.friends.some(f => f.fc === fc); },
+  level(xp = this.d.xp) { let lv = 1, need = 100; while (xp >= need) { xp -= need; lv++; need = 100 + 40 * (lv - 1); } return { lv, cur: xp, need }; },
+  counts() { return !mode || ['x1', 'dm'].includes(mode.type); },   // treino, mapa de testes e editor não contam
+  addXp(n) {
+    const a = this.level().lv; this.d.xp += Math.round(n); this.save(); const b = this.level().lv;
+    if (b > a) { toast(`Nível ${b}!`, 'Você subiu de nível.'); play('round', 0.6); if (b >= 5) this.unlock('lv5'); if (b >= 10) this.unlock('lv10'); }
+  },
+  unlock(id) {
+    if (this.d.ach[id]) return; const a = ACH.find(x => x[0] === id); if (!a) return;
+    this.d.ach[id] = Date.now(); this.save(); toast(`${a[1]} Conquista: ${a[2]}`, a[3]); this.addXp(50);
+  },
+  onKill(victim, weapon, head) {
+    if (!this.counts() || (mode && mode.cfg && mode.cfg.sandbox)) return;
+    const s = this.d.st; s.k++; if (head) s.hs++;
+    const w = WEAPONS.find(x => x.name === weapon || x.id === weapon); if (w && w.melee) { s.knife++; this.unlock('knife'); }
+    this.recent = this.recent.filter(t => now - t < 5); this.recent.push(now); if (this.recent.length >= 3) this.unlock('triple');
+    this.unlock('first'); if (s.hs >= 10) this.unlock('hs10'); if (s.k >= 100) this.unlock('k100'); if (s.k >= 500) this.unlock('k500');
+    this.addXp(head ? 15 : 10);
+  },
+  onDeath() { if (this.counts()) { this.d.st.d++; this.save(); } },
+  onMatch(won, cfg, online) {
+    if (cfg && cfg.sandbox) return;
+    const s = this.d.st; s.m++; if (won) s.w++;
+    if (online) this.unlock('online');
+    if (won) { this.unlock('win1'); if (s.w >= 10) this.unlock('win10'); if (cfg && cfg.duel === 'gungame') this.unlock('gg'); if (cfg && cfg.tod === 'noite') this.unlock('night'); }
+    this.addXp(won ? 60 : 20);
+  },
+  onWave(w) { this.d.st.waves++; if (w >= 5) this.unlock('wave5'); if (w >= 10) this.unlock('wave10'); this.addXp(10 + w * 2); },
+};
+Prof.load();
+const Friends = {
+  peer: null, ch: null, st: new Map(), started: false, dup: false,
+  async start() {
+    if (this.started) return; this.started = true;
+    if (LOCAL_NET) {
+      this.ch = new BroadcastChannel('cs3-friends');
+      this.ch.onmessage = e => { const d = e.data; if (d && d.to === Prof.d.fc) this.onMsg(d.m, d.from, m => this.ch.postMessage({ to: d.from, from: Prof.d.fc, m })); };
+      return;
+    }
+    try { await loadPeerJS(); } catch (e) { this.started = false; return; }
+    const peer = this.peer = new Peer('cs3f-' + Prof.d.fc);
+    peer.on('connection', c => c.on('data', m => this.onMsg(m, null, x => { try { c.send(x); } catch (e) {} })));
+    peer.on('error', err => {
+      const id = String(err && err.message || '').match(/cs3f-([A-Z0-9]+)/);
+      if (err.type === 'peer-unavailable' && id) this.mark(id[1], false);
+      if (err.type === 'unavailable-id') this.dup = true;   // o jogo já está aberto em outra aba: ela responde pelos amigos
+    });
+  },
+  send(fc, m) {
+    if (LOCAL_NET) { if (this.ch) this.ch.postMessage({ to: fc, from: Prof.d.fc, m }); return; }
+    if (!this.peer || this.peer.destroyed) return;
+    const c = this.peer.connect('cs3f-' + fc, { reliable: true });
+    c.on('open', () => { try { c.send(m); } catch (e) {} });
+    c.on('data', x => this.onMsg(x, fc, null));
+    setTimeout(() => { try { c.close(); } catch (e) {} }, 8000);
+  },
+  hello(t = 'hi') { return { t, fc: Prof.d.fc, name: Prof.name(), lv: Prof.level().lv, room: Net.role && Net.code ? Net.code : '', inMatch: !!(state === 'playing' && mode && mode.net) }; },
+  onMsg(m, from, reply) {
+    if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+    const fc = cleanFc(m.fc || from); if (!fc || fc === Prof.d.fc) return;
+    const name = String(m.name || 'Amigo').slice(0, 16);
+    if (m.t === 'add' && !Prof.isFriend(fc)) { Prof.d.friends.push({ fc, name }); Prof.save(); Prof.unlock('friend'); toast(`👋 ${name} te adicionou`, 'Agora vocês estão na lista de amigos um do outro.'); }
+    if (!Prof.isFriend(fc)) return;   // de quem não é amigo, só o pedido de amizade
+    this.mark(fc, true, m);
+    if ((m.t === 'ping' || m.t === 'add') && reply) reply(this.hello());
+    if (m.t === 'inv' && cleanFc(m.room)) {
+      const code = cleanFc(m.room);
+      toast(`🎮 ${name} te chamou para jogar`, `Sala ${code}`, ['Entrar na sala', () => { if (state === 'playing') goMenu(); openNetPanel(); $('#netCode').value = code; Net.join(netName(), code); }], 15000);
+      play('round', 0.5);
+    }
+  },
+  mark(fc, on, m) {
+    const s = this.st.get(fc) || {}; s.on = on; if (on) s.at = Date.now();
+    if (m) { s.room = cleanFc(m.room); s.lv = clamp(m.lv | 0, 0, 999); s.inMatch = !!m.inMatch; const f = Prof.d.friends.find(x => x.fc === fc); if (f && m.name && f.name !== m.name) { f.name = String(m.name).slice(0, 16); Prof.save(); } }
+    this.st.set(fc, s); if (!$('#profPanel').hidden) renderProfile(); netFriends();
+  },
+  isOn(fc) { const s = this.st.get(fc); return !!(s && s.on && Date.now() - (s.at || 0) < 30000); },
+  refresh() { for (const f of Prof.d.friends) this.send(f.fc, this.hello('ping')); },
+  add(code, name) {
+    const fc = cleanFc(code); if (!fc) return 'Código inválido: são 6 letras e números.';
+    if (fc === Prof.d.fc) return 'Esse é o seu próprio código.';
+    if (Prof.isFriend(fc)) return 'Já está na sua lista.';
+    Prof.d.friends.push({ fc, name: String(name || 'Amigo ' + fc).slice(0, 16) }); Prof.save(); Prof.unlock('friend');
+    this.start().then(() => this.send(fc, this.hello('add'))); return null;
+  },
+  remove(fc) { Prof.d.friends = Prof.d.friends.filter(f => f.fc !== fc); Prof.save(); this.st.delete(fc); },
+  invite(fc) { if (!Net.role) return 'Crie ou entre numa sala no Online primeiro.'; this.send(fc, this.hello('inv')); return null; },
+};
+setTimeout(() => Friends.start(), 1500);
+setInterval(() => { if (Prof.d.friends.length && (!$('#profPanel').hidden || (Net.role && !$('#netSetup').hidden))) Friends.refresh(); }, 10000);
+function profTile() { const t = $('#profTile'); if (t) t.textContent = `Perfil · Nv ${Prof.level().lv}`; }
+profTile();
+function friendRows(withInvite) {
+  return Prof.d.friends.map(f => {
+    const s = Friends.st.get(f.fc) || {}, on = Friends.isOn(f.fc);
+    const where = !on ? 'offline' : s.inMatch ? `jogando${s.room ? ' na sala ' + s.room : ''}` : s.room ? `na sala ${s.room}` : 'online';
+    return `<div class="fr"><i class="fdot ${on ? (s.room ? 'room' : 'on') : ''}"></i><span>${esc(f.name)}${s.lv ? ` · Nv ${s.lv}` : ''}<small>${where} · ${esc(f.fc)}</small></span>` +
+      (withInvite && on && Net.role ? `<button class="btn small" data-finv="${f.fc}">Convidar</button>` : '') +
+      (on && s.room && s.room !== Net.code ? `<button class="btn small" data-fjoin="${s.room}">Entrar</button>` : '') +
+      (!withInvite ? `<button class="btn small" data-fdel="${f.fc}" aria-label="Remover ${esc(f.name)}">✕</button>` : '') + `</div>`;
+  }).join('');
+}
+function bindFriendRows(root) {
+  root.querySelectorAll('[data-finv]').forEach(b => b.onclick = () => { const e = Friends.invite(b.dataset.finv); b.textContent = e ? 'Sem sala' : 'Convite enviado ✓'; b.disabled = true; });
+  root.querySelectorAll('[data-fjoin]').forEach(b => b.onclick = () => { $('#profPanel').hidden = true; openNetPanel(); $('#netCode').value = b.dataset.fjoin; Net.join(netName(), b.dataset.fjoin); });
+  root.querySelectorAll('[data-fdel]').forEach(b => b.onclick = () => { const f = Prof.d.friends.find(x => x.fc === b.dataset.fdel); if (f && confirm(`Tirar ${f.name} dos amigos?`)) { Friends.remove(f.fc); renderProfile(); } });
+}
+// sala online: amigos online com botão de convidar
+function netFriends() {
+  const el = $('#netFriends'); if (!el) return;
+  const on = Prof.d.friends.filter(f => Friends.isOn(f.fc));
+  el.hidden = !Net.role || !Prof.d.friends.length;
+  if (el.hidden) return;
+  el.innerHTML = `<span class="formh">Amigos</span>` + (on.length ? `<div class="stack" style="gap:4px">${friendRows(true)}</div>` : `<p class="note" style="margin:0">Nenhum amigo online agora. Eles aparecem aqui quando abrirem o jogo.</p>`);
+  bindFriendRows(el);
+}
+function renderProfile() {
+  const body = $('#profBody'); if (!body) return;
+  const L = Prof.level(), s = Prof.d.st, got = ACH.filter(a => Prof.d.ach[a[0]]).length;
+  body.innerHTML = `
+    <div class="row"><label for="profName">Seu nome</label><input type="text" id="profName" maxlength="16" value="${esc(Prof.name())}"><span></span></div>
+    <div><b style="font-size:22px">Nível ${L.lv}</b> <span class="note">${L.cur} / ${L.need} XP para o nível ${L.lv + 1}</span><div class="lvbar"><i style="width:${(L.cur / L.need * 100).toFixed(1)}%"></i></div></div>
+    <div class="statgrid"><div><b>${s.k}</b><span>abates</span></div><div><b>${s.d}</b><span>mortes</span></div><div><b>${kd(s.k, s.d)}</b><span>A/M</span></div>
+      <div><b>${pct(s.hs, s.k)}</b><span>na cabeça</span></div><div><b>${s.w}</b><span>vitórias</span></div><div><b>${s.m}</b><span>partidas</span></div></div>
+    <span class="formh">Conquistas · ${got} de ${ACH.length}</span>
+    <div class="achs">${ACH.map(a => `<div class="${Prof.d.ach[a[0]] ? '' : 'off'}" title="${esc(a[3])}"><b>${a[1]} ${esc(a[2])}</b>${esc(a[3])}</div>`).join('')}</div>
+    <span class="formh">Amigos</span>
+    <p class="note" style="margin:0">Seu código de amigo: <b style="font-size:16px;letter-spacing:0.08em">${Prof.d.fc}</b> <button class="btn small" id="profCopy">Copiar</button>. Passe para quem você quer adicionar, ou use "+ amigo" na sala online.</p>
+    <div class="row"><label for="profAdd">Adicionar pelo código</label><input type="text" id="profAdd" maxlength="8" placeholder="ABC123" style="text-transform:uppercase"><button class="btn small" id="profAddB">Adicionar</button></div>
+    <p class="note" id="profMsg" style="margin:0"></p>
+    <div class="stack" style="gap:4px">${friendRows(false) || '<p class="note" style="margin:0">Nenhum amigo ainda.</p>'}</div>
+    ${Prof.d.friends.length ? `<p class="note" style="margin:0">Verde = online · laranja = numa sala (dá para entrar) · Convide amigos de dentro da sala online.</p>` : ''}`;
+  const q = x => body.querySelector(x);
+  q('#profName').onchange = e => { const n = e.target.value.trim().slice(0, 16) || 'Jogador'; try { localStorage.setItem('cs3.web.net', JSON.stringify({ name: n })); } catch (er) {} $('#netName').value = n; };
+  q('#profCopy').onclick = async () => { try { await navigator.clipboard.writeText(Prof.d.fc); q('#profCopy').textContent = 'Copiado ✓'; } catch (e) { prompt('Seu código de amigo:', Prof.d.fc); } };
+  q('#profAddB').onclick = () => { const e = Friends.add(q('#profAdd').value); if (e) q('#profMsg').textContent = e; else { renderProfile(); $('#profMsg').textContent = 'Adicionado! Quando ele abrir o jogo, vocês aparecem online um para o outro.'; } };
+  bindFriendRows(body);
+}
+
 const HIST_KEY = 'cs3.web.hist';
 function loadHist() { const h = loadJSON(HIST_KEY); return { matches: h.matches || [], vs: h.vs || {} }; }
 function saveHist(h) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {} }
@@ -4269,6 +4457,7 @@ function endX1(team) {
   if (mode.horde) { Horde.end(); return; }
   if (mode.cfg && mode.cfg.chess) { if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
   const R = recordX1(team);
+  Prof.onMatch(team != null && team === mode.myTeam, mode.cfg, !!mode.net);
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   const m = mode, my = m.myTeam;
   const sc = `${m.teamName(my)} ${m.score[my]} x ${m.score[1 - my]} ${m.teamName(1 - my)}`;
@@ -4396,7 +4585,7 @@ function onNetMsg(m) {
       r.deathVel = r.vel.clone(); r.deathDir = killer ? r.pos.clone().sub(killer.pos) : null; r.deathZone = m.h ? 'head' : 'body';
       r.alive = false; r.deaths++; r.deathT = 0; r.vel.set(0, 0, 0);
       if (killer) killer.kills++;
-      if (killer === player) { hitT = 0.3; hitKill = true; play('kill', 0.9); if (m.h && mode.stats) mode.stats.hsKills++; }
+      if (killer === player) { hitT = 0.3; hitKill = true; play('kill', 0.9); if (m.h && mode.stats) mode.stats.hsKills++; Prof.onKill(r, String(m.w || ''), !!m.h); }
       r.lastDeath = { attacker: killer, weapon: m.w, head: !!m.h };
       addFeed(killer, r, String(m.w || ''), !!m.h);
       mode.onDeath(r, killer);
@@ -4471,7 +4660,7 @@ const Net = {
   setStatus(t) { this.status = t; renderNetLobby(); },
   // ---- anfitrião
   teamSizes() { const n = [0, 0]; for (const p of this.roster) n[p.team]++; return n; },
-  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos })) }); renderNetLobby(); Voice.sync(); },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
   hostConn(conn) {
     conn.on('data', m => this.hostData(conn, m));
     conn.on('close', () => this.dropGuest(conn));
@@ -4484,7 +4673,7 @@ const Net = {
       if (this.roster.length >= NET_MAX) { this.raw(conn, { t: 'full', f: 'h' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 300); return; }
       const id = 'g' + (++this.seq), n = this.teamSizes();
       conn.netId = id; this.conns.set(id, conn);
-      this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin), cos: cleanCos(m.cos) });
+      this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin), cos: cleanCos(m.cos), fc: cleanFc(m.fc), lv: clamp(m.lv | 0, 0, 999) });
       if (m.v !== VERSION) this.versionWarn = true;
       this.open = true;
       this.raw(conn, { t: 'welcome', f: 'h', id, inMatch: this.inMatch, plaza: Plaza.on() ? 1 : 0 });
@@ -4540,7 +4729,7 @@ const Net = {
   newCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)]; return s; },
   async host(name) {
     this.leave(); this.role = 'host'; this.myName = name; this.myId = 'h'; this.code = this.newCode();
-    this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()), cos: myCos() }];
+    this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()), cos: myCos(), fc: Prof.d.fc, lv: Prof.level().lv }];
     clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
     if (LOCAL_NET) { this.hub = localHub(this.code, c => this.hostConn(c)); this.setStatus('waiting'); return; }
     this.setStatus('Criando a sala…');
@@ -5478,7 +5667,7 @@ function skinChanged() {
 async function sendMySkin(t) {
   if (!Net.open) return;
   const sk = mySkin(), cos = myCos(), me = Net.me(); if (me) { me.skin = skinPayload(sk); me.cos = cos; }
-  Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk), cos } : { t: 'skin', skin: skinPayload(sk), cos });
+  Net.send(t === 'hello' ? { t: 'hello', name: Net.myName, v: VERSION, skin: skinPayload(sk), cos, fc: Prof.d.fc, lv: Prof.level().lv } : { t: 'skin', skin: skinPayload(sk), cos });
   if (sk && sk.model) { if (!modelBufs.has(sk.id)) { const b = await modelGet(sk.id).catch(() => null); if (b) modelBufs.set(sk.id, b); } sendModelTo(sk); }
 }
 function updateSkinView(dt) {
@@ -6852,8 +7041,10 @@ $('#bMapEd').onclick = () => openMapEditor();
 $('#meCanvas').addEventListener('pointerdown', meDown); $('#meCanvas').addEventListener('pointermove', meMove);
 $('#meCanvas').addEventListener('pointerup', meUp); $('#meCanvas').addEventListener('pointercancel', meUp);
 refreshCustomMaps();
-$('#bHist').onclick = () => { $('#mainButtons').hidden = true; $('#histPanel').hidden = false; renderHist(); };
+$('#bHist').onclick = () => { $('#profPanel').hidden = true; $('#mainButtons').hidden = true; $('#histPanel').hidden = false; renderHist(); };
 $('#bHistBack').onclick = () => { $('#histPanel').hidden = true; $('#mainButtons').hidden = false; };
+$('#bProf').onclick = () => { $('#mainButtons').hidden = true; $('#profPanel').hidden = false; Friends.start(); Friends.refresh(); renderProfile(); };
+$('#bProfBack').onclick = () => { $('#profPanel').hidden = true; $('#mainButtons').hidden = false; profTile(); };
 $('#bHistClear').onclick = () => { if (confirm('Apagar todo o histórico de x1 deste aparelho?')) { saveHist({ matches: [], vs: {} }); renderHist(); } };
 // =====================================================================================
 // Classes estilo Krunker: cada uma tem arma principal, secundária, vida e velocidade próprias (a faca vem sempre junto)
@@ -7195,15 +7386,18 @@ function renderNetLobby() {
   } else html = esc(Net.status);
   if (role && S.audio.voice) html += `<br><span class="note">${Voice.micState === 'on' ? '🎤 Voice chat ligado: todo mundo da sala ouve você.' : Voice.micState === 'off' ? 'Sem microfone (não liberado): você ouve os outros, mas eles não te ouvem. <button class="btn small" id="bMicRetry">Ligar microfone</button>' : 'Voice chat: o navegador vai pedir o microfone quando alguém entrar.'}</span>`;
   if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Tem gente com versão diferente do jogo. Recarreguem a página (Ctrl+F5).</span>';
+  netFriends();
   st.innerHTML = html; const mr = st.querySelector('#bMicRetry'); if (mr) mr.onclick = () => Voice.setMic();
   // times
   const ro = $('#netRoster');
   ro.hidden = !(role && Net.roster.length);
   if (!ro.hidden) {
     const col = t => `<div class="team"><b style="color:${hex(TEAM_COLORS[t])}">${t ? 'Time azul' : 'Time laranja'}</b>` +
-      Net.roster.filter(p => p.team === t).map(p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Trocar de time' : ''}">${esc(p.name)}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>`).join('') + '</div>';
+      Net.roster.filter(p => p.team === t).map(p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Trocar de time' : ''}">${esc(p.name)}${p.lv ? ` <small>Nv ${p.lv | 0}</small>` : ''}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>` +
+        (p.id !== Net.myId && cleanFc(p.fc) && !Prof.isFriend(p.fc) ? `<button class="btn small" data-addf="${esc(cleanFc(p.fc))}" data-fn="${esc(p.name)}">+ amigo</button>` : '')).join('') + '</div>';
     ro.innerHTML = col(0) + col(1);
     ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
+    ro.querySelectorAll('[data-addf]').forEach(b => b.onclick = () => { Friends.add(b.dataset.addf, b.dataset.fn); renderNetLobby(); });
   }
   const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test', rjG = host && netGame === 'rj';
   ng.hidden = !host;
@@ -8267,7 +8461,7 @@ const Horde = {
   // fim da onda: quem caiu volta, todo mundo cura e recarrega
   doneLocal() {
     const H = this.st;
-    banner(`Onda ${H.wave} vencida!`, 'Quem caiu voltou. Vida e munição cheias.', 3); play('kill', 0.8);
+    banner(`Onda ${H.wave} vencida!`, 'Quem caiu voltou. Vida e munição cheias.', 3); play('kill', 0.8); Prof.onWave(H.wave);
     if (!player.alive) respawn(player, teamSpawn(0, player.spawnIdx));
     else { player.hp = player.maxHp; for (const sl of pw.slots) { sl.mag = sl.w.mag; sl.reserve = sl.w.reserve; } buildSlots(); }
     for (const c of combatants) if (c.bot && !c.zombie && !c.netBot) { if (!c.alive) respawn(c, teamSpawn(0, c.spawnIdx)); else c.hp = c.maxHp; }
@@ -8856,7 +9050,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
