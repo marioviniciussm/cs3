@@ -5365,6 +5365,8 @@ function onEscape() {
   if (devOpen) { toggleDev(false); return; }
   if (mode && mode.over) return;
   if (paused) setPaused(false);
+  // na tela cheia do jogo as teclas ficam travadas e o Esc não solta o mouse sozinho: o próprio jogo pausa
+  else if (document.pointerLockElement === canvas || document.fullscreenElement) setPaused(true);
 }
 function toggleDev(open) {
   devOpen = open;
