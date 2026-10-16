@@ -212,7 +212,7 @@ body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
 body.touch .big { font-size: 24px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
-#lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); font-family: var(--body); font-size: 18px; text-align: center; }
+#lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; font-family: var(--body); font-size: 18px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
 /* ===================== Identidade CS3 e revisão de UX (menu, painéis, HUD) ===================== */
 .side { width: min(500px, 100%); gap: 16px; background: linear-gradient(90deg, rgba(8,10,13,0.96), rgba(8,10,13,0.86) 70%, rgba(8,10,13,0)); scrollbar-width: thin; scrollbar-color: #39424b transparent; }
@@ -567,7 +567,7 @@ const ACTIONS = [
 const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1 },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1 },
-  controls: { sens: 2, zoomSens: 1, invertY: false },
+  controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
   touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
   hud: { scale: 1, bg: 0.42, fg: '#e9edf0', accent: '#f2a03a', hitmarker: true, dmgDir: true, killcam: true },
@@ -611,19 +611,47 @@ addEventListener('keydown', e => {
   }
   const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT');
   if (state === 'playing' && !typing && ['Tab', 'Space', 'F1', 'F2', 'F3', 'ArrowUp', 'ArrowDown', 'KeyF'].includes(e.code)) e.preventDefault();
+  // atalhos do navegador no meio da partida (Ctrl+D favoritos, Ctrl+S, Ctrl+F, Ctrl+P, Ctrl+H, Alt+setas,
+  // Backspace, aspas/barra da busca rápida do Firefox, F-teclas) ficam desligados enquanto se joga.
+  // Ctrl+W/T/N o navegador não deixa bloquear fora da tela cheia: para esses existe a opção de tela cheia.
+  if (state === 'playing' && !typing && (e.ctrlKey || e.metaKey || e.altKey || /^F([4-9]|10)$/.test(e.code) || ['Backspace', 'Quote', 'Slash', 'ContextMenu'].includes(e.code))) e.preventDefault();
   if (e.code === 'Escape' && state === 'playing') onEscape();
   if (!e.repeat) { held.add(e.code); pressed.add(e.code); }
 });
 addEventListener('keyup', e => held.delete(e.code));
-addEventListener('blur', () => held.clear());
+let blurAt = -1e9;
+addEventListener('blur', () => { held.clear(); blurAt = performance.now(); });
 addEventListener('mousedown', e => {
   if (capturing) { e.preventDefault(); assignKey(capturing, 'Mouse' + e.button); capturing = null; renderSettings(); return; }
   if (!locked()) return;
   held.add('Mouse' + e.button); pressed.add('Mouse' + e.button);
 });
-addEventListener('mouseup', e => held.delete('Mouse' + e.button));
+addEventListener('mouseup', e => { held.delete('Mouse' + e.button); if (state === 'playing' && e.button > 2) e.preventDefault(); });
+// botões laterais do mouse (voltar/avançar) não podem sair da página no meio da partida
+addEventListener('auxclick', e => { if (state === 'playing') e.preventDefault(); });
+addEventListener('mousedown', e => { if (state === 'playing' && e.button > 2) e.preventDefault(); }, true);
+// fechar a aba sem querer (Ctrl+W) no meio de uma partida pede confirmação
+addEventListener('beforeunload', e => { if (state === 'playing' && S.controls.leaveGuard !== false && !(mode && mode.type === 'dev')) { e.preventDefault(); e.returnValue = ''; } });
 addEventListener('contextmenu', e => { if (state === 'playing') e.preventDefault(); });
-addEventListener('mousemove', e => { if (locked()) { look.x += e.movementX; look.y += e.movementY; } });
+// filtro de saltos: alguns navegadores (Chrome no Windows, principalmente) mandam um movementX/Y gigante
+// quando o mouse é movido muito rápido ou "escapa" da janela; isso jogava a mira longe e parecia que a
+// sensibilidade tinha desconfigurado. Um salto repentino muito maior que o movimento recente é descartado.
+let lockAt = 0, mvAvg = 0, mvDX = 0, mvDY = 0;
+const mouseFilter = { dropped: 0 };
+function acceptMove(dx, dy) {
+  if (performance.now() - lockAt < 150) return false;            // primeiros eventos após travar vêm sujos
+  const m = Math.hypot(dx, dy);
+  const dot = dx * mvDX + dy * mvDY;
+  const jump = m > 180 && (m > mvAvg * 8 + 60 || (dot < 0 && m > mvAvg * 3 + 40) || m > 2500);
+  if (jump) { mouseFilter.dropped++; mvAvg *= 0.5; return false; }
+  mvAvg = mvAvg * 0.7 + m * 0.3; mvDX = mvDX * 0.6 + dx * 0.4; mvDY = mvDY * 0.6 + dy * 0.4;
+  return true;
+}
+addEventListener('mousemove', e => {
+  if (!locked() || touchOn()) return;
+  if (!acceptMove(e.movementX, e.movementY)) return;
+  look.x += e.movementX; look.y += e.movementY;
+});
 addEventListener('wheel', e => { if (locked()) wheel += Math.sign(e.deltaY); }, { passive: true });
 
 function assignKey(action, code) {
@@ -637,18 +665,38 @@ const IS_TOUCH = matchMedia('(pointer: coarse)').matches && !matchMedia('(pointe
 const touchOn = () => S.touch.mode === 1 || (S.touch.mode === 0 && IS_TOUCH);
 const locked = () => document.pointerLockElement === canvas || (touchOn() && state === 'playing');
 // mouse "cru" (sem a aceleração do sistema) quando o navegador suporta; senão o modo normal
+// tela cheia de verdade no PC: com ela o Chrome deixa o jogo segurar todas as teclas (até Ctrl+W, Ctrl+T e Esc;
+// segure Esc para sair da tela cheia)
+function pcFullscreen() {
+  if (touchOn() || !S.controls.fullscreen) return;
+  const lockKeys = () => { try { const k = navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(); if (k && k.catch) k.catch(() => {}); } catch (e) {} };
+  if (document.fullscreenElement) { lockKeys(); return; }
+  try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (r && r.then) r.then(lockKeys, () => {}); } catch (e) {}
+}
 function lockPointer() {
-  if (touchOn()) return;
+  pcFullscreen();
+  if (touchOn() || document.pointerLockElement === canvas) return;
+  if (S.controls.rawMouse === false) { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} return; }
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
     if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} });
   } catch (e) { try { canvas.requestPointerLock(); } catch (e2) {} }
 }
 document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === canvas) { lockAt = performance.now(); mvAvg = 0; mvDX = mvDY = 0; }
+  look.x = look.y = 0;
   if ((classOpen || adminOpen) && document.pointerLockElement) { document.exitPointerLock(); return; }   // escolhendo classe / menu de admin: o mouse fica livre
-  if (!locked()) { held.clear(); if (state === 'playing' && !paused && !devOpen && !classOpen && !adminOpen && !(mode && mode.over)) setPaused(true); }
+  // perdeu o mouse porque outra janela pegou o foco (sobreposição de chamada do WhatsApp/Discord, notificação,
+  // mouse escapando num movimento rápido): não abre o menu de pausa, só pede um clique para voltar.
+  // Esc continua abrindo a pausa normalmente.
+  const stolen = !document.hasFocus() || performance.now() - blurAt < 400;
+  if (!locked()) { held.clear(); if (!stolen && state === 'playing' && !paused && !devOpen && !classOpen && !adminOpen && !(mode && mode.over)) setPaused(true); }
   updateLockHint();
 });
+document.addEventListener('pointerlockerror', () => { updateLockHint(); });
+// voltando para a janela do jogo: qualquer clique no jogo ou no aviso trava o mouse de novo (sem atirar)
+$('#lockHint').addEventListener('mousedown', e => { e.stopPropagation(); if (state === 'playing' && !paused) lockPointer(); });
+addEventListener('focus', () => updateLockHint());
 canvas.addEventListener('click', () => {
   if (state !== 'playing' || paused || classOpen || adminOpen || (mode && mode.over)) return;
   if (devOpen) toggleDev(false);
@@ -5969,7 +6017,7 @@ function renderSettings() {
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
-    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') +
+    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador)') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') +
       `<p class="note">Recoil estilo CS: o primeiro tiro vai exatamente na mira. Segurando o tiro, cada arma sobe sempre no mesmo desenho (a metralhadora sobe reto e depois puxa para a esquerda e para a direita); puxe o mouse para baixo e para o lado contrário para compensar. Correndo, pulando ou logo depois de cair a mira abre muito: pare ou ande com Shift para acertar.</p>` +
       `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla (ou botão do mouse). Esc cancela.</p>` +
       ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
@@ -6238,7 +6286,7 @@ requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
 window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
-window.__cs3 = { startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
