@@ -2349,8 +2349,8 @@ function tryMelee(alt) {
   if (pw.drawT > 0 || now < pw.nextFire) return;
   pw.nextFire = now + (alt ? w.altInterval : w.interval); pw.lastShot = now;
   pv.swing = 1; pv.swingAlt = alt; pv.swingSide = -pv.swingSide;
-  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-  const res = meleeAttack(player, w, camera.position.clone(), dir, alt);
+  const dir = thirdOn() ? new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')) : new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const res = meleeAttack(player, w, shotEye(), dir, alt);
   play(res.hit ? 'knifeHit' : res.wall ? 'knifeWall' : 'knife', 0.9);
   if (mode && mode.net) Net.send({ t: 'shot', w: active().wi });
   showHit(res);
@@ -2363,17 +2363,18 @@ function tryFire(pressedNow) {
   if (!pw.infinite) s.mag--;
   pw.nextFire = now + w.interval; pw.lastShot = now;
   // a bala sai na direção da mira + o ponto atual do padrão de recoil (a câmera só mostra metade)
-  const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch + pw.punch.x * DEG, player.yaw - pw.punch.y * DEG, 0, 'YXZ'));
-  const muzzleWorld = camera.position.clone()
+  const dir = thirdAim(new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch + pw.punch.x * DEG, player.yaw - pw.punch.y * DEG, 0, 'YXZ')));
+  const eye0 = shotEye();
+  const muzzleWorld = thirdOn() ? (player.group.updateMatrixWorld(true), player.muzzle.getWorldPosition(new THREE.Vector3())) : camera.position.clone()
     .addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.18)
     .addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), -0.14)
     .addScaledVector(dir, 0.6);
   let res, pv0 = null;
   if (w.proj) {
     // besta e foguete: o projétil sai um pouco à frente do olho, na direção da mira, e voa de verdade (acerto contado quando chega)
-    const from = camera.position.clone().addScaledVector(dir, 0.5).addScaledVector(new THREE.Vector3(0, -1, 0), 0.06);
+    const from = eye0.clone().addScaledVector(dir, 0.5).addScaledVector(new THREE.Vector3(0, -1, 0), 0.06);
     pv0 = fireProj(player, w, from, dir, mode && mode.perfect ? 0 : pw.spread); muzzleWorld.copy(from); res = { hit: false };
-  } else res = (mode && mode.aimShot && mode.aimShot(camera.position.clone(), dir, muzzleWorld)) || fireWeapon(player, w, camera.position.clone(), dir, mode && mode.perfect ? 0 : pw.spread, muzzleWorld);
+  } else res = (mode && mode.aimShot && mode.aimShot(eye0.clone(), dir, muzzleWorld)) || fireWeapon(player, w, eye0.clone(), dir, mode && mode.perfect ? 0 : pw.spread, muzzleWorld);
   if (mode && mode.stats) { mode.stats.shots++; if (res.hit) mode.stats.hits++; }
   if (mode && mode.net) Net.send(pv0 ? { t: 'shot', w: s.wi, pp: v3a(muzzleWorld), pv: v3a(pv0) } : { t: 'shot', w: s.wi, a: v3a(muzzleWorld), b: v3a(res.end) });
   pw.shotSpread = Math.min(pw.shotSpread + w.perShot, w.maxShot);
@@ -3840,7 +3841,7 @@ function applySkin(c, sk) {
   const set = (m, col, map = null) => { m.color.set(col); if (m.map !== map) { m.map = map; m.needsUpdate = true; } };
   c.skin = sk || null;
   if (!sk || !sk.model) detachModel(c);
-  if (sk && sk.model) { if (!c.isPlayer) attachModel(c, sk); sk = null; }
+  if (sk && sk.model) { attachModel(c, sk); sk = null; }
   if (!sk) { set(M.shirt, c.color); set(M.pants, tc.clone().multiplyScalar(0.35)); set(M.vest, tc.clone().multiplyScalar(0.62)); set(M.gear, 0x34373d); return; }
   const tex = skinTex(sk);
   if (sk.img) {
@@ -3943,12 +3944,69 @@ function modelTemplate(sk) {
     if (!isFinite(size.y) || size.y <= 0) throw new Error('O modelo não tem nada para desenhar.');
     const k = 1.8 / size.y;
     fix.scale.setScalar(k); fix.position.set(-(bb.min.x + bb.max.x) / 2 * k, -bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k);
+    // modelo parado sem esqueleto (ex.: só a malha em T-pose): o jogo cria um esqueleto e prende a malha nele
+    let hasSkin = false; scene.traverse(m => { if (m.isSkinnedMesh) hasSkin = true; });
+    const moving = clips.some(cl => cl.duration > 0.05 && cl.tracks.some(t => t.times.length > 1));
+    let rigged = false;
+    if (!hasSkin && !moving) { try { rigged = autoRig(fix, scene, bb); } catch (e) { rigged = false; } }
     let tris = 0;
-    scene.traverse(m => { if (m.isMesh) { m.frustumCulled = false; const g = m.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
-    return { root, fix, clips, tris: Math.round(tris), kind };
+    fix.traverse(m => { if (m.isMesh) { m.frustumCulled = false; const g = m.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+    return { root, fix, clips, tris: Math.round(tris), kind, rigged };
   })();
   modelTpl.set(sk.id, p); p.catch(() => modelTpl.delete(sk.id));
   return p;
+}
+// cria um esqueleto humano para uma malha parada em T-pose (ou com os braços abertos) e distribui os vértices
+// entre os ossos pela posição: braços para os lados, pernas abaixo do quadril, cabeça acima dos ombros
+function autoRig(fix, scene, bb) {
+  scene.updateMatrixWorld(true); fix.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(fix.matrixWorld).invert();
+  const meshes = []; scene.traverse(m => { if (m.isMesh && !m.isSkinnedMesh && m.geometry && m.geometry.attributes.position) meshes.push(m); });
+  if (!meshes.length) return false;
+  const geos = meshes.map(m => { const g = m.geometry.clone(); g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld)); return g; });
+  const H = bb.max.y - bb.min.y, y0 = bb.min.y, cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+  const pct = (arr, q) => { if (!arr.length) return 0; arr.sort((a, b) => a - b); return arr[Math.min(arr.length - 1, Math.floor(arr.length * q))]; };
+  const belly = [], all = [];
+  for (const g of geos) { const P = g.attributes.position; for (let i = 0; i < P.count; i++) { const x = Math.abs(P.getX(i) - cx), y = P.getY(i) - y0; all.push([x, y]); if (y > 0.45 * H && y < 0.58 * H) belly.push(x); } }
+  const X = Math.max(...all.map(v => v[0])), tw = Math.max(0.06 * H, pct(belly, 0.85));
+  const armsOut = X > 0.3 * H && X > tw * 1.8;
+  const armPts = armsOut ? all.filter(v => v[0] > Math.max(tw * 1.5, tw + (X - tw) * 0.35)) : [];
+  const sy = armPts.length ? armPts.reduce((s, v) => s + v[1], 0) / armPts.length : 0.8 * H;
+  const shX = tw, L = X - shX, elX = shX + L * 0.45, wrX = shX + L * 0.8;
+  const hipY = 0.48 * H, kneeY = 0.26 * H, ankY = 0.05 * H, neckY = Math.min(sy + 0.07 * H, 0.9 * H), spY = 0.6 * H;
+  const legX = [1, -1].map(sg => { const xs = all.filter(v => v[1] < kneeY); return xs.length ? Math.max(0.04 * H, pct(xs.map(v => v[0]), 0.5)) * 0.9 : 0.08 * H; });
+  // ossos (posições no espaço do modelo; "Left" é o lado +x de um modelo olhando para +z)
+  const B = {}, bones = [], at = {};
+  const mk = (name, parent, x, y, z) => { const b = new THREE.Bone(); b.name = name; const w = new THREE.Vector3(x, y0 + y, z); at[name] = w; b.position.copy(parent ? w.clone().sub(at[parent]) : w); if (parent) B[parent].add(b); B[name] = b; bones.push(b); return b; };
+  mk('Hips', null, cx, hipY, cz); mk('Spine', 'Hips', cx, spY, cz); mk('Chest', 'Spine', cx, sy - 0.04 * H, cz); mk('Neck', 'Chest', cx, neckY, cz); mk('Head', 'Neck', cx, neckY + 0.04 * H, cz); mk('HeadTop', 'Head', cx, H, cz);
+  for (const [S, sg] of [['Left', 1], ['Right', -1]]) {
+    if (armsOut) { mk(S + 'Arm', 'Chest', cx + sg * shX, sy, cz); mk(S + 'ForeArm', S + 'Arm', cx + sg * elX, sy, cz); mk(S + 'Hand', S + 'ForeArm', cx + sg * wrX, sy, cz); mk(S + 'HandEnd', S + 'Hand', cx + sg * X, sy, cz); }
+    const lx = legX[sg > 0 ? 0 : 1];
+    mk(S + 'UpLeg', 'Hips', cx + sg * lx, hipY, cz); mk(S + 'Leg', S + 'UpLeg', cx + sg * lx, kneeY, cz); mk(S + 'Foot', S + 'Leg', cx + sg * lx, ankY, cz); mk(S + 'Toe', S + 'Foot', cx + sg * lx, 0, cz + 0.08 * H);
+  }
+  const idx = n => bones.indexOf(B[n]);
+  // dois ossos por vértice, misturando perto das juntas para a malha dobrar sem rasgar
+  const mix = (t, edge, band, a, b) => { const k = clamp((t - (edge - band)) / (2 * band), 0, 1); return [a, b, k]; };
+  for (const g of geos) {
+    const P = g.attributes.position, n = P.count, SI = new Uint16Array(n * 4), SW = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      const x = P.getX(i) - cx, ax = Math.abs(x), y = P.getY(i) - y0, S = x >= 0 ? 'Left' : 'Right';
+      let r;
+      if (armsOut && ax > shX * 0.9 && y > sy - 0.14 * H && y < sy + 0.12 * H && y > hipY + 0.05 * H) {
+        r = ax < (shX + elX) / 2 ? mix(ax, shX, 0.035 * H, 'Chest', S + 'Arm') : ax < (elX + wrX) / 2 ? mix(ax, elX, 0.03 * H, S + 'Arm', S + 'ForeArm') : mix(ax, wrX, 0.02 * H, S + 'ForeArm', S + 'Hand');
+      } else if (y > neckY - 0.02 * H) r = mix(y, neckY, 0.02 * H, 'Chest', 'Head');
+      else if (y < hipY + 0.03 * H) {
+        r = y > (hipY + kneeY) / 2 ? mix(y, hipY, 0.04 * H, S + 'UpLeg', 'Hips') : y > (kneeY + ankY) / 2 ? mix(y, kneeY, 0.035 * H, S + 'Leg', S + 'UpLeg') : mix(y, ankY, 0.02 * H, S + 'Foot', S + 'Leg');
+      } else r = y < (hipY + spY) / 2 ? mix(y, hipY + 0.06 * H, 0.04 * H, 'Hips', 'Spine') : mix(y, sy - 0.1 * H, 0.06 * H, 'Spine', 'Chest');
+      SI[i * 4] = idx(r[0]); SI[i * 4 + 1] = idx(r[1]); SW[i * 4] = 1 - r[2]; SW[i * 4 + 1] = r[2];
+    }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(SI, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(SW, 4));
+  }
+  fix.remove(scene); fix.add(B.Hips); fix.updateMatrixWorld(true);
+  const skel = new THREE.Skeleton(bones);
+  const sms = geos.map((g, i) => { const skm = mt => { const c = mt.clone(); c.skinning = true; return c; }, m0 = meshes[i].material, sm = new THREE.SkinnedMesh(g, Array.isArray(m0) ? m0.map(skm) : skm(m0)); sm.name = meshes[i].name; fix.add(sm); return sm; });
+  fix.updateMatrixWorld(true); sms.forEach(sm => sm.bind(skel));
+  return true;
 }
 const pickClip = (clips, re) => clips.find(c => re.test(c.name));
 function detachModel(c) {
@@ -4204,7 +4262,7 @@ function renderSkins() {
       <div class="row"><label for="sk_rot">Virar o modelo (se ficar de costas)</label><input type="checkbox" id="sk_rot" ${sel.rot ? 'checked' : ''}><span></span></div>
       <div class="row"><label for="sk_h">Tamanho</label><select id="sk_h">${[[0.9, 'Menor'], [1, 'Normal (1,80 m)'], [1.1, 'Maior']].map(([v, t]) => `<option value="${v}" ${sel.h === v ? 'selected' : ''}>${t}</option>`).join('')}</select><span></span></div>
       <div class="row"><label for="sk_gun">Mostrar a arma do jogo</label><input type="checkbox" id="sk_gun" ${sel.gun ? 'checked' : ''}><span></span></div>
-      <p class="note" style="margin:0" id="skInfo">${mb}${sel.tris ? ` · ${sel.tris.toLocaleString('pt-BR')} triângulos` : ''}${sel.anims ? ` · animações: ${esc(sel.anims)}` : sel.tris ? ' · sem animação (o modelo desliza e balança)' : ''}${sel.tris > 60000 ? '<br><b style="color:var(--danger)">Modelo pesado: pode derrubar o FPS com muitos bots.</b>' : ''}${sel.size > MODEL_NET_MAX ? '<br>Grande demais para mandar ao amigo no online (máximo 8 MB): ele vai ver o boneco normal.' : ''}</p>
+      <p class="note" style="margin:0" id="skInfo">${mb}${sel.tris ? ` · ${sel.tris.toLocaleString('pt-BR')} triângulos` : ''}${sel.anims ? ` · animações: ${esc(sel.anims)}` : sel.tris ? ' · sem animação: o jogo põe um esqueleto e mexe braços, pernas e cabeça' : ''}${sel.tris > 60000 ? '<br><b style="color:var(--danger)">Modelo pesado: pode derrubar o FPS com muitos bots.</b>' : ''}${sel.size > MODEL_NET_MAX ? '<br>Grande demais para mandar ao amigo no online (máximo 8 MB): ele vai ver o boneco normal.' : ''}</p>
       <button class="btn small" id="skDel">Apagar este modelo</button>`;
   }
   h += `<p class="note" style="margin:4px 0 0">As ombreiras continuam na cor do time, para não confundir aliado e inimigo. No x1 online, o seu amigo vê a sua skin.</p>`;
@@ -4999,6 +5057,19 @@ function thirdCam(c, m) {
   if (worldMeshes.length) { _tcRay.set(_tcE, _tcD); _tcRay.far = dist; const h = _tcRay.intersectObjects(worldMeshes, false)[0]; if (h) dist = Math.max(0.35, h.distance - 0.25); }
   camera.position.copy(_tcE).addScaledVector(_tcD, dist);
   if (m === 2) camera.lookAt(_tcE); else camera.lookAt(_tcE.addScaledVector(_tcF, 30));
+}
+// em 3ª pessoa o tiro sai do olho do boneco (não da câmera) e vai para onde a mira da tela aponta
+function shotEye() { return thirdOn() ? eyePos(player) : camera.position.clone(); }
+function thirdAim(base) {
+  if (!thirdOn() || Admin.watch || Admin.cam !== 1) return base;
+  // o recoil desvia a mira da tela do mesmo jeito que desviaria em 1ª pessoa
+  const F = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
+  const cd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(F, base));
+  const eye = eyePos(player), t0 = Math.max(0, eye.clone().sub(camera.position).dot(cd));
+  const o = camera.position.clone().addScaledVector(cd, t0);
+  scene.updateMatrixWorld();
+  const h = trace(o, cd, 300, player), P = h ? h.point : o.clone().addScaledVector(cd, 300);
+  const d = P.sub(eye); return d.lengthSq() > 0.25 ? d.normalize() : base;
 }
 function thirdOn() { return !!(player && ((Admin.watch && combatants.includes(Admin.watch)) || (Admin.cam && player.alive))); }
 function applyThirdCam() {
@@ -6064,6 +6135,7 @@ function frame(t) {
   Voice.update(dt); for (const c of combatants) updateMouth(c, dt);
   if (world && !world.userData.baked) bakeWorld();
   if (state === 'playing' && mode) {
+    heroFade(1);   // o escurecido da troca de câmera do menu nunca fica preso na partida
     const sim = worldActive() ? dt * (mode.type === 'dev' ? devTimeScale : 1) : 0;
     now += sim;
     if (sim > 0) {
@@ -6087,7 +6159,7 @@ function frame(t) {
     else if (player.alive && !thirdOn()) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
-    if (skinView) { updateSkinView(dt); $('#heroTag').hidden = true; }
+    if (skinView) { heroFade(1); updateSkinView(dt); $('#heroTag').hidden = true; }
     else if (updateMenuHero(dt)) {}
     else {
       menuOrbit += dt * 0.07;
@@ -6110,7 +6182,7 @@ requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
 window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
-window.__cs3 = { Admin, runCommand, openAdmin,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
