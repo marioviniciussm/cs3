@@ -1323,6 +1323,11 @@ function buildChessArena() {
   // muretas de pedra (a mesma ideia da habilidade da Torre)
   sym(-9, 13, 4, 1.1, 0.7, stone); sym(9, 11, 0.7, 1.1, 3.4, stone); sym(0, 17, 5, 1.1, 0.7, stone);
   sym(-12, 0, 0.7, 1.1, 5, stone); sym(-4, 3, 2.6, 1.1, 0.7, stone);
+  // paredes altas (cortam a linha de tiro de longe; dá para subir nelas voando com a Dama ou com o gancho da Torre)
+  const tall = 0x7a7d84;
+  sym(-6, 4.5, 0.8, 4, 4.5, tall); sym(2, 13, 4, 4, 0.8, tall); sym(12, 10, 4, 4, 0.8, tall);
+  sym(-11, 8, 1.8, 5, 1.8, tall); sym(11, 8, 1.8, 5, 1.8, tall);
+  sym(-3, -2.6, 0.8, 4, 2.2, tall);
   // torres dos fundos com rampa
   for (const sgn of [1, -1]) {
     const z = sgn * 19, x = sgn * 11;
@@ -1667,8 +1672,8 @@ const WEAPONS = [
     base: 0.001, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 1.4, recoilY: 0.2, speed: 1.02 },
   { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 19, pellets: 11, interval: 1.0, auto: false, mag: 2, reserve: 30, reload: 1.9, draw: 0.6, range: 45, falloff: 0.62, head: 1.6,
     base: 0.075, move: 0.03, air: 0.12, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
-  { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 15, pellets: 1, interval: 0.05, auto: true, mag: 160, reserve: 320, reload: 4.8, draw: 1.0, range: 200, falloff: 0.94, head: 2.5,
-    base: 0.014, move: 0.05, air: 0.2, perShot: 0.001, maxShot: 0.02, recover: 0.3, recoilP: 0.35, recoilY: 0.3, speed: 0.78 },
+  { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 9, pellets: 1, interval: 0.08, spinUp: 0.7, auto: true, mag: 120, reserve: 240, reload: 4.8, draw: 1.0, range: 200, falloff: 0.88, head: 2,
+    base: 0.016, move: 0.07, air: 0.2, perShot: 0.0025, maxShot: 0.045, recover: 0.3, recoilP: 0.35, recoilY: 0.3, speed: 0.78 },
   { id: 'sword', name: 'Espadão', snd: 'knife', melee: true, dmg: 70, alt: 115, altInterval: 1.15, pellets: 1, interval: 0.7, auto: true, mag: 0, reserve: 0, reload: 0, draw: 0.4,
     range: 3.3, falloff: 1, head: 1.3, base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1.05 },
   // a peça que a Dama arremessa (habilidade, não aparece na lista de armas)
@@ -2597,7 +2602,7 @@ function computeSpread() {
   if (w.melee) return 0;
   // como no CS: parado ou andando devagar (Shift / contra-strafe) é preciso; correndo, pulando ou logo depois de cair, não
   const sf = clamp((Math.hypot(p.vel.x, p.vel.z) / RUN - 0.3) / 0.7, 0, 1);
-  const mv = w.move * sf * Math.sqrt(sf), air = p.grounded ? w.air * (pw.landT / 0.35) * 0.6 : w.air;
+  const mv = w.move * sf * Math.sqrt(sf), air = p.grounded ? w.air * (pw.landT / 0.35) * 0.6 : Ab.on && Ab.pc === 'Q' ? w.air * 0.1 : w.air;
   let s = w.scope ? (pw.zoom ? w.scoped : w.base + w.unscoped) + mv + air : w.base + mv + air + pw.shotSpread;
   if (w.scope && pw.zoom) {
     // AWP como no CS: a mira só assenta ~0,35 s depois de dar zoom (quickscope instantâneo erra), andando
@@ -2666,13 +2671,20 @@ function tryMelee(alt) {
   if (mode && mode.net) Net.send({ t: 'shot', w: active().wi, al: alt ? 1 : 0 });
   showHit(res);
 }
+// minigun: começa girando devagar (até 3x o intervalo) e chega na cadência máxima depois de w.spinUp segundos atirando
+function spinMul(o, w) {
+  if (!w.spinUp) return 1;
+  if (now - (o.spinLast ?? -9) > 0.3) o.spinAt = now;
+  o.spinLast = now;
+  return 1 + 2 * (1 - clamp((now - o.spinAt) / w.spinUp, 0, 1));
+}
 function tryFire(pressedNow) {
   const s = active(), w = s.w;
   if (mode && mode.noFire) return;
   if (pw.drawT > 0 || now < pw.nextFire || pw.reloadT) return;
   if (s.mag <= 0) { if (pressedNow) play('empty', 0.8); pw.nextFire = now + 0.2; tryReload(); return; }
   if (!pw.infinite) s.mag--;
-  pw.nextFire = now + w.interval; pw.lastShot = now;
+  pw.nextFire = now + w.interval * spinMul(pw, w); pw.lastShot = now;
   // a bala sai na direção da mira + o ponto atual do padrão de recoil (a câmera só mostra metade)
   const dir = thirdAim(new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch + pw.punch.x * DEG, player.yaw - pw.punch.y * DEG, 0, 'YXZ')));
   const eye0 = shotEye();
@@ -2830,7 +2842,7 @@ function updateBot(c, dt) {
         if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); startAnim(c, 'reload', w.reload); }
         else {
           c.weapon.magNow--;
-          b.nextFire = now + w.interval * (w.auto ? 1 : rand(1.1, 1.7));
+          b.nextFire = now + w.interval * (w.auto ? spinMul(b, w) : rand(1.1, 1.7));
           if (w.auto) { if (b.burst <= 0) b.burst = 3 + Math.floor(Math.random() * 6); b.burst--; if (b.burst <= 0) b.nextFire += rand(0.25, 0.6); }
           c.group.updateMatrixWorld(true);
           const ms = new THREE.Vector3(); c.muzzle.getWorldPosition(ms);
@@ -3471,7 +3483,7 @@ function recordX1(team) {
 }
 function endX1(team) {
   mode.over = true;
-  if (mode.cfg && mode.cfg.chess) { if (document.exitPointerLock && locked()) document.exitPointerLock(); if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
+  if (mode.cfg && mode.cfg.chess) { if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
   const R = recordX1(team);
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   const m = mode, my = m.myTeam;
@@ -3558,13 +3570,14 @@ function onNetMsg(m) {
     case 'mdl': onModelChunk(m); break;
     case 'chess': case 'chmv': case 'chff': case 'chhold': Chess.onMsg(m); break;
     case 'pull': if (inGame && Array.isArray(m.v)) { const v = a2v(m.v); if (!isFinite(v.x + v.y + v.z) || v.length() > 40) break; if (m.to === Net.myId) applyPull(player, v); else if (Net.role === 'host' && mode.netBots && mode.netBots.get(m.to)) applyPull(mode.netBots.get(m.to), v); } break;
-    case 'sumreq': if (inGame && Net.role === 'host' && mode.cfg && mode.cfg.chess && r && Array.isArray(m.p)) { const pp = a2v(m.p); if (isFinite(pp.x + pp.y + pp.z)) spawnSummons(r.team, pp, +m.y || 0); } break;
+    case 'sumreq': if (inGame && Net.role === 'host' && mode.cfg && mode.cfg.chess && r && Array.isArray(m.p)) { const pp = a2v(m.p); if (isFinite(pp.x + pp.y + pp.z)) spawnSummons(r.team, pp, +m.y || 0, r); } break;
     case 'nbadd': if (inGame && Net.role === 'guest' && Array.isArray(m.p) && WEAPONS[m.w] && !remoteOf(String(m.id))) {
       const id = String(m.id).slice(0, 6), team = m.team ? 1 : 0, sp = { pos: a2v(m.p), yaw: +m.y || 0 };
-      const rb = createCombatant(String(m.name || 'Peão').slice(0, 16), shade(TEAM_COLORS[team], 3), sp, false);
-      Object.assign(rb, { remote: true, isNetBot: true, summon: true, netId: id, team, maxHp: 50, hp: 50, spawnIdx: 9, wi: m.w });
+      const rb = createCombatant(String(m.name || 'Peão').slice(0, 16), TEAM_COLORS[team], sp, false);
+      Object.assign(rb, { remote: true, isNetBot: true, summon: true, netId: id, team, maxHp: 20, hp: 20, spawnIdx: 9, wi: m.w });
       rb.net = { tp: rb.pos.clone(), tv: new THREE.Vector3(), ty: rb.yaw, at: performance.now(), has: false };
-      setGunShape(rb, WEAPONS[m.w]); applySkin(rb, null); mode.remotes.set(id, rb);
+      const lk = m.o != null ? lookFromNet(String(m.o)) : { skin: null, cos: null };
+      setGunShape(rb, WEAPONS[m.w]); applySkin(rb, lk.skin); applyCos(rb, lk.cos); mode.remotes.set(id, rb);
     } break;
     case 'rtc': Voice.onMsg(m); break;
     case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': onAdminMsg(m); break;
@@ -7079,7 +7092,7 @@ const Ab = {
   air(p, dt, input) {
     const jump = input && isHeld('jump');
     if (this.pc === 'B' && jump && p.vel.y < -2.2) p.vel.y = -2.2;
-    if (this.pc === 'Q' && jump && this.fuel > 0) { p.vel.y = Math.min(7, p.vel.y + 34 * dt); this.fuel = Math.max(0, this.fuel - dt / 2.6); }
+    if (this.pc === 'Q' && jump && this.fuel > 0) { p.vel.y = Math.min(7, p.vel.y + 34 * dt); this.fuel = Math.max(0, this.fuel - dt / 3.5); }
   },
   land(p) {
     if (!this.pound) return;
@@ -7112,19 +7125,32 @@ function applyPull(c, v) {
 // peão: chama dois peões do tabuleiro para lutar do seu lado (no online, o anfitrião cria e controla)
 function summonPawns(p) {
   if (mode && mode.net && !mode.host) { Net.send({ t: 'sumreq', p: v3a(p.pos), y: +p.yaw.toFixed(3) }); return; }
-  spawnSummons(p.team, p.pos, p.yaw);
+  spawnSummons(p.team, p.pos, p.yaw, p);
+}
+// os peões chamados são cópias de quem chamou (mesmo nome, skin e acessórios) para confundir o inimigo
+function summonLook(owner) {
+  if (!owner) return { name: 'Peão', skin: null, cos: null };
+  if (owner.isPlayer) return { name: owner.name, skin: mySkin(), cos: myCos() };
+  const rp = owner.netId != null && Net.byId ? Net.byId(owner.netId) : null;
+  return { name: owner.name, skin: rp ? rp.skin || null : null, cos: rp ? rp.cos : null };
+}
+function lookFromNet(oid) {
+  if (oid === Net.myId) return { skin: mySkin(), cos: myCos() };
+  const rp = Net.byId(oid); return { skin: rp ? rp.skin || null : null, cos: rp ? rp.cos : null };
 }
 let sumSeq = 0;
-function spawnSummons(team, pos, yaw) {
+function spawnSummons(team, pos, yaw, owner) {
   const d = DIFF[(mode && mode.cfg && mode.cfg.diff) ?? 1] || DIFF[1];
   for (const s of [-1, 1]) {
     const sp = { pos: pos.clone().add(new THREE.Vector3(Math.cos(yaw) * s * 1.6, 0.05, -Math.sin(yaw) * s * 1.6)), yaw };
     if (collides(sp.pos, 1.8)) sp.pos.copy(pos);
-    const b = createBot(Object.assign(botDefaults(), { name: 'Peão chamado', weapon: WI('musket'), acc: d.acc * 0.75, react: d.react * 1.3, speed: d.speed, view: d.view, fov: d.fov, hp: 50, respawn: false }), sp, shade(TEAM_COLORS[team], 3));
-    b.team = team; b.summon = true; b.spawnIdx = 9;
+    const L = summonLook(owner);
+    const b = createBot(Object.assign(botDefaults(), { name: L.name, weapon: WI('musket'), acc: d.acc * 0.75, react: d.react * 1.3, speed: d.speed, view: d.view, fov: d.fov, hp: 20, respawn: false }), sp, TEAM_COLORS[team]);
+    b.team = team; b.summon = true; b.spawnIdx = 9; b.maxHp = 20; b.hp = 20;
+    applySkin(b, L.skin); applyCos(b, L.cos);
     if (mode && mode.net && mode.netBots) {
       const id = 's' + (++sumSeq); Object.assign(b, { netId: id, netBot: true }); mode.netBots.set(id, b);
-      Net.send({ t: 'nbadd', id, name: b.name, team, w: WI('musket'), p: v3a(sp.pos), y: +yaw.toFixed(3) });
+      Net.send({ t: 'nbadd', id, name: b.name, team, w: WI('musket'), p: v3a(sp.pos), y: +yaw.toFixed(3), o: owner && (owner.isPlayer ? Net.myId : owner.netId) });
     }
   }
   banner('Peões chamados!', '', 1.2); play('round', 0.5);
