@@ -212,6 +212,29 @@ body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
 body.touch .big { font-size: 24px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
+#chess { background: rgba(8,10,13,0.84); display: flex; align-items: center; justify-content: center; overflow: auto; }
+#chess[hidden] { display: none; }
+.chwrap { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; padding: 16px; max-width: 100%; margin: auto; }
+.chboard { --s: min(calc((100vh - 40px) / 8), calc((100vw - 32px) / 8), 76px); display: grid; grid-template-columns: repeat(8, var(--s)); grid-template-rows: repeat(8, var(--s)); border: 2px solid var(--accent); box-shadow: 0 12px 40px rgba(0,0,0,0.55); flex: none; }
+@media (min-width: 900px) { .chboard { --s: min(calc((100vh - 40px) / 8), calc((100vw - 440px) / 8), 86px); } .chwrap { flex-wrap: nowrap; } .chside { flex: 0 1 350px; min-width: 280px; } }
+.sq { position: relative; border: 0; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: calc(var(--s) * 0.74); line-height: 1; font-family: "Segoe UI Symbol", "DejaVu Sans", "Noto Sans Symbols 2", serif; }
+.sq.lt { background: #c9ced4; } .sq.dk { background: #5d6772; }
+.sq.last { box-shadow: inset 0 0 0 999px rgba(242,160,58,0.3); } .sq.lastf { box-shadow: inset 0 0 0 999px rgba(225,70,70,0.32); }
+.sq.sel { box-shadow: inset 0 0 0 4px var(--accent); }
+.sq.chk { background: radial-gradient(circle, #ff5a5a 0, #d23c3c 35%, #6b2b2b 80%); }
+.sq.tgt::after { content: ""; position: absolute; width: 26%; height: 26%; border-radius: 50%; background: rgba(15,15,15,0.38); }
+.sq.cap::after { content: ""; position: absolute; inset: 6%; border-radius: 50%; border: 4px solid rgba(225,60,60,0.8); }
+.sq:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.pc { font-family: "Segoe UI Symbol", "DejaVu Sans", "Noto Sans Symbols 2", serif; }
+.pc.w { color: #fbf6ea; text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000, 0 3px 6px rgba(0,0,0,0.45); }
+.pc.b { color: #15171b; text-shadow: 0 1px 0 rgba(255,255,255,0.35), 1px 0 0 rgba(255,255,255,0.2), -1px 0 0 rgba(255,255,255,0.2), 0 3px 6px rgba(0,0,0,0.4); }
+.sq .rk, .sq .fl { position: absolute; font-style: normal; font-size: 11px; font-family: var(--body); color: #14161a; opacity: 0.65; }
+.sq .rk { left: 3px; top: 2px; } .sq .fl { right: 4px; bottom: 2px; }
+.chside { width: min(350px, 100%); box-sizing: border-box; }
+.chturn { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: 0.02em; } .chturn.me { color: var(--accent); }
+.chleg { display: grid; grid-template-columns: 26px 64px 1fr; align-items: center; gap: 6px; font-size: 14px; } .chleg .pc { font-size: 24px; }
+#chCaps .pc { font-size: 20px; letter-spacing: 1px; } #chCaps .pc.b { color: #aab3bd; text-shadow: none; }
+.chdet summary { cursor: pointer; font-weight: 600; }
 #lockHint { left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: auto; cursor: pointer; font-family: var(--body); font-size: 18px; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
 /* ===================== Identidade CS3 e revisão de UX (menu, painéis, HUD) ===================== */
@@ -369,6 +392,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6"/></g></symbol>
   <symbol id="i-net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.8"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M14.5 14.5c.8-.3 1.6-.5 2.5-.5 2.8 0 5 2 5 5"/></g></symbol>
   <symbol id="i-dm" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 14 10M10 4l10 10M15 3l6 6-3 3-6-6zM3 15l6 6"/></g></symbol>
+  <symbol id="i-chess" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 21h12M7.5 17.5h9M9 17.5c.3-3 .3-5.5-.5-7.5h7c-.8 2-.8 4.5-.5 7.5M8 10h8M9.5 10 8.5 6.5l2 1L12 4l1.5 3.5 2-1-1 3.5"/></g></symbol>
   <symbol id="i-cls" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="M8.5 12.5 11 15l4.5-5"/></g></symbol>
   <symbol id="i-aim" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></g></symbol>
   <symbol id="i-skin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3 3 6l2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.5-2 2.5-4 2.5S8.5 4.5 8 3Z"/></g></symbol>
@@ -397,6 +421,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
         <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>X1 contra bots</b><small>Você escolhe mapa, regras, armas e times</small></span></button>
         <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Sala com código, até 8 jogadores</small></span></button>
         <button class="mode" id="bKr"><svg><use href="#i-cls"/></svg><span><b>Classes · infinito</b><small>Estilo Krunker: escolha classe e jogue sem fim</small></span></button>
+        <button class="mode" id="bChess"><svg><use href="#i-chess"/></svg><span><b>Xadrez FPS</b><small>Cada captura vira um duelo: a peça luta com a sua arma</small></span></button>
         <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
       </div>
       <div class="label">Treinar e personalizar</div>
@@ -456,6 +481,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       <div id="netRoster" hidden></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
+      <button class="btn" id="bNetChess" hidden>Jogar Xadrez FPS (1 contra 1)</button>
       <button class="btn" id="bNetBack">Voltar</button>
     </div>
     <div class="panel stack" id="dmSetup" hidden style="gap:8px">
@@ -485,6 +511,24 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <div class="tabs" role="tablist" id="admTabs"></div>
     <div id="admBody"></div>
     <div class="btnrow"><button class="btn primary" id="admApply">Aplicar e reiniciar para todos</button><button class="btn" id="admClose">Fechar</button></div>
+  </div>
+</div>
+<div class="layer" id="chess" hidden>
+  <div class="chwrap">
+    <div id="chBoard" class="chboard" role="grid" aria-label="Tabuleiro"></div>
+    <div class="panel stack chside" style="gap:10px">
+      <h2>Xadrez FPS</h2>
+      <div id="chTurn" class="chturn"></div>
+      <p id="chMsg" class="sub" aria-live="polite"></p>
+      <button class="btn primary" id="chDuel" hidden>Ir para o duelo</button>
+      <div id="chCaps" class="stack" style="gap:2px"></div>
+      <details class="chdet"><summary>Arma e vida de cada peça</summary><div id="chLegend" class="stack" style="gap:4px;margin-top:6px"></div><p class="note" style="margin:6px 0 0">Na captura, as duas peças vão para um mapa de duelo. Se o atacante vence, come a peça. Se perde, é ele que sai do tabuleiro. Peão que chega ao fim vira Dama.</p></details>
+      <details class="chdet"><summary>Últimos duelos</summary><div id="chLog" class="stack" style="gap:3px;margin-top:6px;font-size:14px"></div></details>
+      <div class="row"><label for="chLevel">Dificuldade do bot</label><select id="chLevel"><option value="0">Fácil</option><option value="1">Normal</option><option value="2">Difícil</option></select><span></span></div>
+      <div class="btnrow"><button class="btn" id="chNewW">Novo jogo de brancas</button><button class="btn" id="chNewB">Novo jogo de pretas</button></div>
+      <button class="btn" id="chNewOnline" hidden>Novo jogo</button>
+      <button class="btn" id="chExit">Menu principal</button>
+    </div>
   </div>
 </div>
 <div class="layer dim" id="pause" hidden>
@@ -2783,6 +2827,7 @@ function duelLoadout(m, team) {
   if (d === 'awp') return [WI('sniper'), K];
   if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
   if (d === 'gungame') { const id = WI(GG[Math.min(m.score[team], GG.length - 1)]); return id === K ? [K] : [id, K]; }
+  if (d === 'chess') return m.cfg.teamWeapons ? m.cfg.teamWeapons[team] : null;
   return null;
 }
 function randomGun(cfg) {
@@ -2831,6 +2876,14 @@ function teamSpawn(team, idx) {
 function startX1(cfgIn, net, ids) {
   initAudio();
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
+  // Xadrez FPS: cada time tem a arma e a vida da sua peça (vem do anfitrião: confere tudo)
+  if (cfg.teamWeapons && !(Array.isArray(cfg.teamWeapons) && cfg.teamWeapons.length === 2 && cfg.teamWeapons.every(l => Array.isArray(l) && l.length && l.length < 4 && l.every(i => Number.isInteger(i) && WEAPONS[i] && !WEAPONS[i].nade)))) delete cfg.teamWeapons;
+  if (cfg.teamHp) cfg.teamHp = Array.isArray(cfg.teamHp) ? [0, 1].map(i => clamp(+cfg.teamHp[i] || 100, 1, 1000)) : null;
+  if (cfg.chess && !(typeof cfg.chess === 'object' && CH_W[cfg.chess.a] && CH_W[cfg.chess.d] && (cfg.chess.ac === 'w' || cfg.chess.ac === 'b'))) delete cfg.chess;
+  if (cfg.chess && !cfg.teamWeapons) delete cfg.chess;
+  if (cfg.duel === 'chess' && !cfg.teamWeapons) cfg.duel = 'normal';
+  const hpOf = t => cfg.teamHp ? cfg.teamHp[t] : cfg.hp;
+  $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
   mapDef.build(); clearCombatants(); feedEl.innerHTML = ''; Admin.watch = null;
   if (adminOpen) { adminOpen = false; $('#adminMenu').hidden = true; }
@@ -2840,22 +2893,23 @@ function startX1(cfgIn, net, ids) {
   const meP = net && (net.me() || { id: net.myId, team: 0 });
   const myTeam = net ? meP.team : 0;
   const tIdx = id => lineup.filter(p => p.team === lineup.find(q => q.id === id).team).findIndex(p => p.id === id);
-  const weapons = cfgWeapons(cfg);
+  const weapons = cfg.teamWeapons ? cfg.teamWeapons[myTeam] : cfgWeapons(cfg);
   mode = makeX1Mode(cfg, net, weapons, myTeam);
   mode.classes = !!cfg.classes && (!cfg.duel || cfg.duel === 'normal');
   mode.pickup = !mode.classes && (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
   const ts = mapInfo.teamSpawns, myIdx = net ? Math.max(0, tIdx(meP.id)) : 0;
   setupPlayer(teamSpawn(myTeam, myIdx), TEAM_COLORS[myTeam], net ? net.myName : 'Você');
-  player.team = myTeam; player.maxHp = player.hp = cfg.hp; player.spawnIdx = myIdx;
+  player.team = myTeam; player.maxHp = player.hp = hpOf(myTeam); player.spawnIdx = myIdx;
   pw.infinite = !!cfg.infinite;
   if (net) {
     mode.remotes = new Map();
     for (const p of lineup) {
       if (p.id === net.myId) continue;
       const i = tIdx(p.id), r = createCombatant(p.name, shade(TEAM_COLORS[p.team], i), teamSpawn(p.team, i), false);
-      Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: cfg.hp, hp: cfg.hp, spawnIdx: i, wi: weapons[0] });
+      const rw = cfg.teamWeapons ? cfg.teamWeapons[p.team][0] : weapons[0];
+      Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: hpOf(p.team), hp: hpOf(p.team), spawnIdx: i, wi: rw });
       r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
-      setGunShape(r, WEAPONS[weapons[0]]); applySkin(r, p.skin || null); applyCos(r, p.cos);
+      setGunShape(r, WEAPONS[rw]); applySkin(r, p.skin || null); applyCos(r, p.cos);
       mode.remotes.set(p.id, r);
     }
     mode.netBots = new Map();
@@ -2880,7 +2934,8 @@ function startX1(cfgIn, net, ids) {
     const mk = (team, idx) => {
       const wsel = cfg.botWeapon >= 0 && WEAPONS[cfg.botWeapon] ? cfg.botWeapon : guns.length ? guns[Math.floor(Math.random() * guns.length)] : WI('knife');
       const bc = Object.assign(botDefaults(), { name: (team === myTeam ? 'Aliado ' : 'Bot ') + NAMES[n++ % NAMES.length], weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov,
-        hp: cfg.hp, move: cfg.botMove, shoot: cfg.botShoot });
+        hp: hpOf(team), move: cfg.botMove, shoot: cfg.botShoot });
+      if (cfg.chess) { const col = (team === 0) !== !!cfg.chess.flip ? 'w' : 'b'; bc.name = chPieceName(col + (col === cfg.chess.ac ? cfg.chess.a : cfg.chess.d)); if (cfg.teamWeapons) bc.weapon = cfg.teamWeapons[team][0]; }
       // com classes, cada bot sorteia uma (menos Construtor e Ninja, que bot não sabe usar direito)
       if (mode.classes) { const k = (L => L[Math.floor(Math.random() * L.length)])(CLASSES.filter(x => x.w.length && x.id !== 'construtor')); bc.weapon = WI(k.w[0]); bc.hp = Math.round(cfg.hp * k.hp / 100); bc.speed *= k.spd; bc.name += ' · ' + k.name; }
       const list = ts[team], b = createBot(bc, list[idx % list.length], shade(TEAM_COLORS[team], idx));
@@ -2896,6 +2951,12 @@ function startX1(cfgIn, net, ids) {
   applyDuel(mode);
   mode.started = !mode.classes;
   $('#pClass').hidden = !mode.classes;
+  if (cfg.chess) {
+    const c = cfg.chess, myCol = (myTeam === 0) !== !!c.flip ? 'w' : 'b', mine = myCol === c.ac ? c.a : c.d, theirs = myCol === c.ac ? c.d : c.a;
+    mode.chessBanner = () => banner(`${myCol === c.ac ? 'Ataque' : 'Defesa'}: ${CH_NAME[mine]} x ${CH_NAME[theirs]}`, `Sua arma: ${WEAPONS[WI(CH_W[mine])].name} (${CH_HP[mine]} de vida)  ·  inimigo: ${WEAPONS[WI(CH_W[theirs])].name} (${CH_HP[theirs]})`, 4);
+    mode.chessBanner();
+    $('#pMenu').textContent = 'Desistir do duelo'; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
+  }
   if (mode.classes) openClassPick();
 }
 
@@ -2937,7 +2998,8 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         if (!first || !net) for (const c of combatants) if (!c.remote) respawn(c, teamSpawn(c.team, c.spawnIdx));
         if (!first) clearBuilds();
         if (this.pickup && !first) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
-        banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
+        if (this.chessBanner) this.chessBanner();
+        else banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
         if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun });
       } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`);
       applyDuel(this);
@@ -2948,7 +3010,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       const keep = this.pickup && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
       respawn(player, teamSpawn(myTeam, player.spawnIdx)); clearBuilds();
       if (this.pickup) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
-      banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
+      if (this.chessBanner) this.chessBanner(); else banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
     endRound(winner) {
       this.live = false;
@@ -3261,6 +3323,7 @@ function recordX1(team) {
 }
 function endX1(team) {
   mode.over = true;
+  if (mode.cfg && mode.cfg.chess) { if (document.exitPointerLock && locked()) document.exitPointerLock(); if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
   const R = recordX1(team);
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   const m = mode, my = m.myTeam;
@@ -3345,6 +3408,7 @@ function onNetMsg(m) {
     }
     case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
+    case 'chess': case 'chmv': case 'chff': Chess.onMsg(m); break;
     case 'rtc': Voice.onMsg(m); break;
     case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': onAdminMsg(m); break;
     case 'kicked': Net.kicked = true; break;
@@ -3429,7 +3493,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['chess', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -5339,6 +5403,11 @@ function enterPlaying() {
   updateLockHint();
 }
 function goMenu() {
+  // Xadrez FPS: sair no meio do duelo é desistir dele (a outra peça vence)
+  if (mode && mode.cfg && mode.cfg.chess && !mode.over && state === 'playing') {
+    if (mode.net && !mode.host) { Net.send({ t: 'chff' }); setPaused(false); banner('Desistindo do duelo…', '', 1.5); return; }
+    mode.finish(1 - mode.myTeam); return;
+  }
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
@@ -5640,6 +5709,7 @@ for (const [pid, bid] of Object.entries(PANEL_BACK)) {
 new MutationObserver(() => $('#menu').classList.toggle('insub', $('#mainButtons').hidden)).observe($('#mainButtons'), { attributes: true, attributeFilter: ['hidden'] });
 addEventListener('keydown', e => {
   if (e.code !== 'Escape' || state !== 'menu' || !$('#settings').hidden || capturing) return;
+  if (!$('#chess').hidden) { Chess.exit(); return; }
   for (const [pid, bid] of Object.entries(PANEL_BACK)) if (!$('#' + pid).hidden) { $('#' + bid).click(); break; }
 });
 // Descobre qual placa de vídeo o navegador está usando; "SwiftShader", "llvmpipe" ou "Basic Render" = desenho por software (lento)
@@ -5980,6 +6050,7 @@ function renderNetLobby() {
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
   $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
   $('#bNetBack').textContent = role ? 'Sair da sala' : 'Voltar';
+  $('#bNetChess').hidden = !host || !Net.open; $('#bNetChess').textContent = Chess.online && Chess.st && !Chess.result ? 'Continuar o Xadrez FPS' : 'Jogar Xadrez FPS (1 contra 1)';
 }
 $('#bNet').onclick = () => { initAudio(); openNetPanel(); };
 $('#bHost').onclick = () => Net.host(netName());
@@ -6315,7 +6386,368 @@ requestAnimationFrame(frame);
 
 // Ganchos para testes automatizados
 window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
-window.__cs3 = { computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+// =====================================================================================
+// Xadrez FPS (estilo FPS Chess): xadrez normal, mas toda captura vira um duelo em primeira pessoa.
+// Cada peça luta com a sua arma; se o atacante vence, come a peça; se perde, é ele que sai do tabuleiro.
+// =====================================================================================
+const CH_W = { P: 'pistol', N: 'shotgun', B: 'sniper', R: 'lmg', Q: 'rifle', K: 'deagle' };
+const CH_HP = { P: 100, N: 110, B: 100, R: 130, Q: 130, K: 150 };
+const CH_NAME = { P: 'Peão', N: 'Cavalo', B: 'Bispo', R: 'Torre', Q: 'Dama', K: 'Rei' };
+const CH_FEM = { Q: true, R: true };
+const CH_GLYPH = { K: '♚\uFE0E', Q: '♛\uFE0E', R: '♜\uFE0E', B: '♝\uFE0E', N: '♞\uFE0E', P: '♟\uFE0E' };
+const CH_VAL = { P: 100, N: 300, B: 320, R: 500, Q: 900, K: 20000 };
+const CH_MAPS = ['duelo', 'aim', 'patio', 'pool'];
+const chColorName = (c, p) => c === 'w' ? (CH_FEM[p] ? 'branca' : 'branco') : (CH_FEM[p] ? 'preta' : 'preto');
+const chPieceName = (pc) => CH_NAME[pc[1]] + ' ' + chColorName(pc[0], pc[1]);
+const chSqName = sq => 'abcdefgh'[sq & 7] + (8 - (sq >> 3));
+
+function chNew() {
+  const b = Array(64).fill(null), back = 'RNBQKBNR';
+  for (let c = 0; c < 8; c++) { b[c] = 'b' + back[c]; b[8 + c] = 'bP'; b[48 + c] = 'wP'; b[56 + c] = 'w' + back[c]; }
+  return { b, turn: 'w', castle: { wK: 1, wQ: 1, bK: 1, bQ: 1 }, ep: -1, last: null, log: [], n: 1 };
+}
+const chClone = st => ({ b: st.b.slice(), turn: st.turn, castle: Object.assign({}, st.castle), ep: st.ep, last: st.last, log: st.log.slice(), n: st.n });
+const KN = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+const KG = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+const DIAG = [[-1, -1], [-1, 1], [1, -1], [1, 1]], ORTH = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+// casa atacada por 'by'?
+function chAttacked(b, sq, by) {
+  const r = sq >> 3, c = sq & 7, at = (rr, cc) => rr >= 0 && rr < 8 && cc >= 0 && cc < 8 ? b[rr * 8 + cc] : undefined;
+  const pr = by === 'w' ? r + 1 : r - 1;
+  for (const dc of [-1, 1]) if (at(pr, c + dc) === by + 'P') return true;
+  for (const [dr, dc] of KN) if (at(r + dr, c + dc) === by + 'N') return true;
+  for (const [dr, dc] of KG) if (at(r + dr, c + dc) === by + 'K') return true;
+  for (const [dirs, kinds] of [[DIAG, 'BQ'], [ORTH, 'RQ']]) for (const [dr, dc] of dirs) {
+    for (let k = 1; k < 8; k++) {
+      const p = at(r + dr * k, c + dc * k); if (p === undefined) break;
+      if (p) { if (p[0] === by && kinds.includes(p[1])) return true; break; }
+    }
+  }
+  return false;
+}
+const chKing = (b, col) => b.indexOf(col + 'K');
+function chInCheck(st, col) { const k = chKing(st.b, col); return k >= 0 && chAttacked(st.b, k, col === 'w' ? 'b' : 'w'); }
+function chPseudo(st, sq) {
+  const b = st.b, p = b[sq]; if (!p) return [];
+  const col = p[0], opp = col === 'w' ? 'b' : 'w', r = sq >> 3, c = sq & 7, out = [];
+  const add = (to, extra) => out.push(Object.assign({ from: sq, to, cap: b[to] ? to : -1 }, extra));
+  const ok = (rr, cc) => rr >= 0 && rr < 8 && cc >= 0 && cc < 8;
+  switch (p[1]) {
+    case 'P': {
+      const d = col === 'w' ? -1 : 1, start = col === 'w' ? 6 : 1, last = col === 'w' ? 0 : 7;
+      const promo = rr => rr === last ? { promo: 'Q' } : null;
+      if (ok(r + d, c) && !b[(r + d) * 8 + c]) {
+        add((r + d) * 8 + c, promo(r + d));
+        if (r === start && !b[(r + 2 * d) * 8 + c]) add((r + 2 * d) * 8 + c, { dbl: 1 });
+      }
+      for (const dc of [-1, 1]) {
+        if (!ok(r + d, c + dc)) continue;
+        const to = (r + d) * 8 + c + dc;
+        if (b[to] && b[to][0] === opp) add(to, promo(r + d));
+        else if (to === st.ep) out.push({ from: sq, to, cap: r * 8 + c + dc, ep: 1 });
+      }
+      break;
+    }
+    case 'N': case 'K':
+      for (const [dr, dc] of p[1] === 'N' ? KN : KG) if (ok(r + dr, c + dc)) { const to = (r + dr) * 8 + c + dc; if (!b[to] || b[to][0] === opp) add(to); }
+      if (p[1] === 'K' && sq === (col === 'w' ? 60 : 4) && !chAttacked(b, sq, opp)) {
+        const row = sq - 4;
+        if (st.castle[col + 'K'] && b[row + 7] === col + 'R' && !b[row + 5] && !b[row + 6] && !chAttacked(b, row + 5, opp) && !chAttacked(b, row + 6, opp)) out.push({ from: sq, to: row + 6, cap: -1, castle: 'K' });
+        if (st.castle[col + 'Q'] && b[row] === col + 'R' && !b[row + 1] && !b[row + 2] && !b[row + 3] && !chAttacked(b, row + 3, opp) && !chAttacked(b, row + 2, opp)) out.push({ from: sq, to: row + 2, cap: -1, castle: 'Q' });
+      }
+      break;
+    default: {
+      const dirs = p[1] === 'B' ? DIAG : p[1] === 'R' ? ORTH : DIAG.concat(ORTH);
+      for (const [dr, dc] of dirs) for (let k = 1; k < 8; k++) {
+        const rr = r + dr * k, cc = c + dc * k; if (!ok(rr, cc)) break;
+        const to = rr * 8 + cc; if (!b[to]) { add(to); continue; }
+        if (b[to][0] === opp) add(to); break;
+      }
+    }
+  }
+  return out;
+}
+function chFixRights(st, sq) {
+  if (sq === 60) st.castle.wK = st.castle.wQ = 0; if (sq === 4) st.castle.bK = st.castle.bQ = 0;
+  if (sq === 63) st.castle.wK = 0; if (sq === 56) st.castle.wQ = 0; if (sq === 7) st.castle.bK = 0; if (sq === 0) st.castle.bQ = 0;
+}
+// joga o lance (a captura acontece de verdade: use depois que o atacante venceu o duelo)
+function chApply(st, m) {
+  const s = chClone(st), b = s.b, p = b[m.from];
+  if (m.cap >= 0) b[m.cap] = null;
+  b[m.to] = m.promo ? p[0] + m.promo : p; b[m.from] = null;
+  if (m.castle) { const row = m.from - 4; if (m.castle === 'K') { b[row + 5] = b[row + 7]; b[row + 7] = null; } else { b[row + 3] = b[row]; b[row] = null; } }
+  chFixRights(s, m.from); chFixRights(s, m.to); if (m.cap >= 0) chFixRights(s, m.cap);
+  s.ep = m.dbl ? (m.from + m.to) / 2 : -1;
+  s.last = { from: m.from, to: m.to };
+  if (s.turn === 'b') s.n++;
+  s.turn = s.turn === 'w' ? 'b' : 'w';
+  return s;
+}
+// o atacante perdeu o duelo: ele sai do tabuleiro e a vez passa
+function chRepel(st, m) {
+  const s = chClone(st);
+  s.b[m.from] = null; chFixRights(s, m.from);
+  s.ep = -1; s.last = { from: m.from, to: m.to, fail: 1 };
+  if (s.turn === 'b') s.n++;
+  s.turn = s.turn === 'w' ? 'b' : 'w';
+  return s;
+}
+function chLegal(st, sq) {
+  const p = st.b[sq]; if (!p || p[0] !== st.turn) return [];
+  return chPseudo(st, sq).filter(m => {
+    if (m.cap >= 0 && st.b[m.cap] && st.b[m.cap][1] === 'K') return true;   // pegar o rei exposto (pode acontecer depois de um duelo)
+    const s = chApply(st, m); return !chInCheck(s, p[0]);
+  });
+}
+function chAllLegal(st) { const out = []; for (let i = 0; i < 64; i++) if (st.b[i] && st.b[i][0] === st.turn) out.push(...chLegal(st, i)); return out; }
+// fim de jogo? { winner: 'w'|'b'|null, why }
+function chResult(st) {
+  if (chKing(st.b, 'w') < 0) return { winner: 'b', why: 'O rei branco caiu em duelo' };
+  if (chKing(st.b, 'b') < 0) return { winner: 'w', why: 'O rei preto caiu em duelo' };
+  const left = st.b.filter(Boolean);
+  if (left.length === 2) return { winner: null, why: 'Só sobraram os reis' };
+  if (!chAllLegal(st).length) return chInCheck(st, st.turn) ? { winner: st.turn === 'w' ? 'b' : 'w', why: 'Xeque-mate' } : { winner: null, why: 'Afogamento (sem lances)' };
+  return null;
+}
+// ---- bot do xadrez: minimax curto com material e um pouco de posição
+const CH_CENTER = [0, 1, 2, 3, 3, 2, 1, 0];
+function chEval(st, col) {
+  let s = 0;
+  for (let i = 0; i < 64; i++) {
+    const p = st.b[i]; if (!p) continue;
+    const r = i >> 3, c = i & 7;
+    let v = CH_VAL[p[1]];
+    if (p[1] === 'N' || p[1] === 'B') v += (CH_CENTER[r] + CH_CENTER[c]) * 4;
+    if (p[1] === 'P') v += (p[0] === 'w' ? 6 - r : r - 1) * 6 + (c > 1 && c < 6 ? 4 : 0);
+    s += p[0] === col ? v : -v;
+  }
+  return s;
+}
+function chSearch(st, depth, alpha, beta) {
+  if (chKing(st.b, 'w') < 0 || chKing(st.b, 'b') < 0) return chKing(st.b, st.turn) < 0 ? -1e6 : 1e6;
+  if (depth === 0) return chEval(st, st.turn);
+  const ms = chAllLegal(st);
+  if (!ms.length) return chInCheck(st, st.turn) ? -1e5 - depth : 0;
+  ms.sort((a, b) => (b.cap >= 0 ? CH_VAL[st.b[b.cap][1]] : 0) - (a.cap >= 0 ? CH_VAL[st.b[a.cap][1]] : 0));
+  for (const m of ms) {
+    const v = -chSearch(chApply(st, m), depth - 1, -beta, -alpha);
+    if (v > alpha) alpha = v;
+    if (alpha >= beta) break;
+  }
+  return alpha;
+}
+function chBotMove(st, level) {
+  const ms = chAllLegal(st); if (!ms.length) return null;
+  const depth = level >= 2 ? (ms.length > 32 ? 3 : 4) : level >= 1 ? 3 : 2, noise = level >= 2 ? 6 : level >= 1 ? 20 : 120;
+  let best = null, bv = -Infinity;
+  for (const m of ms) {
+    const v = -chSearch(chApply(st, m), depth - 1, -Infinity, Infinity) + Math.random() * noise;
+    if (v > bv) { bv = v; best = m; }
+  }
+  return best;
+}
+
+// ---- partida de xadrez (tela do tabuleiro + duelos)
+const Chess = {
+  st: null, online: false, my: 'w', level: 1, sel: -1, moves: [], msg: '', result: null, pending: null, thinking: false, duelOn: false, flip: false,
+  load() { const d = loadJSON('cs3.web.chess'); if (d.st && Array.isArray(d.st.b) && d.st.b.length === 64) { this.st = d.st; this.my = d.my === 'b' ? 'b' : 'w'; } this.level = d.level != null ? clamp(d.level | 0, 0, 2) : 1; },
+  save() { if (this.online) return; try { localStorage.setItem('cs3.web.chess', JSON.stringify({ st: this.st, my: this.my, level: this.level })); } catch (e) {} },
+  // contra o bot
+  openLocal() {
+    initAudio(); this.online = false; this.load();
+    if (!this.st || chResult(this.st)) this.newLocal(this.my);
+    else { this.msg = 'Partida salva: continue de onde parou.'; this.show(); this.maybeBot(); }
+  },
+  newLocal(my) {
+    this.online = false; this.my = my; this.st = chNew(); this.result = null; this.pending = null; this.sel = -1;
+    this.msg = my === 'w' ? 'Você joga de brancas e começa. Clique numa peça e depois na casa.' : 'Você joga de pretas. O bot começa.';
+    this.save(); this.show(); this.maybeBot();
+  },
+  show() {
+    $('#menu').hidden = true; $('#chess').hidden = false; $('#hud').hidden = true;
+    this.result = this.st ? chResult(this.st) : null; this.render();
+  },
+  hide() { $('#chess').hidden = true; },
+  exit() {
+    this.hide(); this.thinking = false;
+    $('#menu').hidden = false;
+    if (this.online && Net.role) openNetPanel();
+  },
+  canMove() { return this.st && !this.result && !this.pending && !this.thinking && this.st.turn === this.my; },
+  click(sq) {
+    if (!this.canMove()) return;
+    const p = this.st.b[sq];
+    if (this.sel >= 0) {
+      const m = this.moves.find(x => x.to === sq);
+      if (m) { this.sel = -1; this.moves = []; this.play(m); return; }
+    }
+    if (p && p[0] === this.my) { this.sel = sq; this.moves = chLegal(this.st, sq); }
+    else { this.sel = -1; this.moves = []; }
+    this.render();
+  },
+  // um lance escolhido por quem tem a vez (você, o bot ou, no online, o convidado)
+  play(m) {
+    if (this.online && Net.role === 'guest') { Net.send({ t: 'chmv', a: m.from, b: m.to }); this.msg = 'Lance enviado…'; this.render(); return; }
+    if (m.cap >= 0) { this.startDuel(m); return; }
+    this.st = chApply(this.st, m); this.msg = '';
+    this.after();
+  },
+  after(note) {
+    this.result = chResult(this.st);
+    if (note) this.msg = note;
+    if (this.result) this.msg = (note ? note + ' ' : '') + this.endText();
+    else if (chInCheck(this.st, this.st.turn)) this.msg = (note ? note + ' ' : '') + (this.st.turn === this.my ? 'Você está em xeque!' : 'Xeque!');
+    this.save(); this.render(); this.broadcast();
+    play(this.result ? 'round' : 'step', 0.6);
+    this.maybeBot();
+  },
+  endText() {
+    const r = this.result; if (!r) return '';
+    return r.winner == null ? `${r.why}: empate.` : r.winner === this.my ? `${r.why}: você venceu a partida!` : `${r.why}: ${this.online ? 'seu amigo venceu' : 'o bot venceu'}.`;
+  },
+  maybeBot() {
+    if (this.online || this.result || this.pending || this.st.turn === this.my || this.thinking) return;
+    this.thinking = true; this.render();
+    const tok = this.botTok = {}, st0 = this.st;
+    setTimeout(() => {
+      if (tok !== this.botTok || st0 !== this.st) return;
+      if (!this.thinking || $('#chess').hidden) { this.thinking = false; return; }
+      const m = chBotMove(this.st, this.level); this.thinking = false;
+      if (!m) { this.after(); return; }
+      if (m.cap >= 0) {
+        // o bot vai capturar: você defende num duelo (clique para entrar, assim o mouse trava)
+        this.pending = m; this.st = Object.assign(chClone(this.st), { last: { from: m.from, to: m.to } });
+        this.msg = `${chPieceName(this.st.b[m.from])} ataca seu ${CH_NAME[this.st.b[m.cap][1]]} em ${chSqName(m.to)}! Defenda no duelo.`;
+        this.render(); play('round', 0.6); return;
+      }
+      this.st = chApply(this.st, m); this.after();
+    }, 450);
+  },
+  // monta o duelo da captura m
+  duelCfg(m) {
+    const st = this.st, a = st.b[m.from], d = st.b[m.cap], ac = a[0];
+    // time 0 = brancas, time 1 = pretas (no online, o time laranja é das brancas)
+    const tc = ['w', 'b'], pieceOf = col => col === ac ? a[1] : d[1], K = WI('knife');
+    const teamWeapons = tc.map(col => [WI(CH_W[pieceOf(col)]), K]);
+    const teamHp = tc.map(col => CH_HP[pieceOf(col)]);
+    return Object.assign(clone(X1), {
+      map: CH_MAPS[Math.floor(Math.random() * CH_MAPS.length)], format: 'rounds', target: 1, roundTime: 90, allies: 0, enemies: 1, diff: [0, 1, 2][this.level],
+      botWeapon: -1, botMove: true, botShoot: true, preset: 0, ground: 'off', hsOnly: false, infinite: false, duel: 'chess', classes: false, botsA: 0, botsB: 0, customMap: undefined,
+      teamWeapons, teamHp, chess: { a: a[1], d: d[1], ac, from: m.from, to: m.to },
+    });
+  },
+  startDuel(m) {
+    this.pending = m; this.duelOn = true;
+    const cfg = this.duelCfg(m);
+    if (this.online) { this.broadcast(); Net.startMatch(cfg); }
+    else {
+      // offline o jogador é sempre o time 0: se ele joga de pretas, troca os lados
+      if (this.my === 'b') { cfg.teamWeapons.reverse(); cfg.teamHp.reverse(); cfg.chess.flip = 1; }
+      this.hide(); startX1(cfg); lockPointer();
+    }
+  },
+  // fim do duelo: team = time que venceu
+  duelDone(team) {
+    const m = this.pending; this.duelOn = false;
+    const back = () => { if (mode) mode.net = null; goMenu(); this.show(); };
+    if (!m) { back(); return; }
+    if (this.online && Net.role === 'guest') { back(); this.msg = 'Duelo encerrado. Atualizando o tabuleiro…'; this.render(); return; }
+    let winCol = team === 0 ? 'w' : 'b';
+    if (!this.online && this.my === 'b') winCol = team === 0 ? 'b' : 'w';
+    const a = this.st.b[m.from], d = this.st.b[m.cap], ac = a[0];
+    this.pending = null; back();
+    const you = c => !this.online && c === this.my;
+    let note;
+    if (winCol === ac) { this.st = chApply(this.st, m); note = `${you(ac) ? 'Seu ' + CH_NAME[a[1]] : chPieceName(a)} venceu o duelo e comeu ${you(d[0]) ? 'seu ' + CH_NAME[d[1]] : chPieceName(d)}.`; }
+    else { this.st = chRepel(this.st, m); note = `${you(d[0]) ? 'Seu ' + CH_NAME[d[1]] : chPieceName(d)} venceu o duelo: ${you(ac) ? 'seu ' + CH_NAME[a[1]] : chPieceName(a)} saiu do tabuleiro.`; }
+    this.st.log = this.st.log.concat([{ a, d, w: winCol === ac ? 'a' : 'd', sq: m.to }]).slice(-40);
+    this.after(note);
+  },
+  // ---- online: o anfitrião manda o estado, o convidado só mostra e envia lances
+  startOnline() {
+    if (Net.role !== 'host') return;
+    const n = Net.teamSizes();
+    if (n[0] !== 1 || n[1] !== 1) { Net.setStatus('Xadrez FPS online é 1 contra 1: deixe uma pessoa em cada time.'); renderNetLobby(); return; }
+    if (!this.online || !this.st || this.result) { this.st = chNew(); this.result = null; this.pending = null; this.msg = 'Brancas (time laranja) começam.'; }
+    this.online = true; this.my = Net.me().team === 0 ? 'w' : 'b'; this.sel = -1;
+    this.broadcast(true); this.show();
+  },
+  broadcast(open) { if (this.online && Net.role === 'host') Net.send({ t: 'chess', st: this.st, msg: this.msg, open: open ? 1 : 0, pend: this.pending ? 1 : 0 }); },
+  onMsg(m) {
+    if (Net.role === 'host') {
+      if (m.t === 'chmv' && this.online && this.st && !this.pending && !this.result) {
+        const p = Net.byId(m.f); if (!p) return;
+        const col = p.team === 0 ? 'w' : 'b'; if (col !== this.st.turn) return;
+        const mv = chLegal(this.st, m.a | 0).find(x => x.to === (m.b | 0)); if (!mv) { this.broadcast(); return; }
+        this.play(mv);
+      }
+      if (m.t === 'chff' && mode && mode.cfg && mode.cfg.chess && !mode.over) { const p = Net.byId(m.f); if (p) mode.finish(1 - p.team); }
+      return;
+    }
+    if (m.t !== 'chess' || !m.st || !Array.isArray(m.st.b) || m.st.b.length !== 64) return;
+    const okPc = x => x === null || (typeof x === 'string' && /^[wb][PNBRQK]$/.test(x));
+    if (!m.st.b.every(okPc)) return;
+    this.online = true; this.st = m.st; this.st.log = Array.isArray(this.st.log) ? this.st.log.slice(-40) : [];
+    this.pending = m.pend ? {} : null; this.msg = String(m.msg || '').slice(0, 200);
+    const me = Net.me(); this.my = me && me.team === 0 ? 'w' : 'b'; this.sel = -1;
+    this.result = chResult(this.st);
+    if (this.result) this.msg = this.endText();
+    if (state !== 'playing' && (m.open || !$('#chess').hidden || !$('#netSetup').hidden)) this.show();
+  },
+  // ---- desenho
+  render() {
+    if ($('#chess').hidden || !this.st) return;
+    const st = this.st, flip = this.my === 'b', last = st.last || {}, chk = chInCheck(st, st.turn) ? chKing(st.b, st.turn) : -1;
+    const tgt = new Set(this.moves.map(m => m.to)), capT = new Set(this.moves.filter(m => m.cap >= 0).map(m => m.to));
+    let h = '';
+    for (let i = 0; i < 64; i++) {
+      const sq = flip ? 63 - i : i, r = sq >> 3, c = sq & 7, p = st.b[sq];
+      const cls = ['sq', (r + c) % 2 ? 'dk' : 'lt'];
+      if (sq === this.sel) cls.push('sel');
+      if (sq === last.from || sq === last.to) cls.push(last.fail ? 'lastf' : 'last');
+      if (sq === chk) cls.push('chk');
+      if (tgt.has(sq)) cls.push(capT.has(sq) ? 'cap' : 'tgt');
+      const tip = p ? `${chPieceName(p)} · ${WEAPONS[WI(CH_W[p[1]])].name} · ${CH_HP[p[1]]} de vida` : chSqName(sq);
+      const lab = (i % 8 === 0 ? `<i class="rk">${8 - r}</i>` : '') + (i >= 56 ? `<i class="fl">${'abcdefgh'[c]}</i>` : '');
+      h += `<button class="${cls.join(' ')}" data-sq="${sq}" title="${esc(tip)}">${p ? `<span class="pc ${p[0]}">${CH_GLYPH[p[1]]}</span>` : ''}${lab}</button>`;
+    }
+    const bd = $('#chBoard'); bd.innerHTML = h;
+    bd.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => this.click(+b.dataset.sq));
+    const turnTxt = this.result ? 'Fim de jogo' : this.pending ? 'Duelo!' : this.thinking ? 'O bot está pensando…' : st.turn === this.my ? 'Sua vez' : this.online ? 'Vez do seu amigo' : 'Vez do bot';
+    $('#chTurn').textContent = turnTxt + (this.result ? '' : `  ·  lance ${st.n}`);
+    $('#chTurn').className = 'chturn' + (st.turn === this.my && !this.result && !this.pending ? ' me' : '');
+    $('#chMsg').textContent = this.msg || (this.online ? `Você joga de ${this.my === 'w' ? 'brancas (time laranja)' : 'pretas (time azul)'}.` : '');
+    $('#chDuel').hidden = !(this.pending && this.pending.from != null && !this.online && st.turn !== this.my);
+    // peças comidas
+    const count = col => { const n = {}; for (const p of st.b) if (p && p[0] === col) n[p[1]] = (n[p[1]] || 0) + 1; return n; };
+    const full = { P: 8, N: 2, B: 2, R: 2, Q: 1, K: 1 };
+    const lost = col => { const n = count(col); return 'QRBNP'.split('').map(k => CH_GLYPH[k].repeat(Math.max(0, full[k] - (n[k] || 0)))).join(''); };
+    const opp = this.my === 'w' ? 'b' : 'w';
+    $('#chCaps').innerHTML = `<div><span class="note">Você comeu</span> <span class="pc ${opp}">${lost(opp) || '—'}</span></div><div><span class="note">Você perdeu</span> <span class="pc ${this.my}">${lost(this.my) || '—'}</span></div>`;
+    $('#chLog').innerHTML = st.log.slice(-6).reverse().map(e => `<div>${esc(chPieceName(e.a))} × ${esc(chPieceName(e.d))} em ${chSqName(e.sq)}: <b>${e.w === 'a' ? 'atacante venceu' : 'defensor venceu'}</b></div>`).join('') || '<div class="note">Nenhum duelo ainda.</div>';
+    const host = !this.online || Net.role === 'host';
+    $('#chNewW').hidden = this.online; $('#chNewB').hidden = this.online; $('#chLevel').parentNode.hidden = this.online;
+    $('#chNewOnline').hidden = !(this.online && host);
+    $('#chLevel').value = this.level;
+    $('#chExit').textContent = this.online ? 'Voltar para a sala' : 'Menu principal';
+  },
+};
+function chLegend() {
+  return Object.keys(CH_W).map(k => `<div class="chleg"><span class="pc w">${CH_GLYPH[k]}</span><b>${CH_NAME[k]}</b><span>${esc(WEAPONS[WI(CH_W[k])].name)} · ${CH_HP[k]} de vida</span></div>`).join('');
+}
+
+$('#chLegend').innerHTML = chLegend();
+$('#bChess').onclick = () => Chess.openLocal();
+$('#chNewW').onclick = () => Chess.newLocal('w');
+$('#chNewB').onclick = () => Chess.newLocal('b');
+$('#chNewOnline').onclick = () => { Chess.st = null; Chess.startOnline(); };
+$('#chExit').onclick = () => Chess.exit();
+$('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); Chess.save(); };
+$('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
+$('#bNetChess').onclick = () => Chess.startOnline();
+
+window.__cs3 = { Chess, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
