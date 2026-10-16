@@ -651,7 +651,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const ACTIONS = [
   ['forward', 'Andar para frente', 'KeyW'], ['back', 'Andar para trás', 'KeyS'], ['left', 'Andar para a esquerda', 'KeyA'], ['right', 'Andar para a direita', 'KeyD'],
   ['jump', 'Pular', 'Space'], ['crouch', 'Agachar', 'KeyC'], ['walk', 'Andar devagar (silencioso)', 'ShiftLeft'],
-  ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
+  ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Mirar pela arma / zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
@@ -2718,13 +2718,16 @@ function defaultSlot() {
 function selectWeapon(i, force) {
   if (i == null || i < 0 || i >= pw.slots.length || (i === pw.cur && !force)) return;
   if (i !== pw.cur) pw.prev = pw.cur;
-  pw.cur = i; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
+  pw.cur = i; pw.ads = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
   vmModels.forEach((m, j) => m.g.visible = j === pw.slots[i].wi);
   if (player) setGunShape(player, pw.slots[i].w);
   play('draw', 0.6);
 }
 const active = () => pw.slots[pw.cur];
-const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : 1;
+const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : lerp(1, ADS_ZOOM, pw.ads || 0);
+// mirar pela arma (ADS): segurar o botão direito puxa a arma para o olho, aproxima um pouco e deixa o tiro mais preciso
+const ADS_ZOOM = 0.78;
+const adsOk = w => w && !w.scope && !w.melee && !w.nade && !w.build;
 const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && !adminOpen && !tblOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
 const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(adminOpen && !(mode && mode.net)) && !(classOpen && !(mode && mode.net) && !mode.started) && !(mode && mode.over);
 
@@ -2753,7 +2756,7 @@ function updatePlayer(dt) {
   // visão de cima do tabuleiro: o mouse move um cursor sobre o tabuleiro em vez de girar a câmera
   if (input && mode && mode.topV) { mode.topLook(look.x + tLook.x * 6, look.y + tLook.y * 6); look.x = look.y = tLook.x = tLook.y = 0; }
   if (input) {
-    const z = pw.zoom ? S.controls.zoomSens * zoomMult() : 1;
+    const z = pw.zoom ? S.controls.zoomSens * zoomMult() : lerp(1, 0.8, pw.ads || 0);
     const k = S.controls.sens * 0.022 * DEG * z;
     const tk = S.touch.sens * 0.28 * DEG * z * assistFriction();
     p.yaw -= look.x * k + tLook.x * tk;
@@ -2797,7 +2800,7 @@ function updatePlayer(dt) {
   // agachar no ar encolhe as pernas (como no CS): os pés sobem e dá para alcançar lugares mais altos
   if (!p.grounded && p.h !== oldH) { const d = oldH - p.h; p.pos.y += d; if (collides(p.pos, p.h)) p.pos.y -= d; }
   const walking = input && isHeld('walk');
-  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1) * (Ab.on ? Ab.speedMul() : 1);
+  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1) * lerp(1, 0.72, pw.ads || 0) * (Ab.on ? Ab.speedMul() : 1);
   const wishS = maxS * (p.crouching ? 0.34 : walking ? 0.52 : 1);
   if (input && isDown('jump')) pv.jumpQ = now;
   if (!p.grounded && input && isDown('crouch')) p.slideReady = true; // precisa apertar agachar no ar (segurar desde o chão não vale)
@@ -2899,7 +2902,7 @@ function computeSpread() {
     s += w.move * 0.5 * clamp((rel - 0.28) / 0.13, 0, 1);
   }
   if (p.crouching && p.grounded) s *= 0.75;
-  return s;
+  return s * lerp(1, 0.5, pw.ads || 0);
 }
 
 function updateWeapons(dt) {
@@ -2932,6 +2935,8 @@ function updateWeapons(dt) {
   if (w.build) { if (isHeld('fire')) tryBuild(false); else if (isHeld('scope')) tryBuild(true); return; }
   if (w.melee) { if (isHeld('scope')) tryMelee(true); else if (isHeld('fire') || (autoF && assist.dist < w.range)) tryMelee(false); return; }
   if (isDown('reload')) tryReload();
+  { const want = adsOk(w) && isHeld('scope') && !pw.reloadT && pw.drawT <= 0 && !(player.slideT > 0) ? 1 : 0;
+    pw.ads = clamp((pw.ads || 0) + (want ? 1 : -1) * dt / (want ? 0.16 : 0.12), 0, 1); }
   if (w.scope && isDown('scope') && !pw.reloadT && pw.drawT <= 0) { if (!pw.zoom) pw.zoomAt = now; pw.zoom = (pw.zoom + 1) % 3; pw.rezoom = 0; play('zoom', 0.7); }
   const pressedFire = isDown('fire');
   if (w.auto ? isHeld('fire') : pressedFire) tryFire(pressedFire);
@@ -3026,8 +3031,21 @@ function updateViewModel(dt) {
   m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, bk);
   if (w.proj) m.bolt.visible = active().mag > 0 && !pw.reloadT;
   const tilt = (w.id === 'sniper' || w.id === 'shotgun') ? bk * 0.14 : 0;
-  vmRoot.position.copy(m.offset).add(bob).add(rpos).add(new THREE.Vector3(pv.sway.x * 0.012, pv.sway.y * 0.012 - 0.22 * (1 - de), 0.05 * pv.kick * ks));
-  vmRoot.rotation.set(pv.kick * 0.09 * ks - 0.78 * (1 - de) + rx + pv.sway.y * 0.03, pv.sway.x * 0.03 + ry, rz - pv.sway.x * 0.03 + tilt);
+  // ADS: a arma vai para o centro, com o topo (alça e maça) na linha do olho; balanço e coice diminuem
+  const ad = pw.ads || 0, ae = ad * ad * (3 - 2 * ad);
+  if (ae > 0 && m.adsY == null) {
+    // altura do topo da arma (miras), medida com a arma parada na origem
+    const sp = vmRoot.position.clone(), sr = vmRoot.rotation.clone(), ss = vmRoot.scale.clone();
+    vmRoot.position.set(0, 0, 0); vmRoot.rotation.set(0, 0, 0); vmRoot.scale.setScalar(1); vmRoot.updateMatrixWorld(true);
+    const bb = new THREE.Box3(); m.g.traverse(o => { if (o.isMesh && o.parent === m.g && o.position.y > -0.03 && Math.abs(o.position.x) < 0.04 && o.material && !(o.material.color && o.material.color.getHex() === C.glove)) bb.expandByObject(o); });
+    m.adsY = isFinite(bb.max.y) ? bb.max.y : 0.09;
+    vmRoot.position.copy(sp); vmRoot.rotation.copy(sr); vmRoot.scale.copy(ss); vmRoot.updateMatrixWorld(true);
+  }
+  const sw = 1 - ae * 0.85;
+  vmRoot.position.copy(m.offset).add(bob.multiplyScalar(sw * sw)).add(rpos).add(new THREE.Vector3(pv.sway.x * 0.012 * sw, pv.sway.y * 0.012 * sw - 0.22 * (1 - de), 0.05 * pv.kick * ks * (1 - ae * 0.5)));
+  if (ae > 0) { vmRoot.position.x = lerp(vmRoot.position.x, 0, ae); vmRoot.position.y = lerp(vmRoot.position.y, -(m.adsY + 0.004) * vmRoot.scale.y, ae); vmRoot.position.z += 0.06 * ae; }
+  vmRoot.rotation.set((pv.kick * 0.09 * ks * (1 - ae * 0.6)) - 0.78 * (1 - de) + rx + pv.sway.y * 0.03 * sw, pv.sway.x * 0.03 * sw + ry, (rz - pv.sway.x * 0.03) * (1 - ae) + tilt);
+  chCanvas.style.opacity = ae > 0.5 ? 0 : 1;
   pv.flashT -= dt;
   flashMesh.visible = pv.flashT > 0 && vmRoot.visible;
   if (flashMesh.visible) { vmRoot.updateMatrixWorld(); flashMesh.position.copy(m.muzzle).applyMatrix4(m.g.matrixWorld); flashMesh.scale.setScalar(rand(0.07, 0.12)); }
@@ -6428,7 +6446,7 @@ addEventListener('keydown', e => {
 function renderHelp() {
   const k = a => `<kbd>${esc(keyLabel(S.keys[a]))}</kbd>`;
   const rows = [['Movimento'], [`${k('forward')} ${k('left')} ${k('back')} ${k('right')}`, 'Andar'], [k('jump'), 'Pular (segure para pular sem parar)'], [k('crouch'), 'Agachar'], [k('walk'), 'Andar devagar, sem barulho'],
-    ['Combate'], [k('fire'), 'Atirar / golpe de faca'], [k('scope'), 'Zoom da sniper / facada forte'], [k('reload'), 'Recarregar'], [`${k('w1')}–${k('w7')}`, 'Trocar de arma'], [k('knife'), 'Faca'], [k('last'), 'Última arma'],
+    ['Combate'], [k('fire'), 'Atirar / golpe de faca'], [k('scope'), 'Segure para mirar pela arma (sniper: zoom; faca: facada forte)'], [k('reload'), 'Recarregar'], [`${k('w1')}–${k('w7')}`, 'Trocar de arma'], [k('knife'), 'Faca'], [k('last'), 'Última arma'],
     ['No mapa'], [k('use'), 'Pegar ou trocar arma do chão'], [k('drop'), 'Largar a arma'], [k('spray'), 'Spray na parede'], [`${k('chat')} ou <kbd>Enter</kbd>`, 'Chat'], [k('score'), 'Placar'], ['<kbd>Esc</kbd>', 'Pausa']];
   $('#controlsNote').innerHTML = `<div class="keys">${rows.map(r => r.length === 1 ? `<div class="grp">${r[0]}</div>` : `<span class="k">${r[0]}</span><span>${r[1]}</span>`).join('')}</div>
     <p class="note" style="margin:10px 0 0"><b>Bunny hop:</b> pule, aperte ${k('crouch')} no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.</p>
@@ -8381,7 +8399,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
