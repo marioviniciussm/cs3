@@ -215,6 +215,7 @@ body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
 #chCur { position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.6); pointer-events: none; z-index: 5; }
 .netgame { display: flex; gap: 8px; margin-top: 4px; } .netgame .btn { flex: 1; } .netgame .btn.on { border-color: var(--accent, #f2a03a); color: var(--accent, #f2a03a); }
+#tbl { background: rgba(8,10,13,0.82); }
 #chHint { left: 50%; bottom: 120px; transform: translateX(-50%); font-family: var(--body); font-size: 16px; text-align: center; max-width: 80vw; }
 #abHud { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
 #abHud .ab { position: relative; min-width: 150px; padding: 6px 10px 6px 8px; background: rgba(10,12,15,0.72); border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #59626d; display: flex; align-items: center; gap: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); overflow: hidden; }
@@ -435,6 +436,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
         <button class="mode primary" id="bX1"><svg><use href="#i-bot"/></svg><span><b>X1 contra bots</b><small>Você escolhe mapa, regras, armas e times</small></span></button>
         <button class="mode" id="bNet"><svg><use href="#i-net"/></svg><span><b>Online com amigos</b><small>Sala com código, até 8 jogadores</small></span></button>
         <button class="mode" id="bKr"><svg><use href="#i-cls"/></svg><span><b>Classes · infinito</b><small>Estilo Krunker: escolha classe e jogue sem fim</small></span></button>
+        <button class="mode" id="bPlaza"><svg><use href="#i-net"/></svg><span><b>Praça</b><small>Lobby aberto: passeie, xadrez nas mesas, vote no próximo modo</small></span></button>
         <button class="mode" id="bChess"><svg><use href="#i-chess"/></svg><span><b>Xadrez FPS</b><small>Cada captura vira um duelo: a peça luta com a sua arma</small></span></button>
         <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
       </div>
@@ -493,9 +495,10 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       </div>
       <p class="sub" id="netStatus" aria-live="polite"></p>
       <div id="netRoster" hidden></div>
-      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button></div></div>
+      <div id="netGame" hidden><span class="formh">Modo de jogo</span><div class="netgame"><button class="btn" data-g="plaza">Praça</button><button class="btn" data-g="x1">Partida normal</button><button class="btn" data-g="chess">Xadrez FPS</button></div></div>
       <div id="netHostCfg" hidden class="stack" style="gap:4px"></div>
       <button class="btn primary" id="bNetStart" hidden>Iniciar partida</button>
+      <button class="btn primary" id="bNetEnter" hidden>Entrar na Praça</button>
       <button class="btn" id="bNetChess" hidden>Jogar Xadrez FPS (1 contra 1)</button>
       <button class="btn" id="bNetBack">Voltar</button>
     </div>
@@ -526,6 +529,22 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <div class="tabs" role="tablist" id="admTabs"></div>
     <div id="admBody"></div>
     <div class="btnrow"><button class="btn primary" id="admApply">Aplicar e reiniciar para todos</button><button class="btn" id="admClose">Fechar</button></div>
+  </div>
+</div>
+<div class="layer" id="tbl" hidden>
+  <div class="chwrap">
+    <div id="tblBoard" class="chboard" role="grid" aria-label="Mesa de xadrez"></div>
+    <div class="panel stack chside" style="gap:10px">
+      <h2>Mesa de xadrez</h2>
+      <p id="tblSeats" class="sub"></p>
+      <p id="tblMsg" class="chturn" aria-live="polite"></p>
+      <div class="btnrow"><button class="btn" id="tblW">Sentar de brancas</button><button class="btn" id="tblB">Sentar de pretas</button></div>
+      <button class="btn" id="tblBot">Jogar contra o bot</button>
+      <button class="btn" id="tblReset">Nova partida</button>
+      <button class="btn" id="tblLeave">Levantar da mesa</button>
+      <button class="btn primary" id="tblClose">Voltar para a praça (Esc)</button>
+      <p class="note">Xadrez normal, sem duelo. Quem passar perto vê a partida no tampo da mesa.</p>
+    </div>
   </div>
 </div>
 <div class="layer" id="chess" hidden>
@@ -772,7 +791,7 @@ document.addEventListener('pointerlockchange', () => {
   // mouse escapando num movimento rápido): não abre o menu de pausa, só pede um clique para voltar.
   // Esc continua abrindo a pausa normalmente.
   const stolen = !document.hasFocus() || performance.now() - blurAt < 400;
-  if (!locked()) { held.clear(); if (!stolen && state === 'playing' && !paused && !devOpen && !classOpen && !adminOpen && !(mode && mode.over)) setPaused(true); }
+  if (!locked()) { held.clear(); if (!stolen && state === 'playing' && !paused && !devOpen && !classOpen && !adminOpen && !tblOpen && !(mode && mode.over)) setPaused(true); }
   updateLockHint();
 });
 document.addEventListener('pointerlockerror', () => { updateLockHint(); });
@@ -1552,6 +1571,7 @@ const MAPS = [
   { id: 'arena', name: 'Arena (grande)', build: () => buildArena() },
   { id: 'pool', name: 'fy_pool_day (piscina)', build: buildPoolDay },
   { id: 'xadrez', name: 'Arena do Xadrez', build: () => buildChessArena() },
+  { id: 'praca', name: 'Praça', build: () => buildPlaza() },
 ];
 
 function buildTestRange() {
@@ -2442,7 +2462,7 @@ function selectWeapon(i, force) {
 }
 const active = () => pw.slots[pw.cur];
 const zoomMult = () => (pw.zoom && active().w.scope) ? active().w.scope[pw.zoom - 1] : 1;
-const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && !adminOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
+const canInput = () => state === 'playing' && !paused && !devOpen && !chatOpen && !classOpen && !adminOpen && !tblOpen && locked() && !(mode && mode.over) && !(mode && mode.frozen);
 const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)) && !(adminOpen && !(mode && mode.net)) && !(classOpen && !(mode && mode.net) && !mode.started) && !(mode && mode.over);
 
 function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
@@ -3111,6 +3131,15 @@ function startX1(cfgIn, net, ids) {
   const tIdx = id => lineup.filter(p => p.team === lineup.find(q => q.id === id).team).findIndex(p => p.id === id);
   const weapons = cfg.teamWeapons ? cfg.teamWeapons[myTeam] : cfgWeapons(cfg);
   mode = makeX1Mode(cfg, net, weapons, myTeam);
+  if (cfg.plaza) {
+    // praça: todo mundo contra todo mundo (sem placar), renasce rápido, mesas e votação
+    Object.assign(mode, { plaza: true, teams: false, enemies: (a, b) => a !== b });
+    mode.topParts = () => ({ l: ['Na praça', Plaza.people(), 0x7fb7e6], r: ['Seus abates', player.kills, TEAM_COLORS[0]], mid: 'Praça', sub: 'mesas de xadrez · placas de votação · spray', ping: net ? Net.ping : null });
+    const od = mode.onDeath.bind(mode), ou = mode.update.bind(mode);
+    mode.onDeath = (v, a) => { od(v, a); if (!v.remote) v.respawnAt = now + 0.8; };
+    mode.update = dt => { ou(dt); Plaza.update(dt); };
+    mode.restart = () => startPlaza();
+  } else if (cfg.fromPlaza) mode.restart = () => startPlaza();
   mode.classes = !!cfg.classes && (!cfg.duel || cfg.duel === 'normal');
   mode.pickup = !mode.classes && (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
   const ts = mapInfo.teamSpawns, myIdx = net ? Math.max(0, tIdx(meP.id)) : 0;
@@ -3175,6 +3204,8 @@ function startX1(cfgIn, net, ids) {
     $('#pMenu').textContent = 'Desistir do duelo'; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
   }
   if (mode.classes) openClassPick();
+  if (cfg.plaza) { Plaza.reset(); banner('Praça', 'Fique à vontade. Mesas de xadrez e placas de votação: chegue perto e aperte ' + keyLabel(S.keys.use), 4); }
+  else Plaza.closeTable();
 }
 
 function makeX1Mode(cfg, net, weapons, myTeam) {
@@ -3557,7 +3588,7 @@ function endX1(team) {
     <div><b>${pct(r.hs, r.k)}</b><span>abates na cabeça</span></div><div><b>${pct(r.hits, r.shots)}</b><span>precisão</span></div></div>
     <p class="note" style="margin:6px 0 0">Contra ${esc(r.opp)} no total: <b>${R.vs.w}</b> vitória${R.vs.w === 1 ? '' : 's'}, <b>${R.vs.l}</b> derrota${R.vs.l === 1 ? '' : 's'}${R.vs.e ? `, ${R.vs.e} empate${R.vs.e === 1 ? '' : 's'}` : ''}.</p>`;
   $('#eAdmin').hidden = !isAdmin();
-  const again = $('#eAgain'); again.disabled = !!(m.net && !m.host); again.textContent = m.net && !m.host ? 'Aguardando o anfitrião…' : 'Jogar novamente';
+  const again = $('#eAgain'); again.disabled = !!(m.net && !m.host); again.textContent = m.net && !m.host ? 'Aguardando o anfitrião…' : m.cfg && m.cfg.fromPlaza ? 'Voltar para a Praça' : 'Jogar novamente';
   $('#end').hidden = false;
 }
 
@@ -3572,7 +3603,7 @@ function removeRemote(r) {
   mode.remotes.delete(r.netId); r.alive = false;
   const i = combatants.indexOf(r); if (i >= 0) combatants.splice(i, 1); if (r.group.parent) r.group.parent.remove(r.group);
   const sp = sprays.get('r_' + r.netId); if (sp) { world.remove(sp); sprays.delete('r_' + r.netId); }
-  if (!mode.over && ![...mode.remotes.values()].some(x => !x.isNetBot) && !(mode.netBots && mode.netBots.size)) {
+  if (!mode.over && !mode.plaza && ![...mode.remotes.values()].some(x => !x.isNetBot) && !(mode.netBots && mode.netBots.size)) {
     mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
     $('#endWinner').innerHTML = '<b>Todos os outros jogadores saíram</b>';
     fillScore($('#endBody')); $('#eAgain').disabled = true; $('#end').hidden = false;
@@ -3616,7 +3647,8 @@ function onNetMsg(m) {
   if (!m || typeof m !== 'object') return;
   const inGame = state === 'playing' && mode && mode.net, r = inGame ? remoteOf(m.f) : null;
   switch (m.t) {
-    case 'welcome': Net.myId = String(m.id || ''); Net.inMatch = !!m.inMatch; renderNetLobby(); break;
+    case 'welcome': Net.myId = String(m.id || ''); Net.inMatch = !!m.inMatch; Net.plazaOn = !!m.plaza; renderNetLobby(); break;
+    case 'tbl': case 'tblreq': case 'pvote': case 'pvotes': case 'pgo': case 'pjoin': case 'pjoinreq': Plaza.onMsg(m); break;
     case 'full': Net.setStatus('A sala está cheia (máximo ' + NET_MAX + ' jogadores).'); break;
     case 'roster':
       if (!Array.isArray(m.ro)) break;
@@ -3652,9 +3684,9 @@ function onNetMsg(m) {
     case 'start':
       if (Net.role !== 'guest') break;
       if (Array.isArray(m.ro)) for (const q of m.ro) { const p = Net.byId(q.id); if (p) p.team = q.team ? 1 : 0; }
-      if (!Net.me() || !m.ro.some(q => q.id === Net.myId)) { Net.inMatch = true; renderNetLobby(); break; }   // entrou com a partida já rolando
-      Net.inMatch = true; startX1(m.cfg, Net, m.ro.map(q => q.id)); break;
-    case 'lobby': Net.inMatch = false; if (inGame) { goMenu(); openNetPanel(); } else renderNetLobby(); break;
+      if (!Net.me() || !m.ro.some(q => q.id === Net.myId)) { Net.inMatch = true; Net.plazaOn = !!(m.cfg && m.cfg.plaza); renderNetLobby(); break; }   // entrou com a partida já rolando
+      Net.inMatch = true; Net.plazaOn = !!(m.cfg && m.cfg.plaza); startX1(m.cfg, Net, m.ro.map(q => q.id)); break;
+    case 'lobby': Net.inMatch = false; Net.plazaOn = false; if (inGame) { goMenu(); openNetPanel(); } else renderNetLobby(); break;
     case 's': if (r) onRemoteState(r, m); break;
     case 'bs': if (inGame && Array.isArray(m.l)) for (const e of m.l) { const b = Array.isArray(e) && remoteOf(String(e[0])); if (b && b.isNetBot) onRemoteState(b, { p: e[1], v: e[2], y: e[3], x: e[4], c: e[5], w: e[6], a: e[7], h: e[8], r: e[9] }); } break;
     case 'shot': if (r) {
@@ -3725,8 +3757,8 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['chess', 'nbadd', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
-const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
+const HOST_ONLY = new Set(['chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye', 'tblreq', 'pvote', 'pjoinreq']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
   ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0, sendAcc: 0,
@@ -3761,11 +3793,12 @@ const Net = {
       this.roster.push({ id, name: String(m.name || 'Amigo').slice(0, 16), team: n[0] <= n[1] ? 0 : 1, skin: cleanSkin(m.skin), cos: cleanCos(m.cos) });
       if (m.v !== VERSION) this.versionWarn = true;
       this.open = true;
-      this.raw(conn, { t: 'welcome', f: 'h', id, inMatch: this.inMatch });
+      this.raw(conn, { t: 'welcome', f: 'h', id, inMatch: this.inMatch, plaza: Plaza.on() ? 1 : 0 });
       this.pushRoster();
       this.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }, id);
       this.send({ t: 'resend' }); sendMySkin('skin', true);   // modelos 3D: cada um manda de novo para quem chegou
-      if (state === 'playing' && mode && mode.net) addChat('Sala', null, `${this.nameOf(id)} entrou na sala (joga a partir da próxima).`, true);
+      if (Plaza.on() && mode.net) Plaza.admit(id);
+      else if (state === 'playing' && mode && mode.net) addChat('Sala', null, `${this.nameOf(id)} entrou na sala (joga a partir da próxima).`, true);
       return;
     }
     const id = conn.netId; if (!id) return;
@@ -5651,7 +5684,7 @@ function goMenu() {
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
-  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; $('#pChess').hidden = true; $('#chess').hidden = true;
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; Plaza.closeTable(); $('#pChess').hidden = true; $('#chess').hidden = true;
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
@@ -5669,6 +5702,7 @@ function setPaused(p) {
 }
 function onEscape() {
   if (performance.now() - pausedAt < 400) return; // o mesmo Esc que soltou o mouse já pausou
+  if (tblOpen) { Plaza.closeTable(); return; }
   if (adminOpen) { closeAdmin(); return; }
   if (classOpen) { if (mode && mode.started) closeClassPick(); return; }
   if (!$('#settings').hidden) { closeSettings(); return; }
@@ -6283,15 +6317,17 @@ function renderNetLobby() {
     ro.innerHTML = col(0) + col(1);
     ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
   }
-  const ng = $('#netGame'), chessG = host && netGame === 'chess';
+  const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza';
   ng.hidden = !host;
   ng.querySelectorAll('[data-g]').forEach(b => { b.classList.toggle('on', b.dataset.g === netGame); b.onclick = () => { netGame = b.dataset.g; renderNetLobby(); }; });
   const hc = $('#netHostCfg');
-  hc.hidden = !host || chessG;
+  hc.hidden = !host || chessG || plazaG;
   if (host && !hc.childElementCount) renderX1Form(hc, true, () => { Net.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }); renderNetLobby(); });
   if (!host) hc.innerHTML = '';
   $('#bNetStart').hidden = !host; $('#bNetStart').disabled = !Net.canStart();
   $('#bNetStart').textContent = !Net.canStart() && (Net.open || X1.botsA || X1.botsB) ? 'Precisa de alguém (ou bots) em cada time' : 'Iniciar partida';
+  if (plazaG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = Net.inMatch && Net.plazaOn ? 'Voltar para a Praça' : 'Abrir a Praça (amigos entram a qualquer hora)'; }
+  $('#bNetEnter').hidden = !(role === 'guest' && Net.inMatch && Net.plazaOn && state !== 'playing');
   if (chessG) {
     const n = Net.teamSizes(), ok = Net.open && n[0] === 1 && n[1] === 1;
     $('#bNetStart').disabled = !ok;
@@ -6304,8 +6340,8 @@ $('#bNet').onclick = () => { initAudio(); openNetPanel(); };
 $('#bHost').onclick = () => Net.host(netName());
 $('#bJoin').onclick = () => { const code = ($('#netCode').value || '').trim().toUpperCase(); if (code.length < 4) { Net.setStatus('Digite o código que seu amigo passou.'); return; } Net.join(netName(), code); };
 $('#netCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
-var netGame = 'x1';   // modo escolhido pelo anfitrião na sala: partida normal ou Xadrez FPS
-$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else Net.startMatch(clone(X1)); };
+var netGame = 'plaza';   // modo escolhido pelo anfitrião na sala: partida normal ou Xadrez FPS
+$('#bNetStart').onclick = () => { if (netGame === 'chess') Chess.startOnline(); else if (netGame === 'plaza') startPlaza(); else Net.startMatch(clone(X1)); };
 $('#bNetBack').onclick = () => {
   if (Net.role) { Net.send({ t: 'bye' }); Net.leave(); renderNetLobby(); return; }
   $('#netSetup').hidden = true; $('#mainButtons').hidden = false;
@@ -7422,6 +7458,303 @@ function chLegend() {
 
 $('#chLegend').innerHTML = chLegend();
 $('#bChess').onclick = () => Chess.openLocal();
+
+// =====================================================================================
+// Praça: lobby aberto. Entra quem quiser a qualquer hora, renasce na hora, sem placar.
+// Tem armas no chão, spray, voice por proximidade, mesas de xadrez (contra amigo ou bot) e
+// placas para votar o próximo modo. No online o anfitrião manda nas mesas e nos votos.
+// =====================================================================================
+function buildPlaza() {
+  newWorld();
+  const H = 34;
+  box(0, 0, H * 2, 1, H * 2, 0xb8b1a3, -1);
+  // limites e prédios em volta (paredes boas para spray, cobertura alta)
+  box(0, H + 0.5, H * 2 + 2, 14, 1, C.wall); box(0, -H - 0.5, H * 2 + 2, 14, 1, C.wall);
+  box(H + 0.5, 0, 1, 14, H * 2, C.wall); box(-H - 0.5, 0, 1, 14, H * 2, C.wall);
+  const bc = [0xc98b6b, 0x8fa7b8, 0xd8c690, 0x9db48a, 0xb88aa8, 0xa9a39a];
+  let k = 0;
+  for (let i = 0; i < 6; i++) { const x = -25 + i * 10; box(x, -H + 3, 9.4, 7 + (i % 3) * 2.5, 6, bc[k++ % 6]); box(x, H - 3, 9.4, 7 + ((i + 1) % 3) * 2.5, 6, bc[k++ % 6]); }
+  for (let i = 0; i < 4; i++) { const z = -15 + i * 10; box(-H + 3, z, 6, 8 + (i % 2) * 3, 9.4, bc[k++ % 6]); box(H - 3, z, 6, 8 + ((i + 1) % 2) * 3, 9.4, bc[k++ % 6]); }
+  for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) box(x * (H - 3), z * (H - 4.5), 6, 6, 9, bc[k++ % 6]);
+  // piso da praça: círculo claro e caminhos
+  const disc = mesh(CYL, 0xd9d2c3, 26, 0.02, 26, 0, 0.01, 0, world); disc.receiveShadow = true;
+  decal(0, 0, 4, 60, 0xcfc6b4); decal(0, 0, 60, 4, 0xcfc6b4);
+  // chafariz
+  const rim = mesh(CYL, 0x9ea3a8, 7, 0.7, 7, 0, 0.35, 0, world); rim.castShadow = rim.receiveShadow = true;
+  mesh(CYL, 0x4f9fd1, 6.2, 0.72, 6.2, 0, 0.36, 0, world);
+  const col = mesh(CYL, 0x9ea3a8, 0.8, 2.6, 0.8, 0, 1.3, 0, world); col.castShadow = true;
+  mesh(CYL, 0x9ea3a8, 2.6, 0.3, 2.6, 0, 2.2, 0, world); mesh(CYL, 0x6fb8e6, 2.2, 0.32, 2.2, 0, 2.22, 0, world);
+  colliders.push({ min: new THREE.Vector3(-3.3, 0, -3.3), max: new THREE.Vector3(3.3, 0.7, 3.3) }, { min: new THREE.Vector3(-0.5, 0, -0.5), max: new THREE.Vector3(0.5, 2.6, 0.5) });
+  // árvores, bancos
+  for (const [x, z] of [[16, 6], [-16, -6], [6, -16], [-6, 16], [16, -18], [-16, 18]]) {
+    pillar(x, z, 3, 0x6b4a2f); const cr = mesh(SPHERE, 0x5c8f4a, 4, 3.4, 4, x, 4.4, z, world); cr.castShadow = true;
+  }
+  for (const [x, z, r] of [[0, 7.5, 0], [0, -7.5, 0], [7.5, 0, 1], [-7.5, 0, 1]]) box(x, z, r ? 0.7 : 2.6, 0.45, r ? 2.6 : 0.7, 0x7a5636);
+  // mesas de xadrez (o tampo mostra a partida que está rolando)
+  const tables = [];
+  for (const [x, z] of [[11, 11], [-11, 11], [11, -11], [-11, -11]]) {
+    box(x, z, 1.6, 0.85, 1.6, 0x5a4632); box(x, z + 1.5, 0.7, 0.5, 0.7, 0x7a5636); box(x, z - 1.5, 0.7, 0.5, 0.7, 0x7a5636);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const tex = new THREE.CanvasTexture(cv), top = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: tex }));
+    top.rotation.x = -Math.PI / 2; top.position.set(x, 0.862, z); world.add(top);
+    tables.push({ x, z, cv, tex });
+  }
+  // placas de votação (lado norte)
+  const signs = [];
+  PLAZA_VOTES.forEach((o, i) => {
+    const x = -15 + i * 10, z = -21;
+    box(x - 1.3, z, 0.22, 2.2, 0.22, 0x3a3f47); box(x + 1.3, z, 0.22, 2.2, 0.22, 0x3a3f47);
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+    const tex = new THREE.CanvasTexture(cv), bd = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.12), new THREE.MeshBasicMaterial({ map: tex }));
+    bd.position.set(x, 3, z); world.add(bd); worldMeshes.push(bd);
+    signs.push({ id: o.id, x, z: z + 1.2, cv, tex });
+  });
+  const spawns = [];
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, x = Math.sin(a) * 10, z = Math.cos(a) * 10; spawns.push({ pos: new THREE.Vector3(x, 0, z), yaw: facing(x, z) }); }
+  const items = [['pistol', 4, 18], ['deagle', -4, 18], ['rifle', 20, 4], ['smg', -20, -4], ['shotgun', 20, -8], ['sniper', -20, 8], ['revolver', 8, -24], ['crossbow', -8, 24], ['lmg', 24, 20], ['rocket', -24, -20], ['he', 3, -12], ['he', -3, 12], ['semi', 14, 24], ['musket', -14, -24]]
+    .map(([w, x, z]) => ({ w, p: new THREE.Vector3(x, 0, z) }));
+  mapInfo = { name: 'Praça', spawns, teamSpawns: [spawns, spawns], waypoints: gridWaypoints(-26, 26, -26, 26, 4), playerSpawn: spawns[0], targets: [], items, tables, signs };
+  shadowSize(36);
+}
+const PLAZA_VOTES = [
+  { id: 'dm', name: 'Mata-mata', sub: 'times, até 15 abates' },
+  { id: 'gungame', name: 'Gun game', sub: 'cada abate troca a arma' },
+  { id: 'knife', name: 'Só faca', sub: 'rounds, melhor de 5' },
+  { id: 'chess', name: 'Xadrez FPS', sub: '1 contra 1 no tabuleiro' },
+];
+function plazaCfg() {
+  return Object.assign(clone(X1_DEFAULT), { map: 'praca', plaza: true, format: 'endless', ground: 'on', preset: 0, hp: 100, allies: 0, enemies: 0, duel: 'normal', classes: false, botsA: 0, botsB: 0, bhop: X1.bhop, gravity: 1, speed: 1, customMap: undefined });
+}
+function startPlaza() {
+  initAudio();
+  if (Net.role === 'host') {
+    Net.inMatch = true; Net.plazaOn = true;
+    const cfg = resolveMapCfg(plazaCfg()); cfg.netBots = [];
+    Net.send({ t: 'start', cfg, ro: Net.roster.map(p => ({ id: p.id, name: p.name, team: p.team })) });
+    startX1(cfg, Net);
+  } else startX1(plazaCfg());
+  lockPointer();
+}
+// quem chegou depois (online): cria o boneco dele na praça
+function addPlazaRemote(p) {
+  if (!p || p.id === Net.myId || remoteOf(p.id) || !mode || !mode.remotes) return;
+  const sp = pickSpawn({}), K = WI('knife');
+  const r = createCombatant(p.name, TEAM_COLORS[p.team], sp, false);
+  Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: 100, hp: 100, spawnIdx: 0, wi: K });
+  r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+  setGunShape(r, WEAPONS[K]); applySkin(r, p.skin || null); applyCos(r, p.cos);
+  mode.remotes.set(p.id, r);
+  addChat('Sala', null, `${p.name} chegou na praça.`, true);
+}
+let tblOpen = false;
+const Plaza = {
+  tables: [], votes: new Map(), go: null, ui: -1, sel: -1, moves: [], near: null, syncAt: 0,
+  on() { return !!(state === 'playing' && mode && mode.plaza); },
+  host() { return !mode || !mode.net || mode.host; },
+  me() { return Net.role ? Net.myId : 'me'; },
+  name(id) { return id === 'bot' ? 'Bot' : id === this.me() ? 'Você' : Net.nameOf(id); },
+  reset() {
+    this.closeTable();
+    this.tables = (mapInfo.tables || []).map(() => ({ st: chNew(), w: null, b: null, msg: '' }));
+    this.votes.clear(); this.go = null;
+    this.tables.forEach((_, i) => this.drawTable(i)); this.drawSigns();
+  },
+  // ---- mesas
+  act(i, op, a, b) {
+    if (this.host()) this.tblDo(this.me(), i, op, a, b);
+    else Net.send({ t: 'tblreq', i, op, a, b });
+  },
+  tblDo(from, i, op, a, b) {
+    const T = this.tables[i]; if (!T) return;
+    const seat = id => T.w === id ? 'w' : T.b === id ? 'b' : null;
+    if (op === 'sit') { const c = a === 'b' ? 'b' : 'w'; if (T[c] && T[c] !== from && T[c] !== 'bot') return; const s = seat(from); if (s) T[s] = null; T[c] = from; }
+    else if (op === 'leave') { const s = seat(from); if (s) T[s] = null; if (!T.w && T.b === 'bot') T.b = null; if (!T.b && T.w === 'bot') T.w = null; }
+    else if (op === 'bot') { const s = seat(from); if (!s) return; const o = s === 'w' ? 'b' : 'w'; if (T[o] && T[o] !== 'bot') return; T[o] = 'bot'; }
+    else if (op === 'reset') { if (!seat(from)) return; T.st = chNew(); }
+    else if (op === 'mv') { const c = seat(from); if (!c || T.st.turn !== c || chResult(T.st)) return; const mv = chLegal(T.st, a | 0).find(x => x.to === (b | 0)); if (!mv) return; T.st = chApply(T.st, mv); }
+    else return;
+    this.after(i);
+  },
+  after(i) {
+    const T = this.tables[i], r = chResult(T.st);
+    T.msg = r ? (r.winner == null ? `${r.why}: empate.` : `${r.why}: ${r.winner === 'w' ? 'brancas' : 'pretas'} venceram.`) : chInCheck(T.st, T.st.turn) ? 'Xeque!' : '';
+    this.push(i); this.drawTable(i); if (this.ui === i) this.render();
+    if (this.host() && !r && T[T.st.turn] === 'bot' && !T.thinking) {
+      T.thinking = true; const st0 = T.st;
+      setTimeout(() => { T.thinking = false; if (!this.on() || T.st !== st0 || T[T.st.turn] !== 'bot') return; const m = chBotMove(T.st, 1); if (m) { T.st = chApply(T.st, m); this.after(i); } }, 700);
+    }
+  },
+  push(i, to) { const T = this.tables[i]; if (mode && mode.net && mode.host && T) Net.send({ t: 'tbl', i, st: T.st, w: T.w, b: T.b, msg: T.msg }, to); },
+  onTbl(m) {
+    const T = this.tables[m.i | 0]; if (!T || !m.st || !Array.isArray(m.st.b) || m.st.b.length !== 64) return;
+    if (!m.st.b.every(x => x === null || (typeof x === 'string' && /^[wb][PNBRQK]$/.test(x)))) return;
+    T.st = m.st; T.st.log = []; T.w = m.w == null ? null : String(m.w).slice(0, 8); T.b = m.b == null ? null : String(m.b).slice(0, 8); T.msg = String(m.msg || '').slice(0, 80);
+    this.drawTable(m.i | 0); if (this.ui === (m.i | 0)) this.render();
+  },
+  drawTable(i) {
+    const t = mapInfo.tables && mapInfo.tables[i], T = this.tables[i]; if (!t || !T) return;
+    const g = t.cv.getContext('2d'), s = 32, last = T.st.last || {};
+    for (let sq = 0; sq < 64; sq++) {
+      const r = sq >> 3, c = sq & 7; g.fillStyle = (r + c) % 2 ? '#5d6772' : '#c9ced4'; g.fillRect(c * s, r * s, s, s);
+      if (sq === last.from || sq === last.to) { g.fillStyle = 'rgba(242,160,58,0.45)'; g.fillRect(c * s, r * s, s, s); }
+      const p = T.st.b[sq]; if (!p) continue;
+      g.font = `${s * 0.8}px "Segoe UI Symbol","DejaVu Sans",serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 2; g.strokeStyle = p[0] === 'w' ? '#000' : '#fff'; g.fillStyle = p[0] === 'w' ? '#fff' : '#111';
+      g.strokeText(CH_GLYPH[p[1]], c * s + s / 2, r * s + s / 2 + 1); g.fillText(CH_GLYPH[p[1]], c * s + s / 2, r * s + s / 2 + 1);
+    }
+    t.tex.needsUpdate = true;
+  },
+  openTable(i) {
+    this.ui = i; this.sel = -1; this.moves = []; tblOpen = true; held.clear();
+    if (document.exitPointerLock && locked()) document.exitPointerLock();
+    $('#tbl').hidden = false; this.render(); updateLockHint();
+  },
+  closeTable() {
+    if (!tblOpen) return;
+    tblOpen = false; this.ui = -1; $('#tbl').hidden = true;
+    if (state === 'playing' && !paused) lockPointer();
+    updateLockHint();
+  },
+  render() {
+    const T = this.tables[this.ui]; if (!T) return;
+    const me = this.me(), mine = T.w === me ? 'w' : T.b === me ? 'b' : null, flip = mine === 'b', st = T.st, last = st.last || {};
+    const chk = chInCheck(st, st.turn) ? chKing(st.b, st.turn) : -1, tgt = new Set(this.moves.map(m => m.to)), capT = new Set(this.moves.filter(m => m.cap >= 0).map(m => m.to));
+    let h = '';
+    for (let i = 0; i < 64; i++) {
+      const sq = flip ? 63 - i : i, r = sq >> 3, c = sq & 7, p = st.b[sq], cls = ['sq', (r + c) % 2 ? 'dk' : 'lt'];
+      if (sq === this.sel) cls.push('sel'); if (sq === last.from || sq === last.to) cls.push('last'); if (sq === chk) cls.push('chk');
+      if (tgt.has(sq)) cls.push(capT.has(sq) ? 'cap' : 'tgt');
+      h += `<button class="${cls.join(' ')}" data-sq="${sq}">${p ? `<span class="pc ${p[0]}">${CH_GLYPH[p[1]]}</span>` : ''}</button>`;
+    }
+    const bd = $('#tblBoard'); bd.innerHTML = h;
+    bd.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => this.click(+b.dataset.sq));
+    const r = chResult(st), who = c => T[c] ? this.name(T[c]) : '(livre)';
+    $('#tblSeats').textContent = `Brancas: ${who('w')}  ·  Pretas: ${who('b')}`;
+    $('#tblMsg').textContent = r ? T.msg : (T[st.turn] ? (T[st.turn] === me ? 'Sua vez.' : `Vez de ${this.name(T[st.turn])}.`) : `Vez das ${st.turn === 'w' ? 'brancas' : 'pretas'} (ninguém sentado).`) + (T.msg && !r ? ' ' + T.msg : '');
+    $('#tblW').disabled = T.w === me || (T.w && T.w !== 'bot'); $('#tblB').disabled = T.b === me || (T.b && T.b !== 'bot');
+    $('#tblBot').hidden = !mine || !!T[mine === 'w' ? 'b' : 'w'] && T[mine === 'w' ? 'b' : 'w'] !== 'bot' || T[mine === 'w' ? 'b' : 'w'] === 'bot';
+    $('#tblReset').hidden = !mine; $('#tblLeave').hidden = !mine;
+  },
+  click(sq) {
+    const T = this.tables[this.ui]; if (!T) return;
+    const me = this.me(), mine = T.w === me ? 'w' : T.b === me ? 'b' : null;
+    if (!mine || T.st.turn !== mine || chResult(T.st)) return;
+    const m = this.moves.find(x => x.to === sq);
+    if (this.sel >= 0 && m) { this.sel = -1; this.moves = []; this.act(this.ui, 'mv', m.from, m.to); this.render(); return; }
+    const p = T.st.b[sq];
+    if (p && p[0] === mine) { this.sel = sq; this.moves = chLegal(T.st, sq); } else { this.sel = -1; this.moves = []; }
+    this.render();
+  },
+  // ---- votos
+  vote(id) { if (this.host()) this.setVote(this.me(), id); else Net.send({ t: 'pvote', s: id }); },
+  setVote(from, id) {
+    if (!PLAZA_VOTES.some(o => o.id === id)) return;
+    if (this.votes.get(from) === id) this.votes.delete(from); else this.votes.set(from, id);
+    this.pushVotes(); this.drawSigns(); this.checkVotes();
+  },
+  pushVotes(to) { if (mode && mode.net && mode.host) Net.send({ t: 'pvotes', v: [...this.votes.entries()], go: this.go ? this.go.id : null }, to); },
+  onVotes(m) {
+    if (!Array.isArray(m.v)) return;
+    this.votes = new Map(m.v.filter(e => Array.isArray(e) && PLAZA_VOTES.some(o => o.id === e[1])).slice(0, 16).map(e => [String(e[0]).slice(0, 8), e[1]]));
+    this.drawSigns();
+  },
+  people() { return combatants.filter(c => c.isPlayer || (c.remote && !c.isNetBot)).length; },
+  checkVotes() {
+    const n = this.people(), cnt = {};
+    for (const v of this.votes.values()) cnt[v] = (cnt[v] || 0) + 1;
+    const best = PLAZA_VOTES.find(o => (cnt[o.id] || 0) > n / 2);
+    if (best && (!this.go || this.go.id !== best.id)) { this.go = { id: best.id, at: now + 5 }; this.announce(best.id, 5); }
+    else if (!best && this.go) { this.go = null; this.announce(null, 0); }
+  },
+  announce(id, s) {
+    const o = PLAZA_VOTES.find(x => x.id === id);
+    if (o) { banner(`${o.name} em ${s} s`, 'A praça votou. Mude o voto para cancelar.', 3); play('round', 0.6); } else banner('Votação cancelada', '', 1.5);
+    if (mode && mode.net && mode.host) Net.send({ t: 'pgo', o: id, s });
+  },
+  drawSigns() {
+    const cnt = {}, mineV = this.votes.get(this.me());
+    for (const v of this.votes.values()) cnt[v] = (cnt[v] || 0) + 1;
+    for (const sg of mapInfo.signs || []) {
+      const o = PLAZA_VOTES.find(x => x.id === sg.id), g = sg.cv.getContext('2d'), n = cnt[o.id] || 0;
+      g.fillStyle = mineV === o.id ? '#3a2a12' : '#1d2228'; g.fillRect(0, 0, 512, 256);
+      g.strokeStyle = mineV === o.id ? '#f2a03a' : '#59616b'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 246);
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = 'bold 64px "Chakra Petch", sans-serif'; g.fillText(o.name, 256, 92);
+      g.fillStyle = '#aab3bd'; g.font = '30px "Barlow", sans-serif'; g.fillText(o.sub, 256, 140);
+      g.fillStyle = n ? '#f2a03a' : '#77808a'; g.font = 'bold 40px "Barlow", sans-serif'; g.fillText(n ? `${n} voto${n > 1 ? 's' : ''}` : 'E para votar', 256, 210);
+      sg.tex.needsUpdate = true;
+    }
+  },
+  launch(id) {
+    this.go = null; this.votes.clear();
+    const maps = ['duelo', 'aim', 'patio', 'arena', 'pool', 'xadrez'], map = maps[Math.floor(Math.random() * maps.length)];
+    const net = mode && mode.net ? Net : null;
+    if (id === 'chess') {
+      if (net) { const n = Net.teamSizes(); if (n[0] !== 1 || n[1] !== 1) { banner('Xadrez FPS é 1 contra 1', 'Precisa de exatamente 2 pessoas na sala', 3); this.pushVotes(); this.drawSigns(); return; } Chess.startOnline(); }
+      else Chess.openLocal();
+      return;
+    }
+    const cfg = Object.assign(clone(X1_DEFAULT), { map, fromPlaza: true, preset: 0, ground: 'auto', hp: 100, diff: 1, bhop: X1.bhop, classes: false, customMap: undefined });
+    if (id === 'dm') Object.assign(cfg, { format: 'dm', target: 15, time: 10, duel: 'normal', enemies: 3, allies: 1 });
+    if (id === 'gungame') Object.assign(cfg, { duel: 'gungame', enemies: 3 });
+    if (id === 'knife') Object.assign(cfg, { duel: 'knife', format: 'rounds', target: 3, enemies: 1 });
+    if (net) { const n = Net.teamSizes(); if (!n[1]) cfg.botsB = id === 'knife' ? 1 : 2; if (!n[0]) cfg.botsA = 1; Net.startMatch(cfg); }
+    else startX1(cfg);
+  },
+  // ---- quadro a quadro
+  update(dt) {
+    if (!this.on()) return;
+    const p = player, near = (list, r) => { let b = null, bd = r * r; (list || []).forEach((o, i) => { const d = (o.x - p.pos.x) ** 2 + (o.z - p.pos.z) ** 2; if (d < bd) { bd = d; b = i; } }); return b; };
+    const ti = p.alive ? near(mapInfo.tables, 2.6) : null, si = ti == null && p.alive ? near(mapInfo.signs, 3) : null;
+    if (ti != null) {
+      const T = this.tables[ti], who = c => T[c] ? this.name(T[c]) : 'livre';
+      setHint(`[${keyLabel(S.keys.use)}] mesa de xadrez  ·  brancas: ${who('w')}  ·  pretas: ${who('b')}`);
+      if (canInput() && isDown('use')) this.openTable(ti);
+    } else if (si != null) {
+      const o = PLAZA_VOTES.find(x => x.id === mapInfo.signs[si].id), mineV = this.votes.get(this.me()) === o.id;
+      setHint(mineV ? `[${keyLabel(S.keys.use)}] tirar seu voto em ${o.name}` : `[${keyLabel(S.keys.use)}] votar em ${o.name} para a próxima partida`);
+      if (canInput() && isDown('use')) this.vote(o.id);
+    } else setHint('');
+    if (this.host()) {
+      if (this.go && now >= this.go.at) { const id = this.go.id; this.go = null; this.launch(id); return; }
+      // quem saiu da praça perde o lugar na mesa e o voto
+      if (mode.net && now >= this.syncAt) {
+        this.syncAt = now + 1;
+        const here = new Set([this.me(), ...[...mode.remotes.values()].filter(r => !r.isNetBot).map(r => r.netId)]);
+        this.tables.forEach((T, i) => { let ch = false; for (const c of ['w', 'b']) if (T[c] && T[c] !== 'bot' && !here.has(T[c])) { T[c] = null; ch = true; } if (ch) { if (!T.w && T.b === 'bot') T.b = null; if (!T.b && T.w === 'bot') T.w = null; this.after(i); } });
+        let vch = false; for (const id of [...this.votes.keys()]) if (!here.has(id)) { this.votes.delete(id); vch = true; }
+        if (vch) { this.pushVotes(); this.drawSigns(); this.checkVotes(); }
+      }
+    }
+  },
+  // quem chegou com a praça aberta (online, anfitrião)
+  admit(id) {
+    const p = Net.byId(id); if (!p || !this.on()) return;
+    Net.send({ t: 'start', cfg: mode.cfg, ro: Net.roster.map(q => ({ id: q.id, name: q.name, team: q.team })) }, id);
+    Net.send({ t: 'pjoin', id });
+    addPlazaRemote(p);
+    this.tables.forEach((_, i) => this.push(i, id)); this.pushVotes(id);
+  },
+  onMsg(m) {
+    const host = Net.role === 'host';
+    if (m.t === 'pjoin') { if (this.on() && !host) addPlazaRemote(Net.byId(String(m.id))); return; }
+    if (m.t === 'pjoinreq') { if (host && this.on() && !remoteOf(m.f)) this.admit(m.f); return; }
+    if (!this.on()) return;
+    if (m.t === 'tbl') { if (!host) this.onTbl(m); return; }
+    if (m.t === 'pvotes') { if (!host) this.onVotes(m); return; }
+    if (m.t === 'pgo') { if (!host) { const o = PLAZA_VOTES.find(x => x.id === m.o); if (o) { banner(`${o.name} em ${m.s | 0} s`, 'A praça votou. Mude o voto para cancelar.', 3); play('round', 0.6); } else banner('Votação cancelada', '', 1.5); } return; }
+    if (!host || !remoteOf(m.f)) return;
+    if (m.t === 'tblreq') this.tblDo(m.f, m.i | 0, String(m.op || ''), m.a, m.b);
+    if (m.t === 'pvote') this.setVote(m.f, String(m.s || ''));
+  },
+};
+$('#tblW').onclick = () => Plaza.act(Plaza.ui, 'sit', 'w');
+$('#tblB').onclick = () => Plaza.act(Plaza.ui, 'sit', 'b');
+$('#tblBot').onclick = () => Plaza.act(Plaza.ui, 'bot');
+$('#tblReset').onclick = () => Plaza.act(Plaza.ui, 'reset');
+$('#tblLeave').onclick = () => Plaza.act(Plaza.ui, 'leave');
+$('#tblClose').onclick = () => Plaza.closeTable();
+$('#bPlaza').onclick = () => startPlaza();
+$('#bNetEnter').onclick = () => Net.send({ t: 'pjoinreq' });
 $('#chNewW').onclick = () => Chess.newLocal('w');
 $('#chNewB').onclick = () => Chess.newLocal('b');
 $('#chNewOnline').onclick = () => { Chess.st = null; Chess.startOnline(); };
@@ -7431,7 +7764,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { Chess, Ab, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
