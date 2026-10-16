@@ -767,6 +767,8 @@ addEventListener('mousemove', e => {
   look.x += e.movementX; look.y += e.movementY;
 });
 addEventListener('wheel', e => { if (locked()) wheel += Math.sign(e.deltaY); }, { passive: true });
+// Ctrl + rodinha é o zoom do navegador (bagunça a HUD); na partida o Ctrl é agachar, então o zoom fica desligado
+addEventListener('wheel', e => { if (e.ctrlKey && state === 'playing') e.preventDefault(); }, { passive: false, capture: true });
 
 function assignKey(action, code) {
   const old = S.keys[action];
@@ -3117,7 +3119,10 @@ function updateBot(c, dt) {
   // zumbi: morde quem está colado nele
   if (c.zombie && b.target && b.target.alive) {
     const T = b.target, dd = Math.hypot(T.pos.x - c.pos.x, T.pos.z - c.pos.z);
-    if (dd < 1.5 * (c.zSc || 1) && Math.abs(T.pos.y - c.pos.y) < 1.6 && now >= (b.zHit || 0)) {
+    // alvo em cima de caixa: o zumbi pula para subir (e alcança as pernas de quem está um pouco acima)
+    const up = T.pos.y - c.pos.y;
+    if (up > 0.5 && dd < 4.5 && c.grounded && now >= (b.zJump || 0)) { b.zJump = now + 0.8; c.grounded = false; c.vel.y = Math.sqrt(2 * GRAV * (up + 0.7)); }
+    if (dd < 1.5 * (c.zSc || 1) && up < 2.3 && up > -1.6 && now >= (b.zHit || 0)) {
       b.zHit = now + 0.9; startAnim(c, 'melee', 0.35, false); c.recoilAnim = 1;
       if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WI('knife'), al: 0 });
       damage(T, c.zdmg, c, 'Zumbi', 'body', T.pos.clone().sub(c.pos).normalize()); play('knifeHit', 1, c.pos);
