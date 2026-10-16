@@ -407,6 +407,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6"/></g></symbol>
   <symbol id="i-net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.8"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M14.5 14.5c.8-.3 1.6-.5 2.5-.5 2.8 0 5 2 5 5"/></g></symbol>
   <symbol id="i-dm" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 14 10M10 4l10 10M15 3l6 6-3 3-6-6zM3 15l6 6"/></g></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/></g><g fill="currentColor"><circle cx="8.5" cy="8.5" r="1.4"/><circle cx="15.5" cy="15.5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="15.5" cy="8.5" r="1.4"/><circle cx="8.5" cy="15.5" r="1.4"/></g></symbol>
   <symbol id="i-chess" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 21h12M7.5 17.5h9M9 17.5c.3-3 .3-5.5-.5-7.5h7c-.8 2-.8 4.5-.5 7.5M8 10h8M9.5 10 8.5 6.5l2 1L12 4l1.5 3.5 2-1-1 3.5"/></g></symbol>
   <symbol id="i-cls" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="M8.5 12.5 11 15l4.5-5"/></g></symbol>
   <symbol id="i-aim" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></g></symbol>
@@ -438,6 +439,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
         <button class="mode" id="bKr"><svg><use href="#i-cls"/></svg><span><b>Classes · infinito</b><small>Estilo Krunker: escolha classe e jogue sem fim</small></span></button>
         <button class="mode" id="bPlaza"><svg><use href="#i-net"/></svg><span><b>Praça</b><small>Lobby aberto: passeie, xadrez nas mesas, vote no próximo modo</small></span></button>
         <button class="mode" id="bChess"><svg><use href="#i-chess"/></svg><span><b>Xadrez FPS</b><small>Cada captura vira um duelo: a peça luta com a sua arma</small></span></button>
+        <button class="mode" id="bRoleta"><svg><use href="#i-dice"/></svg><span><b>Roleta do caos</b><small>Cada round sorteia uma regra maluca: lua, só faca, cabeções, 1 de vida...</small></span></button>
         <button class="mode" id="bDm"><svg><use href="#i-dm"/></svg><span><b>Mata-mata</b><small>Todos contra todos na Arena</small></span></button>
       </div>
       <div class="label">Treinar e personalizar</div>
@@ -695,10 +697,13 @@ addEventListener('keydown', e => {
   // Backspace, aspas/barra da busca rápida do Firefox, F-teclas) ficam desligados enquanto se joga.
   // Ctrl+W/T/N o navegador não deixa bloquear fora da tela cheia: para esses existe a opção de tela cheia.
   if (state === 'playing' && !typing && (e.ctrlKey || e.metaKey || e.altKey || /^F([4-9]|10)$/.test(e.code) || ['Backspace', 'Quote', 'Slash', 'ContextMenu'].includes(e.code))) e.preventDefault();
-  if (e.code === 'F11' && state === 'playing' && !touchOn()) {
-    e.preventDefault(); fsToggleAt = performance.now();
-    if (document.fullscreenElement) { try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); document.exitFullscreen(); } catch (err) {} }
-    else pcFullscreen(true);
+  // F11 sempre sai da tela cheia (em qualquer tela do jogo) e o jogo não volta sozinho para ela no próximo clique;
+  // F11 de novo, na partida, entra outra vez. Se a janela ainda está no F11 do navegador, o próprio navegador sai.
+  if (e.code === 'F11' && !touchOn()) {
+    fsToggleAt = performance.now();
+    if (document.fullscreenElement) { e.preventDefault(); fsOptOut = true; try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); document.exitFullscreen(); } catch (err) {} }
+    else if (browserFull()) fsOptOut = true;
+    else if (state === 'playing') { e.preventDefault(); fsOptOut = false; pcFullscreen(true); }
   }
   if (e.code === 'Escape' && state === 'playing' && !e.repeat) { escDownAt = performance.now(); if (!typing) onEscape(); }
   if (!e.repeat) { held.add(e.code); pressed.add(e.code); }
@@ -768,8 +773,9 @@ const locked = () => document.pointerLockElement === canvas || (touchOn() && sta
 // abrindo abas. Por isso, se a janela já ocupa a tela inteira (F11), o jogo troca para a tela cheia dele no
 // próximo clique, e o F11 apertado durante a partida também passa a usar a tela cheia do jogo.
 const browserFull = () => !document.fullscreenElement && innerWidth >= screen.width - 2 && innerHeight >= screen.height - 2;
+let fsOptOut = false;
 function pcFullscreen(force) {
-  if (touchOn() || !(force || S.controls.fullscreen || browserFull() || document.fullscreenElement)) return;
+  if (touchOn() || (!force && fsOptOut) || !(force || S.controls.fullscreen || browserFull() || document.fullscreenElement)) return;
   const lockKeys = () => { try { const k = navigator.keyboard && navigator.keyboard.lock && navigator.keyboard.lock(); if (k && k.catch) k.catch(() => {}); } catch (e) {} };
   if (document.fullscreenElement) { lockKeys(); return; }
   try { const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' }); if (r && r.then) r.then(lockKeys, () => {}); } catch (e) {}
@@ -3049,7 +3055,7 @@ const WEAPON_PRESETS = [
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
   preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0 };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
-const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game']];
+const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game'], ['roleta', 'Roleta do caos (regra sorteada)']];
 const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
 function duelFix(cfg) {
   if (cfg.duel === 'gungame') { cfg.format = 'dm'; cfg.target = GG.length; }
@@ -3063,8 +3069,75 @@ function duelLoadout(m, team) {
   if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
   if (d === 'gungame') { const id = WI(GG[Math.min(m.score[team], GG.length - 1)]); return id === K ? [K] : [id, K]; }
   if (d === 'chess') return m.cfg.teamWeapons ? m.cfg.teamWeapons[team] : null;
+  if (d === 'roleta') return m.rule === 'faca' ? [K] : m.rule === 'troca' && m.myGun != null ? [m.myGun, K] : m.weapons;
   return null;
 }
+// Roleta do caos: cada round (no mata-mata, a cada 40 s) sorteia uma regra para todo mundo
+const ROL = [
+  { id: 'lua', name: 'Gravidade lunar', sub: 'Pulos enormes e queda lenta' },
+  { id: 'faca', name: 'Só faca', sub: 'Guarde as armas: só vale facada' },
+  { id: 'cabeca', name: 'Cabeções', sub: 'Cabeças gigantes, mire nelas' },
+  { id: 'umhp', name: '1 de vida', sub: 'Qualquer dano mata' },
+  { id: 'troca', name: 'Arma troca a cada abate', sub: 'Cada abate te dá uma arma nova, sorteada' },
+  { id: 'turbo', name: 'Turbo', sub: 'Todo mundo 60% mais rápido' },
+  { id: 'hs', name: 'Só na cabeça', sub: 'Tiro no corpo não conta' },
+  { id: 'vampiro', name: 'Vampiro', sub: 'Cada abate devolve 60 de vida' },
+];
+const RL_EVERY = 40;
+const Rol = {
+  spinR: null, spinUntil: 0, spinT: 0,
+  def: id => ROL.find(r => r.id === id),
+  pick(prev) { const L = ROL.filter(r => r.id !== prev); return L[Math.floor(Math.random() * L.length)].id; },
+  // todo mundo aplica igual; quem sorteia é o anfitrião (ou o jogo offline)
+  apply(m, id, show = true) {
+    const r = this.def(id); if (!r) return;
+    const cfg = m.cfg; m.rule = id;
+    applyPhysics(cfg);
+    if (id === 'lua') GRAV *= 0.3;
+    if (id === 'turbo') SPEED_MULT *= 1.6;
+    m.hsOnly = !!cfg.hsOnly || id === 'hs';
+    const hp = id === 'umhp' ? 1 : cfg.hp;
+    if (id === 'troca') m.myGun = randomGun(cfg);
+    for (const c of combatants) {
+      if (c.summon) continue;
+      const was = c.maxHp;
+      if (c.bot) {
+        if (c.rlW == null) c.rlW = c.cfg.weapon;
+        c.cfg.weapon = id === 'faca' ? WI('knife') : id === 'troca' ? randomGun(cfg) : c.rlW; c.cfg.hp = hp;
+        applyBot(c, c.cfg);
+      }
+      c.maxHp = hp; if (c.alive) c.hp = hp === 1 || was === 1 ? hp : Math.min(c.hp, hp);
+      this.head(c, id === 'cabeca');
+    }
+    applyDuel(m);
+    if (show) this.spin(r);
+  },
+  head(c, big) {
+    const h = c.head; if (!h) return;
+    if (h.userData.y0 == null) h.userData.y0 = h.position.y;
+    h.scale.setScalar(big ? 2.4 : 1); h.position.y = h.userData.y0 + (big ? 0.32 : 0);
+  },
+  spin(r) { this.spinR = r; this.spinUntil = performance.now() + 1200; this.spinT = 0; },
+  // a roleta gira no banner e para na regra sorteada
+  tick() {
+    if (!this.spinR) return;
+    const t = performance.now();
+    if (t < this.spinUntil) {
+      if (t - this.spinT > 85) { this.spinT = t; const x = ROL[Math.floor(Math.random() * ROL.length)]; banner('🎲 ' + x.name, 'Roleta do caos', 0.6); play('hit', 0.25); }
+    } else { banner('🎲 ' + this.spinR.name, this.spinR.sub, 2.8); play('round', 0.8); this.spinR = null; }
+  },
+  // regras que mexem em quem fez o abate (cada um cuida de si e dos seus bots)
+  kill(m, v, a) {
+    if (!a || a === v || a.remote || !a.alive) return;
+    if (m.rule === 'vampiro') a.hp = Math.min(a.maxHp, a.hp + 60);
+    if (m.rule === 'troca') {
+      if (a === player) {
+        const old = m.myGun; let g = randomGun(m.cfg); for (let i = 0; i < 4 && g === old; i++) g = randomGun(m.cfg);
+        m.myGun = g; applyDuel(m); banner('Arma nova', WEAPONS[g].name, 1.3);
+      } else if (a.bot && !a.summon) { a.cfg.weapon = randomGun(m.cfg); applyBot(a, a.cfg); }
+    }
+  },
+};
 function randomGun(cfg) {
   let g = cfgWeapons(cfg).filter(i => !WEAPONS[i].melee && !WEAPONS[i].build); if (!g.length) g = GUN_IDS().filter(i => !WEAPONS[i].melee);
   return g[Math.floor(Math.random() * g.length)];
@@ -3077,7 +3150,7 @@ function applyDuel(m) {
     const want = mine.join(','), have = pw.slots.map(s => s.wi).join(',');
     if (want !== have) { pw.slots = []; resetPlayerWeapons(); }
   }
-  for (const c of combatants) if (c.bot) {
+  if (m.cfg.duel !== 'roleta') for (const c of combatants) if (c.bot) {
     const L = duelLoadout(m, c.team); if (!L) continue;
     const id = L[0]; if (c.cfg.weapon !== id) { c.cfg.weapon = id; applyBot(c, c.cfg); }
   }
@@ -3117,7 +3190,7 @@ function startX1(cfgIn, net, ids) {
   if (cfg.chess && !(typeof cfg.chess === 'object' && CH_W[cfg.chess.a] && CH_W[cfg.chess.d] && (cfg.chess.ac === 'w' || cfg.chess.ac === 'b'))) delete cfg.chess;
   if (cfg.chess && !cfg.teamWeapons) delete cfg.chess;
   if (cfg.duel === 'chess' && !cfg.teamWeapons) cfg.duel = 'normal';
-  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true;
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; Rol.spinR = null;
   const hpOf = t => cfg.teamHp ? cfg.teamHp[t] : cfg.hp;
   $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
@@ -3227,7 +3300,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     topParts() {
       const a = myTeam, b = 1 - myTeam;
-      const sub = cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
+      const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
       return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: endless ? '∞' : fmtTime(this.timeLeft), hot: !endless && this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
     },
     top() {
@@ -3240,6 +3313,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (!host && !first) return;
       this.live = true; this.nextRoundAt = -1;
       if (cfg.duel === 'random' && host) this.roundGun = randomGun(cfg);
+      if (cfg.duel === 'roleta' && host) { Rol.apply(this, Rol.pick(this.rule), true); this.rlNext = now + RL_EVERY; }
       if (rounds) {
         this.round++; this.timeLeft = cfg.roundTime;
         const keep = this.pickup && !first && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
@@ -3247,18 +3321,20 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         if (!first) clearBuilds();
         if (this.pickup && !first) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
         if (this.chessBanner) this.chessBanner();
+        else if (cfg.duel === 'roleta') {}
         else banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
-        if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun });
-      } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`);
+        if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun, rr: this.rule });
+      } else if (cfg.duel === 'roleta') { if (net && host) Net.send({ t: 'roll', r: this.rule }); } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`);
       applyDuel(this);
       play('round', 0.7);
     },
     onRoundMsg(m) { // convidado: o anfitrião começou um round
       this.round = m.n; this.score = m.s; this.timeLeft = m.tl; this.live = true; if (m.g != null) this.roundGun = m.g;
+      if (cfg.duel === 'roleta' && Rol.def(m.rr)) Rol.apply(this, m.rr, true);
       const keep = this.pickup && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
       respawn(player, teamSpawn(myTeam, player.spawnIdx)); clearBuilds();
       if (this.pickup) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
-      if (this.chessBanner) this.chessBanner(); else banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
+      if (this.chessBanner) this.chessBanner(); else if (cfg.duel !== 'roleta') banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
     endRound(winner) {
       this.live = false;
@@ -3281,6 +3357,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (this.over) return;
       if (net && v === player) { const d = v.lastDeath || {}; Net.send({ t: 'dead', by: a ? (a === player ? '' : a.netId || '') : '', w: d.weapon, h: d.head ? 1 : 0 }); }
       if (net && host && v.netBot) { const d = v.lastDeath || {}; Net.sendAs(v.netId, { t: 'dead', by: a ? (a === player ? Net.myId : a.netId || '') : '', w: d.weapon, h: d.head ? 1 : 0 }); }
+      if (cfg.duel === 'roleta') Rol.kill(this, v, a);
       if (!rounds) {
         if (!v.remote) v.respawnAt = now + 2;
         if (cfg.duel === 'random' && v === player) this.roundGun = randomGun(cfg);
@@ -3310,6 +3387,12 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         }
       }
       for (const c of combatants) if (!c.remote && !c.alive && c.respawnAt > 0 && now >= c.respawnAt) respawn(c, pickSpawn(c));
+      if (cfg.duel === 'roleta') {
+        Rol.tick();
+        if (host && !rounds && !this.over && now >= this.rlNext) { Rol.apply(this, Rol.pick(this.rule), true); this.rlNext = now + RL_EVERY; if (net) Net.send({ t: 'roll', r: this.rule, n: RL_EVERY }); }
+        // de tempos em tempos o anfitrião repete a regra (quem perdeu a mensagem acerta)
+        if (host && net && (this.rlSync = (this.rlSync || 0) + dt) > 4) { this.rlSync = 0; Net.send({ t: 'roll', r: this.rule, n: rounds ? 0 : this.rlNext - now }); }
+      }
       if (this.live || !rounds) this.timeLeft -= dt;
       if (host) {
         if (rounds && this.live && this.timeLeft <= 0) {
@@ -3710,6 +3793,7 @@ function onNetMsg(m) {
       mode.onDeath(r, killer);
     } break;
     case 'round': if (inGame && !mode.host) mode.onRoundMsg(m); break;
+    case 'roll': if (inGame && !mode.host && mode.cfg && mode.cfg.duel === 'roleta') { if (m.r !== mode.rule && Rol.def(m.r)) Rol.apply(mode, m.r, true); if (+m.n > 0) mode.rlNext = now + Math.min(+m.n, RL_EVERY); } break;
     case 'rend': if (inGame && !mode.host) { mode.score = m.s; mode.score[m.w] != null && mode.score[m.w]--; mode.endRound(m.w); } break;
     case 'score': if (inGame && !mode.host) mode.score = m.s; break;
     case 'over': if (inGame && !mode.host) { mode.score = m.s; endX1(m.w); } break;
@@ -3757,7 +3841,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['roll', 'chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye', 'tblreq', 'pvote', 'pjoinreq']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -5216,7 +5300,7 @@ const CMD_HELP = [
   ['gravidade', '/gravidade 0.5  ·  /velocidade 1.5  ·  /vida 200  ·  /bhop 0-3'],
   ['municao', '/municao on|off (infinita)  ·  /hs on|off (só headshot)'],
   ['admin', '/admin Ana libera os comandos para ela  ·  /tiraradmin Ana  ·  /kick Ana'],
-  ['modo', '/modo rounds|mata|infinito|faca|awp|aleatoria|gungame|normal'],
+  ['modo', '/modo rounds|mata|infinito|faca|awp|aleatoria|gungame|roleta|normal'],
   ['tempo', '/tempo 10 (minutos)  ·  /round 90 (segundos)  ·  /rounds 5 ou /abates 20 para vencer'],
   ['armas', '/armas awp deagle faca (ou todas)  ·  /classes on|off  ·  /bots azul 3 laranja 1'],
   ['menu', 'Tecla M (ou Pausa → Menu de admin) abre o menu com tudo isso'],
@@ -5287,10 +5371,10 @@ function runCommand(txt) {
 // ---- regras da partida mudadas pelo admin (menu ou comando): a partida recomeça com todo mundo junto
 function draftCfg() { const c = clone(mode && mode.type === 'x1' ? mode.cfg : X1); delete c.netBots; return c; }
 const MODE_WORDS = { rounds: ['format', 'rounds'], round: ['format', 'rounds'], mata: ['format', 'dm'], 'mata-mata': ['format', 'dm'], dm: ['format', 'dm'], infinito: ['format', 'endless'], endless: ['format', 'endless'],
-  faca: ['duel', 'knife'], knife: ['duel', 'knife'], awp: ['duel', 'awp'], sniper: ['duel', 'awp'], aleatoria: ['duel', 'random'], random: ['duel', 'random'], gungame: ['duel', 'gungame'], normal: ['duel', 'normal'] };
+  faca: ['duel', 'knife'], knife: ['duel', 'knife'], awp: ['duel', 'awp'], sniper: ['duel', 'awp'], aleatoria: ['duel', 'random'], random: ['duel', 'random'], gungame: ['duel', 'gungame'], roleta: ['duel', 'roleta'], caos: ['duel', 'roleta'], normal: ['duel', 'normal'] };
 function ruleFromCmd(cmd, args) {
   const c = draftCfg(), num = (lo, hi) => { const v = parseFloat(String(args[0] || '').replace(',', '.')); return Number.isFinite(v) ? Math.round(clamp(v, lo, hi)) : null; };
-  if (cmd === 'modo') { const k = MODE_WORDS[normTxt(args[0])]; if (!k) return 'Use /modo rounds, mata, infinito, faca, awp, aleatoria, gungame ou normal.'; c[k[0]] = k[1]; return c; }
+  if (cmd === 'modo') { const k = MODE_WORDS[normTxt(args[0])]; if (!k) return 'Use /modo rounds, mata, infinito, faca, awp, aleatoria, gungame, roleta ou normal.'; c[k[0]] = k[1]; return c; }
   if (cmd === 'tempo') { const v = num(1, 30); if (v == null) return 'Use /tempo minutos (1 a 30).'; c.time = v; if (c.format === 'endless') c.format = 'dm'; return c; }
   if (cmd === 'round') { const v = num(15, 300); if (v == null) return 'Use /round segundos (15 a 300).'; c.roundTime = v; c.format = 'rounds'; return c; }
   if (cmd === 'rounds') { const v = num(1, 15); if (v == null) return 'Use /rounds número (1 a 15).'; c.target = v; c.format = 'rounds'; return c; }
@@ -6016,7 +6100,7 @@ function renderHist() {
     <h3>Contra cada adversário</h3>
     <table><thead><tr><th>Adversário</th><th>V</th><th>D</th><th>E</th></tr></thead><tbody>${Object.entries(h.vs).sort((a, b) => (b[1].w + b[1].l) - (a[1].w + a[1].l)).map(([n, v]) => `<tr><td>${esc(n)}</td><td>${v.w}</td><td>${v.l}</td><td>${v.e}</td></tr>`).join('')}</tbody></table>
     <h3>Últimas partidas</h3>
-    <table class="hist"><thead><tr><th></th><th>Adversário</th><th>Placar</th><th>A/M</th><th>Mapa</th><th>Há</th></tr></thead><tbody>${h.matches.slice(0, 20).map(m => `<tr><td><span class="res ${m.res}">${m.res === 'w' ? 'V' : m.res === 'l' ? 'D' : 'E'}</span></td><td>${esc(m.opp)}${m.online ? ' 🌐' : ''}</td><td>${m.sc[0]} x ${m.sc[1]}</td><td>${m.k}/${m.d}</td><td>${esc(m.map)}${m.duel && m.duel !== 'normal' ? ` · ${esc({ knife: 'faca', awp: 'AWP', random: 'aleatória', gungame: 'gun game' }[m.duel] || '')}` : ''}</td><td>${ago(m.at)}</td></tr>`).join('')}</tbody></table>`;
+    <table class="hist"><thead><tr><th></th><th>Adversário</th><th>Placar</th><th>A/M</th><th>Mapa</th><th>Há</th></tr></thead><tbody>${h.matches.slice(0, 20).map(m => `<tr><td><span class="res ${m.res}">${m.res === 'w' ? 'V' : m.res === 'l' ? 'D' : 'E'}</span></td><td>${esc(m.opp)}${m.online ? ' 🌐' : ''}</td><td>${m.sc[0]} x ${m.sc[1]}</td><td>${m.k}/${m.d}</td><td>${esc(m.map)}${m.duel && m.duel !== 'normal' ? ` · ${esc({ knife: 'faca', awp: 'AWP', random: 'aleatória', gungame: 'gun game', roleta: 'roleta' }[m.duel] || '')}` : ''}</td><td>${ago(m.at)}</td></tr>`).join('')}</tbody></table>`;
 }
 $('#bMapEd').onclick = () => openMapEditor();
 $('#meCanvas').addEventListener('pointerdown', meDown); $('#meCanvas').addEventListener('pointermove', meMove);
@@ -6087,7 +6171,8 @@ function renderX1Form(root, online, onChange, cfgObj) {
   let h = `<div class="formh">Modo de duelo</div>` + sel('duel', 'Modo', DUELS) +
     `<p class="note" style="margin:0 0 4px">${{ normal: 'Use as armas liberadas lá embaixo.', knife: 'Todo mundo só com faca. Facada nas costas mata.', awp: 'Todo mundo de sniper (e faca).',
       random: 'Cada round sorteia uma arma (das liberadas) e todos jogam com ela. No mata-mata, a arma muda a cada vida.',
-      gungame: `Cada abate troca sua arma: ${GG.map(g => WEAPONS[WI(g)].name).join(' → ')}. Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.` }[c.duel || 'normal']}</p>` +
+      gungame: `Cada abate troca sua arma: ${GG.map(g => WEAPONS[WI(g)].name).join(' → ')}. Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.`,
+      roleta: `Cada round sorteia uma regra: ${ROL.map(r => r.name.toLowerCase()).join(', ')}. No mata-mata, a regra muda a cada ${RL_EVERY} s.` }[c.duel || 'normal']}</p>` +
     `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
     (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)'], ['endless', 'Infinito (renasce, sem tempo e sem fim)']]) +
@@ -7458,6 +7543,7 @@ function chLegend() {
 
 $('#chLegend').innerHTML = chLegend();
 $('#bChess').onclick = () => Chess.openLocal();
+$('#bRoleta').onclick = () => startX1(Object.assign(clone(X1), { duel: 'roleta', format: 'rounds', target: Math.max(5, X1.target | 0), roundTime: 90, classes: false, preset: 0, customMap: undefined, map: X1.map && !X1.map.startsWith('c_') && X1.map !== 'praca' && X1.map !== 'xadrez' ? X1.map : 'duelo' }));
 
 // =====================================================================================
 // Praça: lobby aberto. Entra quem quiser a qualquer hora, renasce na hora, sem placar.
@@ -7502,7 +7588,7 @@ function buildPlaza() {
   // placas de votação (lado norte)
   const signs = [];
   PLAZA_VOTES.forEach((o, i) => {
-    const x = -15 + i * 10, z = -21;
+    const x = (i - (PLAZA_VOTES.length - 1) / 2) * 9, z = -21;
     box(x - 1.3, z, 0.22, 2.2, 0.22, 0x3a3f47); box(x + 1.3, z, 0.22, 2.2, 0.22, 0x3a3f47);
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
     const tex = new THREE.CanvasTexture(cv), bd = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 0.12), new THREE.MeshBasicMaterial({ map: tex }));
@@ -7520,6 +7606,7 @@ const PLAZA_VOTES = [
   { id: 'dm', name: 'Mata-mata', sub: 'times, até 15 abates' },
   { id: 'gungame', name: 'Gun game', sub: 'cada abate troca a arma' },
   { id: 'knife', name: 'Só faca', sub: 'rounds, melhor de 5' },
+  { id: 'roleta', name: 'Roleta do caos', sub: 'uma regra maluca por round' },
   { id: 'chess', name: 'Xadrez FPS', sub: '1 contra 1 no tabuleiro' },
 ];
 function plazaCfg() {
@@ -7697,6 +7784,7 @@ const Plaza = {
     if (id === 'dm') Object.assign(cfg, { format: 'dm', target: 15, time: 10, duel: 'normal', enemies: 3, allies: 1 });
     if (id === 'gungame') Object.assign(cfg, { duel: 'gungame', enemies: 3 });
     if (id === 'knife') Object.assign(cfg, { duel: 'knife', format: 'rounds', target: 3, enemies: 1 });
+    if (id === 'roleta') Object.assign(cfg, { duel: 'roleta', format: 'rounds', target: 5, roundTime: 90, enemies: 2, allies: 1 });
     if (net) { const n = Net.teamSizes(); if (!n[1]) cfg.botsB = id === 'knife' ? 1 : 2; if (!n[0]) cfg.botsA = 1; Net.startMatch(cfg); }
     else startX1(cfg);
   },
@@ -7764,7 +7852,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
