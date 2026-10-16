@@ -3369,12 +3369,19 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false, ggList: [] };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game'], ['roleta', 'Roleta do caos (regra sorteada)']];
-const GG = ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol', 'knife'];
+// gun game: passa por todas as armas (ou só as escolhidas, na ordem abaixo) e termina na faca
+const GG_ORDER = ['pistol', 'revolver', 'deagle', 'smg', 'shotgun', 'blunder', 'rifle', 'semi', 'lmg', 'minigun', 'crossbow', 'bow', 'musket', 'sniper', 'rocket', 'sword'];
+const GG_ALL = () => GG_ORDER.map(WI).filter(i => i >= 0);
+function ggLadder(cfg) {
+  const pick = Array.isArray(cfg && cfg.ggList) ? cfg.ggList.filter(i => GG_ALL().includes(i)) : [];
+  const L = pick.length ? GG_ALL().filter(i => pick.includes(i)) : GG_ALL();
+  return L.concat(WI('knife'));
+}
 function duelFix(cfg) {
-  if (cfg.duel === 'gungame') { cfg.format = 'dm'; cfg.target = GG.length; }
+  if (cfg.duel === 'gungame') { cfg.format = 'dm'; cfg.target = ggLadder(cfg).length; }
   return cfg;
 }
 // armas que um time tem agora no modo de duelo (null = usa as armas normais da partida)
@@ -3383,7 +3390,7 @@ function duelLoadout(m, team) {
   if (d === 'knife') return [K];
   if (d === 'awp') return [WI('sniper'), K];
   if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
-  if (d === 'gungame') { const id = WI(GG[Math.min(m.score[team], GG.length - 1)]); return id === K ? [K] : [id, K]; }
+  if (d === 'gungame') { const L = ggLadder(m.cfg), id = L[Math.min(m.score[team], L.length - 1)]; return id === K ? [K] : [id, K]; }
   if (d === 'chess') return m.cfg.teamWeapons ? m.cfg.teamWeapons[team] : null;
   if (d === 'roleta') return m.rule === 'faca' ? [K] : m.rule === 'troca' && m.myGun != null ? [m.myGun, K] : m.weapons;
   return null;
@@ -3618,13 +3625,13 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     topParts() {
       const a = myTeam, b = 1 - myTeam;
-      const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], GG.length - 1) + 1}/${GG.length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
+      const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], ggLadder(cfg).length - 1) + 1}/${ggLadder(cfg).length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? 'Modo infinito' : `Até ${cfg.target} abates`;
       return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: endless ? '∞' : fmtTime(this.timeLeft), hot: !endless && this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
     },
     top() {
       const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       const ping = net ? `  ·  ping ${Net.ping} ms` : '';
-      if (cfg.duel === 'gungame') { const lv = Math.min(this.score[myTeam], GG.length - 1); return `Gun game  ·  ${sc}  ·  sua arma: ${WEAPONS[WI(GG[lv])].name} (${lv + 1}/${GG.length})  ·  ${fmtTime(this.timeLeft)}${ping}`; }
+      if (cfg.duel === 'gungame') { const L = ggLadder(cfg), lv = Math.min(this.score[myTeam], L.length - 1); return `Gun game  ·  ${sc}  ·  sua arma: ${WEAPONS[L[lv]].name} (${lv + 1}/${L.length})  ·  ${fmtTime(this.timeLeft)}${ping}`; }
       return rounds ? `Round ${this.round}  ·  ${sc}  ·  ${fmtTime(this.timeLeft)}${ping}` : endless ? `${sc}  ·  modo infinito${ping}` : `${sc}  ·  até ${cfg.target} abates  ·  ${fmtTime(this.timeLeft)}${ping}`;
     },
     startRound(first) {
@@ -3700,7 +3707,8 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (cfg.duel === 'gungame') {
         const key = this.score.join(',');
         if (key !== this.ggKey) {
-          if (this.ggKey && this.score[myTeam] > +this.ggKey.split(',')[myTeam] && this.score[myTeam] < GG.length) { banner(`Nível ${this.score[myTeam] + 1}`, WEAPONS[WI(GG[this.score[myTeam]])].name, 1.4); play('round', 0.5); }
+          const L = ggLadder(cfg);
+          if (this.ggKey && this.score[myTeam] > +this.ggKey.split(',')[myTeam] && this.score[myTeam] < L.length) { banner(`Nível ${this.score[myTeam] + 1}/${L.length}`, WEAPONS[L[this.score[myTeam]]].name, 1.4); play('round', 0.5); }
           this.ggKey = key; applyDuel(this);
         }
       }
@@ -5732,9 +5740,10 @@ function ruleFromCmd(cmd, args) {
   if (cmd === 'classes') { const v = ONOFF[normTxt(args[0])]; c.classes = v == null ? !c.classes : v; if (c.classes) c.duel = 'normal'; return c; }
   if (cmd === 'armas') {
     const q = args.map(normTxt).filter(Boolean); if (!q.length) return 'Use /armas awp deagle faca, ou /armas todas.';
-    if (q[0] === 'todas') { c.preset = 0; c.duel = 'normal'; c.classes = false; return c; }
+    if (q[0] === 'todas') { if (c.duel === 'gungame') { c.ggList = []; return c; } c.preset = 0; c.duel = 'normal'; c.classes = false; return c; }
     const ids = [];
     for (const t of q) { const i = WEAPONS.findIndex(w => !w.nade && (w.id === t || normTxt(w.name).startsWith(t) || (t === 'awp' && w.id === 'sniper') || (t === 'faca' && w.melee))); if (i < 0) return `Não conheço a arma "${t}". Armas: ${GUN_IDS().map(i => normTxt(WEAPONS[i].name)).join(', ')}, faca.`; if (!ids.includes(i)) ids.push(i); }
+    if (c.duel === 'gungame') { c.ggList = ids.filter(i => GG_ALL().includes(i)); return c; }   // no gun game, /armas escolhe os níveis
     c.preset = WEAPON_PRESETS.findIndex(p => p[1] === 'custom'); c.weapons = ids; c.duel = 'normal'; c.classes = false; return c;
   }
   if (cmd === 'bots') {
@@ -5758,7 +5767,7 @@ function cleanCfg(src, base) {
   if (!src || typeof src !== 'object') return out;
   for (const k of Object.keys(X1_DEFAULT)) {
     const d = X1_DEFAULT[k], v = src[k]; if (v == null) continue;
-    if (k === 'weapons') { if (Array.isArray(v)) out.weapons = v.map(Number).filter(i => Number.isInteger(i) && WEAPONS[i]).slice(0, 30); }
+    if (k === 'weapons' || k === 'ggList') { if (Array.isArray(v)) out[k] = v.map(Number).filter(i => Number.isInteger(i) && WEAPONS[i]).slice(0, 30); }
     else if (typeof d === 'boolean') out[k] = !!v;
     else if (typeof d === 'number') { const n = +v; if (Number.isFinite(n)) out[k] = clamp(n, -1, 1000); }
     else if (typeof d === 'string') out[k] = String(v).slice(0, 20);
@@ -6604,7 +6613,7 @@ function renderX1Form(root, online, onChange, cfgObj) {
   let h = `<div class="formh">Modo de duelo</div>` + sel('duel', 'Modo', DUELS) +
     `<p class="note" style="margin:0 0 4px">${{ normal: 'Use as armas liberadas lá embaixo.', knife: 'Todo mundo só com faca. Facada nas costas mata.', awp: 'Todo mundo de sniper (e faca).',
       random: 'Cada round sorteia uma arma (das liberadas) e todos jogam com ela. No mata-mata, a arma muda a cada vida.',
-      gungame: `Cada abate troca sua arma: ${GG.map(g => WEAPONS[WI(g)].name).join(' → ')}. Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.`,
+      gungame: `Cada abate troca sua arma: ${ggLadder(c).map(i => WEAPONS[i].name).join(' → ')} (${ggLadder(c).length} níveis). Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.`,
       roleta: `Cada round sorteia uma regra: ${ROL.map(r => r.name.toLowerCase()).join(', ')}. No mata-mata, a regra muda a cada ${RL_EVERY} s.` }[c.duel || 'normal']}</p>` +
     `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
@@ -6634,6 +6643,10 @@ function renderX1Form(root, online, onChange, cfgObj) {
   if (!fixedW) h += `<div class="formh">Armas</div>` + sel('preset', 'Armas liberadas', WEAPON_PRESETS.map((p, i) => [i, p[0]]));
   const ids = cfgWeapons(c);
   if (!fixedW) h += `<div class="wchecks">${GUN_IDS().map(i => `<label><input type="checkbox" data-w="${i}" ${ids.includes(i) ? 'checked' : ''}>${esc(WEAPONS[i].name)}</label>`).join('')}</div>`;
+  if (gg) { const L = ggLadder(c);
+    h += `<div class="formh">Armas do gun game</div><p class="note" style="margin:0 0 4px">Marque as que entram (na ordem da lista). A faca é sempre o último nível.</p>` +
+      `<div class="wchecks">${GG_ALL().map(i => `<label><input type="checkbox" data-gg="${i}" ${L.includes(i) ? 'checked' : ''}>${esc(WEAPONS[i].name)}</label>`).join('')}</div>` +
+      `<div class="admcam"><button class="btn" data-ggall="1">Todas</button><button class="btn" data-ggall="0">Clássicas</button></div>`; }
   h += `<div class="formh">Movimento</div>` +
     sel('bhop', 'Bunny hop / slide', BHOP_PRESETS.map((p, i) => [i, p.name])) +
     rng('speed', 'Velocidade de corrida', 0.7, 1.5, 0.05, v => (+v).toFixed(2)) + rng('gravity', 'Gravidade', 0.4, 1.5, 0.05, v => (+v).toFixed(2));
@@ -6650,6 +6663,15 @@ function renderX1Form(root, online, onChange, cfgObj) {
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
   });
+  root.querySelectorAll('[data-gg]').forEach(el => el.addEventListener('change', () => {
+    const on = [...root.querySelectorAll('[data-gg]')].filter(e => e.checked).map(e => +e.dataset.gg);
+    c.ggList = on.length === GG_ALL().length ? [] : on.length ? on : [WI('pistol')];
+    saveX1(); onChange && onChange(); renderX1Form(root, online, onChange, cfgObj);
+  }));
+  root.querySelectorAll('[data-ggall]').forEach(el => el.addEventListener('click', () => {
+    c.ggList = el.dataset.ggall === '1' ? [] : ['rifle', 'smg', 'shotgun', 'sniper', 'deagle', 'pistol'].map(WI);
+    saveX1(); onChange && onChange(); renderX1Form(root, online, onChange, cfgObj);
+  }));
   root.querySelectorAll('[data-w]').forEach(el => el.addEventListener('change', () => {
     c.weapons = [...root.querySelectorAll('[data-w]')].filter(e => e.checked).map(e => +e.dataset.w);
     c.preset = WEAPON_PRESETS.findIndex(p => p[1] === 'custom');
