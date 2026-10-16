@@ -1183,7 +1183,7 @@ scene.background = SKY;
 scene.fog = new THREE.Fog(SKY, 90, 240);
 const camera = new THREE.PerspectiveCamera(74, 1, 0.03, 600);
 camera.rotation.order = 'YXZ';
-scene.add(new THREE.HemisphereLight(0xe3ecf7, 0x5d4c38, 0.72));
+const hemi = new THREE.HemisphereLight(0xe3ecf7, 0x5d4c38, 0.72); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1dc, 0.85);
 sun.position.set(45, 80, 30);
 sun.castShadow = true;
@@ -1194,8 +1194,69 @@ scene.add(sun);
 
 const vmScene = new THREE.Scene();
 const vmCam = new THREE.PerspectiveCamera(54, 1, 0.01, 10);
-vmScene.add(new THREE.HemisphereLight(0xe3ecf7, 0x5d4c38, 0.8));
+const vmHemi = new THREE.HemisphereLight(0xe3ecf7, 0x5d4c38, 0.8); vmScene.add(vmHemi);
 const vmSun = new THREE.DirectionalLight(0xffffff, 0.7); vmSun.position.set(1, 2, 1); vmScene.add(vmSun);
+// ---- hora do dia e clima (por partida: cfg.tod e cfg.weather; /noite, /chuva... no chat)
+const TOD = {
+  dia: { name: 'Dia', sky: 0x9fc4e4, fog: [90, 240], hemi: [0xe3ecf7, 0x5d4c38, 0.72], sun: [0xfff1dc, 0.85], pos: [45, 80, 30], vm: [0.8, 0.7] },
+  tarde: { name: 'Pôr do sol', sky: 0xe9a46e, fog: [70, 210], hemi: [0xffd2a8, 0x4d3a30, 0.55], sun: [0xff9a55, 0.95], pos: [90, 22, 15], vm: [0.65, 0.6] },
+  noite: { name: 'Noite', sky: 0x0a1222, fog: [18, 95], hemi: [0x6a7eae, 0x1c1c24, 0.32], sun: [0x9fb4ff, 0.22], pos: [-30, 70, -20], vm: [0.32, 0.3], lamp: true },
+};
+const WEATHER = { limpo: 'Limpo', chuva: 'Chuva', neve: 'Neve', neblina: 'Neblina' };
+const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
+  apply(tod, w) {
+    tod = TOD[tod] ? tod : 'dia'; w = WEATHER[w] ? w : 'limpo'; this.tod = tod; this.w = w;
+    const T = TOD[tod], sky = new THREE.Color(T.sky);
+    if (w === 'chuva' || w === 'neblina') sky.lerp(new THREE.Color(tod === 'noite' ? 0x10141a : 0x8a9198), tod === 'noite' ? 0.4 : 0.7);
+    if (w === 'neve') sky.lerp(new THREE.Color(tod === 'noite' ? 0x1a2030 : 0xd5dde6), 0.6);
+    SKY.copy(sky); scene.background = SKY; scene.fog.color.copy(sky);
+    const fogK = w === 'neblina' ? 0.12 : w === 'chuva' ? 0.6 : w === 'neve' ? 0.55 : 1;
+    scene.fog.near = T.fog[0] * fogK; scene.fog.far = T.fog[1] * fogK;
+    hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2] * (w === 'limpo' ? 1 : 0.9);
+    sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1] * (w === 'limpo' ? 1 : 0.55); sun.position.set(...T.pos);
+    vmHemi.intensity = T.vm[0]; vmSun.intensity = T.vm[1];
+    // lampião na noite: luz quente em volta de você (o chão é iluminado por vértice, então luz pontual funciona melhor que lanterna)
+    if (T.lamp && !this.lamp) { this.lamp = new THREE.PointLight(0xffdcae, 1.25, 26, 1); scene.add(this.lamp); }
+    if (this.lamp) this.lamp.visible = !!T.lamp;
+    if (this.fx) { scene.remove(this.fx.obj); this.fx.obj.geometry.dispose(); this.fx = null; }
+    if (w === 'chuva' || w === 'neve') this.fx = this.particles(w);
+  },
+  particles(w) {
+    const rain = w === 'chuva', N = rain ? 2600 : 1300, S = 24, H = 22, pts = new Float32Array(N * 3), g = new THREE.BufferGeometry();
+    for (let i = 0; i < N; i++) { pts[i * 3] = rand(-S, S); pts[i * 3 + 1] = rand(0, H); pts[i * 3 + 2] = rand(-S, S); }
+    let obj;
+    if (rain) {
+      const seg = new Float32Array(N * 6); g.setAttribute('position', new THREE.BufferAttribute(seg, 3));
+      obj = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xdfe8f2, transparent: true, opacity: 0.7 }));
+    } else {
+      g.setAttribute('position', new THREE.BufferAttribute(pts.slice(), 3));
+      obj = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, transparent: true, opacity: 0.9 }));
+    }
+    obj.frustumCulled = false; scene.add(obj);
+    return { obj, rain, pts, N, S, H, ph: Array.from({ length: N }, () => Math.random() * 6.28) };
+  },
+  update(dt) {
+    if (this.lamp && this.lamp.visible) {
+      this.lamp.position.copy(camera.position).add(new THREE.Vector3(0, 0.4, -1.5).applyQuaternion(camera.quaternion));
+    }
+    const F = this.fx; if (!F) return;
+    const P = F.pts, cx = camera.position.x, cy = camera.position.y - 6, cz = camera.position.z, a = F.obj.geometry.attributes.position, A = a.array;
+    const vy = F.rain ? 24 : 2.2;
+    for (let i = 0; i < F.N; i++) {
+      const k = i * 3; P[k + 1] -= vy * dt;
+      if (!F.rain) { F.ph[i] += dt; P[k] += Math.sin(F.ph[i]) * 0.4 * dt; }
+      if (P[k + 1] < 0) P[k + 1] += F.H;
+      // as gotas ficam numa caixa em volta da câmera
+      let x = P[k] - cx, z = P[k + 2] - cz;
+      if (x < -F.S) P[k] += 2 * F.S; else if (x > F.S) P[k] -= 2 * F.S;
+      if (z < -F.S) P[k + 2] += 2 * F.S; else if (z > F.S) P[k + 2] -= 2 * F.S;
+      const y = cy + P[k + 1];
+      if (F.rain) { const j = i * 6; A[j] = P[k]; A[j + 3] = P[k] + 0.08; A[j + 2] = A[j + 5] = P[k + 2]; A[j + 1] = y; A[j + 4] = y + 0.9; }
+      else { A[k] = P[k]; A[k + 1] = y; A[k + 2] = P[k + 2]; }
+    }
+    a.needsUpdate = true;
+  },
+};
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -1374,6 +1435,7 @@ const ground = { items: [], nades: [], proj: [], seq: 0 }, boomFx = [], sprays =
 let chatOpen = false;
 function newWorld() {
   if (world) scene.remove(world);
+  if (Atmos.tod !== 'dia' || Atmos.w !== 'limpo') Atmos.apply('dia', 'limpo');
   ground.items.length = 0; ground.nades.length = 0; boomFx.length = 0; sprays.clear();
   world = new THREE.Group(); scene.add(world);
   worldMeshes = []; colliders = []; fx.length = 0; impacts.length = 0;
@@ -3424,7 +3486,7 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false, ggList: [] };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false, ggList: [], tod: 'dia', weather: 'limpo' };
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game'], ['roleta', 'Roleta do caos (regra sorteada)']];
 // gun game: passa por todas as armas (ou só as escolhidas, na ordem abaixo) e termina na faca
@@ -3574,6 +3636,7 @@ function startX1(cfgIn, net, ids) {
   $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
   mapDef.build(); clearCombatants(); feedEl.innerHTML = ''; Admin.watch = null;
+  Atmos.apply(cfg.tod, cfg.weather);
   if (adminOpen) { adminOpen = false; $('#adminMenu').hidden = true; }
   applyPhysics(cfg);
   // online: quem joga esta partida (quem entrou depois espera a próxima)
@@ -5693,6 +5756,7 @@ const CMD_HELP = [
   ['jogar', '/jogar praca|hordas|roleta|xadrez|mata|gungame|faca|rocket troca o modo de jogo de todo mundo'],
   ['onda', 'Hordas: /onda 5 pula para a onda 5  ·  /zumbis 10 solta mais zumbis  ·  /tanque solta um zumbi tanque'],
   ['regra', 'Roleta: /regra lua|faca|cabecao|1hp|troca|turbo|hs|vampiro força a regra agora'],
+  ['clima', 'Clima: /noite · /dia · /tarde · /chuva · /neve · /neblina · /limpo'],
   ['cabecao', 'Diversão: /cabecao on|off  ·  /lua  ·  /lento (câmera lenta)  ·  /disco (festa)'],
   ['tamanho', '/tamanho Ana 2 (gigante; 0.5 = mini)  ·  /matar Ana  ·  /deus Ana  ·  /voar Ana'],
   ['puxar', '/puxar Ana traz até você  ·  /ir Ana vai até ela  ·  /arma Ana awp dá uma arma'],
@@ -5703,7 +5767,9 @@ const CMD_ALIAS = { help: 'ajuda', '?': 'ajuda', camera: 'cam', 'câmera': 'cam'
   modojogo: 'jogar', play: 'jogar', wave: 'onda', zumbi: 'zumbis', zombies: 'zumbis', tank: 'tanque', rule: 'regra', cabecoes: 'cabecao', bighead: 'cabecao', cabeca: 'cabecao',
   size: 'tamanho', escala: 'tamanho', kill: 'matar', slay: 'matar', god: 'deus', fly: 'voar', noclip: 'voar', bring: 'puxar', trazer: 'puxar', goto: 'ir', give: 'arma', dar: 'arma',
   slowmo: 'lento', camlenta: 'lento', festa: 'disco', party: 'disco', moon: 'lua' };
-const FUN_CMDS = new Set(['cabecao', 'lento', 'disco', 'tamanho', 'matar', 'deus', 'voar', 'puxar', 'ir', 'arma']);
+const ATM_WORDS = { noite: ['noite'], dia: ['dia'], tarde: ['tarde'], 'por-do-sol': ['tarde'], entardecer: ['tarde'], night: ['noite'], day: ['dia'],
+  chuva: [null, 'chuva'], rain: [null, 'chuva'], neve: [null, 'neve'], snow: [null, 'neve'], neblina: [null, 'neblina'], nevoa: [null, 'neblina'], fog: [null, 'neblina'], limpo: [null, 'limpo'], sol: ['dia', 'limpo'] };
+const FUN_CMDS = new Set(['clima', 'cabecao', 'lento', 'disco', 'tamanho', 'matar', 'deus', 'voar', 'puxar', 'ir', 'arma']);
 const FUN_TARGET = new Set(['tamanho', 'matar', 'deus', 'voar', 'puxar', 'ir', 'arma']);
 const FUN = { heads: false, slow: 1, disco: false };
 const CFG_CMDS = { gravidade: ['gravity', 0.1, 4], velocidade: ['speed', 0.3, 3], vida: ['hp', 1, 1000], bhop: ['bhop', 0, 3], municao: ['infinite'], hs: ['hsOnly'] };
@@ -5728,7 +5794,7 @@ chatIn.addEventListener('input', () => {
   cmdHint.hidden = false;
 });
 function runCommand(txt) {
-  const parts = txt.slice(1).trim().split(/\s+/), w = normTxt(parts.shift()), cmd = CMD_ALIAS[w] || w, args = parts;
+  const parts = txt.slice(1).trim().split(/\s+/), w = normTxt(parts.shift()), cmd = ATM_WORDS[w] ? 'clima' : CMD_ALIAS[w] || w, args = ATM_WORDS[w] ? [w] : parts;
   if (!cmd || cmd === 'ajuda') { for (const [, t] of CMD_HELP) sysChat(t); return; }
   if (!isAdmin()) { sysChat('Só o admin usa comandos. Quem criou a sala pode liberar com /admin ' + (Net.myName || 'seu nome') + '.', true); return; }
   if (cmd === 'cam') {
@@ -5975,7 +6041,12 @@ function execServerCmd(cmd, a, by, cfgIn) {
     if (FUN_TARGET.has(cmd) && !c) return 'Esse jogador não está na partida.';
     const on = ONOFF[normTxt(a[1])];
     let v = null, txt = '';
-    if (cmd === 'cabecao') { v = ONOFF[normTxt(a[0])]; if (v == null) v = !FUN.heads; txt = v ? 'Cabeções para todo mundo!' : 'Cabeças de volta ao normal.'; }
+    if (cmd === 'clima') {
+      const ws = a.map(x => ATM_WORDS[normTxt(x)]).filter(Boolean); if (!ws.length) return 'Use /noite, /dia, /tarde, /chuva, /neve, /neblina ou /limpo (ou /clima noite chuva).';
+      let t = Atmos.tod, wt = Atmos.w; for (const [x, y] of ws) { if (x) t = x; if (y) wt = y; }
+      v = [t, wt]; txt = `Clima: ${TOD[t].name.toLowerCase()}, ${WEATHER[wt].toLowerCase()}.`;
+    }
+    else if (cmd === 'cabecao') { v = ONOFF[normTxt(a[0])]; if (v == null) v = !FUN.heads; txt = v ? 'Cabeções para todo mundo!' : 'Cabeças de volta ao normal.'; }
     else if (cmd === 'lento') { v = FUN.slow < 1 ? 1 : 0.4; txt = v < 1 ? 'Câmera lenta! (/lento de novo volta)' : 'Velocidade normal.'; }
     else if (cmd === 'disco') { v = !FUN.disco; txt = v ? 'Festa! 🪩 (/disco de novo apaga)' : 'Fim da festa.'; }
     else if (cmd === 'tamanho') { v = parseFloat(String(a[1] ?? '').replace(',', '.')); if (!Number.isFinite(v)) v = (c.sizeK || 1) === 1 ? 2 : 1; v = clamp(v, 0.3, 4); txt = `${c.name} agora tem tamanho ${v}.`; }
@@ -6053,7 +6124,8 @@ function applyFun(k, id, v) {
   const c = id != null ? idCombatant(String(id)) : null;
   if (k === 'cabecao') { FUN.heads = !!v; for (const o of combatants) Rol.head(o, FUN.heads); return; }
   if (k === 'lento') { FUN.slow = clamp(+v || 1, 0.2, 1); return; }
-  if (k === 'disco') { FUN.disco = !!v; if (!FUN.disco) { scene.background = SKY; scene.fog.color.copy(SKY); sun.color.setHex(0xfff1dc); } return; }
+  if (k === 'disco') { FUN.disco = !!v; if (!FUN.disco) Atmos.apply(Atmos.tod, Atmos.w); return; }
+  if (k === 'clima') { const [t, w] = Array.isArray(v) ? v.map(String) : []; Atmos.apply(t, w); if (mode && mode.cfg) { mode.cfg.tod = Atmos.tod; mode.cfg.weather = Atmos.w; } return; }
   if (!c) return;
   if (k === 'tamanho') { c.sizeK = clamp(+v || 1, 0.3, 4); c.group.scale.setScalar(c.sizeK * (c.zSc || 1)); return; }
   if (c.remote) return;
@@ -6674,6 +6746,7 @@ function renderX1Form(root, online, onChange, cfgObj) {
       roleta: `Cada round sorteia uma regra: ${ROL.map(r => r.name.toLowerCase()).join(', ')}. No mata-mata, a regra muda a cada ${RL_EVERY} s.` }[c.duel || 'normal']}</p>` +
     `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
+    sel('tod', 'Hora do dia', Object.entries(TOD).map(([k, t]) => [k, t.name])) + sel('weather', 'Clima', Object.entries(WEATHER)) +
     (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)'], ['endless', 'Infinito (renasce, sem tempo e sem fim)']]) +
     (c.format === 'endless' ? '' : rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1))) +
     (rounds ? rng('roundTime', 'Tempo do round (s)', 30, 300, 15) : c.format === 'endless' && !gg ? '' : rng('time', 'Tempo limite (min)', 1, 30, 1)) +
@@ -6711,11 +6784,12 @@ function renderX1Form(root, online, onChange, cfgObj) {
   root.querySelectorAll('[data-x]').forEach(el => {
     const upd = () => {
       const k = el.dataset.x;
-      c[k] = el.type === 'checkbox' ? el.checked : (el.tagName === 'SELECT' && (k === 'map' || k === 'format' || k === 'duel' || k === 'ground')) ? el.value : +el.value;
+      c[k] = el.type === 'checkbox' ? el.checked : (el.tagName === 'SELECT' && (k === 'map' || k === 'format' || k === 'duel' || k === 'ground' || k === 'tod' || k === 'weather')) ? el.value : +el.value;
       if (el.type === 'range') el.nextElementSibling.textContent = el.step < 1 ? (+el.value).toFixed(2) : el.value;
       if (k === 'preset' && WEAPON_PRESETS[c.preset][1] !== 'custom') c.weapons = cfgWeapons(c);
       saveX1(); onChange && onChange();
       if (k === 'map' && state === 'menu') (MAPS.find(m => m.id === c.map) || MAPS[0]).build();
+      if ((k === 'map' || k === 'tod' || k === 'weather') && state === 'menu') Atmos.apply(c.tod, c.weather);
       if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes' || k === 'botsA' || k === 'botsB') renderX1Form(root, online, onChange, cfgObj);
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
@@ -7228,6 +7302,7 @@ function frame(t) {
   if (state === 'playing' && mode) {
     heroFade(1);   // o escurecido da troca de câmera do menu nunca fica preso na partida
     const sim = worldActive() ? dt * (mode.type === 'dev' ? devTimeScale : 1) * FUN.slow : 0;
+    Atmos.update(dt);
     if (FUN.disco) { const hh = (performance.now() / 2600) % 1; scene.background = new THREE.Color().setHSL(hh, 0.7, 0.55); scene.fog.color.copy(scene.background); sun.color.setHSL((hh + 0.5) % 1, 0.8, 0.7); }
     now += sim;
     if (sim > 0) {
