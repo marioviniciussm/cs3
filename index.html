@@ -2043,6 +2043,14 @@ function setGunShape(c, w) {
     if (w.id === 'semi') part(C.black, 0.04, 0.07, 0.06, 0, 0.09, -0.1);   // mira red dot
     c.grip.set(0, -0.06, 0.02); c.fore.set(0, -0.05, -L * 0.42); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L * 0.85);
   }
+  const W = !w.nade && worldGun(WEAPONS.indexOf(w));
+  if (W) {
+    // troca as caixas pelo modelo detalhado; mãos ficam onde o modelo em primeira pessoa segura
+    G.clear(); const k = W.g.scale.x; W.g.traverse(m => { if (m.isMesh) m.castShadow = cs; }); G.add(W.g);
+    if (W.vm.grip) { c.grip.fromArray(W.vm.grip).multiplyScalar(k); c.fore.fromArray(W.vm.sup).multiplyScalar(k); c.oneHand = false; }
+    else c.oneHand = true;
+    c.muzzle.position.copy(W.vm.muzzle).multiplyScalar(k);
+  }
   c.gun.add(G); c.gunParts = G;
 }
 
@@ -2463,15 +2471,30 @@ function gunKind(hexv, sleeve) {
   if (hsl.h > 0.03 && hsl.h < 0.13 && hsl.l < 0.5) return 'gunwood';
   return 'polymer';
 }
-function polishVM(sleeve) {
+function polishVM(sleeve, root = vmRoot, models = vmModels) {
   if (S.video.tex === false) return;
-  vmRoot.traverse(m => {
+  root.traverse(m => {
     if (!m.isMesh || !m.material || m.material.map || !m.material.color || m.material.transparent) return;
     const hexv = m.material.color.getHex();
     if (m.geometry === BOX) { m.geometry = roundedBox(Math.abs(m.scale.x), Math.abs(m.scale.y), Math.abs(m.scale.z)); m.scale.set(1, 1, 1); }
     m.material = gunMat(hexv, gunKind(hexv, sleeve));
   });
-  vmModels.forEach((vm, i) => { const f = vm && VM_DETAIL[WEAPONS[i].id]; if (f) f(vm.g, vm); });
+  models.forEach((vm, i) => { const f = vm && VM_DETAIL[WEAPONS[i].id]; if (f) f(vm.g, vm); });
+}
+// modelo de terceira pessoa (bots, outros jogadores, takes do menu) = cópia do modelo em primeira pessoa, sem as mãos
+const WG_SLEEVE = 0x010203, worldVM = [], worldRoot = new THREE.Group();
+let worldTex = null;
+function worldGun(wi) {
+  const tex = S.video.tex !== false;
+  if (worldTex !== tex) {
+    worldTex = tex; buildViewModels(WG_SLEEVE, worldRoot, worldVM);
+    worldRoot.traverse(m => { if (m.isMesh && m.material && m.material.color && (m.material.color.getHex() === C.glove || m.material.color.getHex() === WG_SLEEVE)) m.userData.hand = true; });
+    const hs = []; worldRoot.traverse(m => { if (m.userData.hand) hs.push(m); }); hs.forEach(m => m.parent.remove(m));
+    polishVM(WG_SLEEVE, worldRoot, worldVM);
+  }
+  const vm = worldVM[wi]; if (!vm) return null;
+  const g = vm.g.clone(true); g.visible = true; g.position.set(0, 0, 0); g.rotation.set(0, 0, 0); g.scale.setScalar(1.12);
+  return { g, vm };
 }
 // detalhes extras das armas principais (miras, quebra-chamas, serrilhas, carregador curvo, luneta com lente)
 const VM_GLASS = new THREE.MeshPhongMaterial({ color: 0x23609c, specular: 0xffffff, shininess: 140 }), VM_GLASS2 = new THREE.MeshPhongMaterial({ color: 0x0c1a2a, specular: 0x8899aa, shininess: 120 });
@@ -2543,16 +2566,17 @@ const VM_DETAIL = {
 const vmModels = [];
 const flashMesh = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.9 }));
 flashMesh.visible = false; vmScene.add(flashMesh);
-function buildViewModels(sleeve) {
-  vmRoot.clear(); vmModels.length = 0;
+function buildViewModels(sleeve, vmRoot_ = vmRoot, vmModels_ = vmModels) {
+  const vmRoot = vmRoot_, vmModels = vmModels_;
+  vmRoot.clear(); vmModels.length = 0; let gripAt = null, supAt = null;
   const X = (g, c, sx, sy, sz, x, y, z, rx = 0) => { const m = mesh(BOX, c, sx, sy, sz, x, y, z, g); m.rotation.x = rx; return m; };
   const Cy = (g, c, r, len, x, y, z) => { const m = mesh(CYL, c, r, len, r, x, y, z, g); m.rotation.x = Math.PI / 2; return m; };
-  const hands = (g, grip, sup) => {
+  const hands = (g, grip, sup) => { gripAt = grip; supAt = sup;
     X(g, C.glove, 0.06, 0.08, 0.09, ...grip); const ar = X(g, sleeve, 0.07, 0.07, 0.18, grip[0] + 0.02, grip[1] - 0.06, grip[2] + 0.11); ar.rotation.set(0.45, 0.1, 0);
     X(g, C.glove, 0.06, 0.06, 0.09, ...sup); const al = X(g, sleeve, 0.07, 0.07, 0.3, sup[0] - 0.07, sup[1] - 0.08, sup[2] + 0.16); al.rotation.set(0.35, -0.45, 0);
   };
-  const mk = (id, offset, build) => { const g = new THREE.Group(); const parts = build(g); vmRoot.add(g); g.visible = false;
-    vmModels[WI(id)] = { g, offset, ...parts, magBase: parts.mag.position.clone(), boltBase: parts.bolt.position.clone() }; };
+  const mk = (id, offset, build) => { const g = new THREE.Group(); gripAt = supAt = null; const parts = build(g); vmRoot.add(g); g.visible = false;
+    vmModels[WI(id)] = { g, offset, grip: gripAt, sup: supAt, ...parts, magBase: parts.mag.position.clone(), boltBase: parts.bolt.position.clone() }; };
   mk('knife', new THREE.Vector3(0.2, -0.21, -0.4), g => {
     const mag = X(g, C.black, 0.035, 0.045, 0.13, 0, 0, 0.03); X(g, C.metal2, 0.06, 0.05, 0.015, 0, 0.005, -0.04);
     const bolt = X(g, 0xc8ccd2, 0.008, 0.045, 0.2, 0, 0.012, -0.145); X(g, 0xe6e9ee, 0.009, 0.012, 0.2, 0, -0.008, -0.145);
