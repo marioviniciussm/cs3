@@ -208,10 +208,19 @@ button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent
 body.editing #menu, body.editing #pause, body.editing #end { visibility: hidden; }
 body.editing #hud, body.editing #touch { pointer-events: none; }
 body.touch #hint, body.touch #lockHint { display: none !important; }
+body.noweap #slots, body.noweap #ammo { display: none; }
 body.touch #hp, body.touch #ammo { min-width: 0; padding: 4px 10px; }
 body.touch .big { font-size: 24px; }
 body.touch #death { font-size: 15px; }
 @media (max-height: 500px) { .side { gap: 10px; } h1 { font-size: 48px; } .sub { font-size: 14px; } }
+#chHint { left: 50%; bottom: 120px; transform: translateX(-50%); font-family: var(--body); font-size: 16px; text-align: center; max-width: 80vw; }
+#abHud { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
+#abHud .ab { position: relative; min-width: 150px; padding: 6px 10px 6px 8px; background: rgba(10,12,15,0.72); border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #59626d; display: flex; align-items: center; gap: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); overflow: hidden; }
+#abHud .ab.ok { border-left-color: var(--accent); color: var(--fg); }
+#abHud .ab b { min-width: 22px; padding: 1px 6px; background: rgba(255,255,255,0.1); text-align: center; font-family: var(--display); color: var(--fg); }
+#abHud .ab em { margin-left: auto; font-style: normal; font-weight: 700; color: var(--fg); }
+#abHud .ab u { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; text-decoration: none; } #abHud .ab u i { display: block; height: 100%; background: var(--accent); }
+body.touch #abHud { bottom: auto; top: 64px; }
 #chess { background: rgba(8,10,13,0.84); display: flex; align-items: center; justify-content: center; overflow: auto; }
 #chess[hidden] { display: none; }
 .chwrap { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; padding: 16px; max-width: 100%; margin: auto; }
@@ -383,6 +392,8 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
   <div class="box" id="lockHint" hidden>Clique para voltar ao jogo</div>
   <div id="speed"></div>
   <div id="banner"></div>
+  <div class="box" id="chHint" hidden></div>
+  <div id="abHud" hidden></div>
   <div id="killcam" hidden><div class="kcbar top"><b>REPLAY</b> <span id="kcInfo"></span></div><div class="kcbar bot">Clique, toque ou aperte Espaço para pular</div></div>
   <div class="panel" id="scoreboard"><h2 id="sbTitle">Placar</h2><table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="sbBody"></tbody></table></div>
 </div>
@@ -522,7 +533,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       <p id="chMsg" class="sub" aria-live="polite"></p>
       <button class="btn primary" id="chDuel" hidden>Ir para o duelo</button>
       <div id="chCaps" class="stack" style="gap:2px"></div>
-      <details class="chdet"><summary>Arma e vida de cada peça</summary><div id="chLegend" class="stack" style="gap:4px;margin-top:6px"></div><p class="note" style="margin:6px 0 0">Na captura, as duas peças vão para um mapa de duelo. Se o atacante vence, come a peça. Se perde, é ele que sai do tabuleiro. Peão que chega ao fim vira Dama.</p></details>
+      <details class="chdet"><summary>Arma e vida de cada peça</summary><div id="chLegend" class="stack" style="gap:4px;margin-top:6px"></div><p class="note" style="margin:6px 0 0">No duelo, Q e E usam as habilidades da peça; todas regeneram vida se ficarem 3 s sem levar dano. Na captura, as duas peças vão para um mapa de duelo. Se o atacante vence, come a peça. Se perde, é ele que sai do tabuleiro. Peão que chega ao fim vira Dama.</p></details>
       <details class="chdet"><summary>Últimos duelos</summary><div id="chLog" class="stack" style="gap:3px;margin-top:6px;font-size:14px"></div></details>
       <div class="row"><label for="chLevel">Dificuldade do bot</label><select id="chLevel"><option value="0">Fácil</option><option value="1">Normal</option><option value="2">Difícil</option></select><span></span></div>
       <div class="btnrow"><button class="btn" id="chNewW">Novo jogo de brancas</button><button class="btn" id="chNewB">Novo jogo de pretas</button></div>
@@ -538,6 +549,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <button class="btn" id="pSet">Configurações</button>
     <button class="btn" id="pClass" hidden>Trocar classe</button>
     <button class="btn" id="pAdmin" hidden>Menu de admin</button>
+    <button class="btn" id="pChess" hidden>Tabuleiro e opções do xadrez</button>
     <button class="btn" id="pRestart">Reiniciar</button>
     <button class="btn" id="pMenu">Menu principal</button>
   </div>
@@ -606,6 +618,7 @@ const ACTIONS = [
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
+  ['ab1', 'Habilidade 1 (Xadrez FPS)', 'KeyQ'], ['ab2', 'Habilidade 2 (Xadrez FPS)', 'KeyE'],
   ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
@@ -1584,10 +1597,24 @@ const WEAPONS = [
   // rifle semiautomático: um tiro por clique, preciso e forte (2 no peito, 1 na cabeça), mas sem rajada
   { id: 'semi', name: 'Rifle semiautomático', snd: 'semi', dmg: 52, pellets: 1, interval: 0.2, auto: false, mag: 20, reserve: 60, reload: 2.6, draw: 0.65, range: 280, falloff: 0.985, head: 2.6,
     base: 0.001, move: 0.07, air: 0.3, perShot: 0.005, maxShot: 0.018, recover: 0.4, recoilP: 1.9, recoilY: 0.3, speed: 0.9 },
+  // armas das peças do Xadrez FPS (inspiradas no FPS Chess)
+  { id: 'musket', name: 'Mosquete', snd: 'sniper', dmg: 72, pellets: 1, interval: 0.6, auto: false, mag: 1, reserve: 40, reload: 1.5, draw: 0.6, range: 200, falloff: 0.86, head: 2,
+    base: 0.004, move: 0.05, air: 0.2, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.6, recoilY: 0.5, speed: 1 },
+  { id: 'bow', name: 'Arco', snd: 'bow', proj: { kind: 'bolt', speed: 62, grav: 9 }, dmg: 62, pellets: 1, interval: 0.55, auto: false, mag: 1, reserve: 40, reload: 0.7, draw: 0.5, range: 300, falloff: 1, head: 2.4,
+    base: 0.001, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 1.4, recoilY: 0.2, speed: 1.02 },
+  { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 19, pellets: 11, interval: 1.0, auto: false, mag: 2, reserve: 30, reload: 1.9, draw: 0.6, range: 45, falloff: 0.62, head: 1.6,
+    base: 0.075, move: 0.03, air: 0.12, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
+  { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 15, pellets: 1, interval: 0.05, auto: true, mag: 160, reserve: 320, reload: 4.8, draw: 1.0, range: 200, falloff: 0.94, head: 2.5,
+    base: 0.014, move: 0.05, air: 0.2, perShot: 0.001, maxShot: 0.02, recover: 0.3, recoilP: 0.35, recoilY: 0.3, speed: 0.78 },
+  { id: 'sword', name: 'Espadão', snd: 'knife', melee: true, dmg: 70, alt: 115, altInterval: 1.15, pellets: 1, interval: 0.7, auto: true, mag: 0, reserve: 0, reload: 0, draw: 0.4,
+    range: 3.3, falloff: 1, head: 1.3, base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1.05 },
+  // a peça que a Dama arremessa (habilidade, não aparece na lista de armas)
+  { id: 'pcthrow', name: 'Peça arremessada', snd: 'knife', hidden: true, proj: { kind: 'piece', speed: 30, grav: 7, r: 3 }, dmg: 100, pellets: 1, interval: 1, auto: false, mag: 1, reserve: 0, reload: 1, draw: 0.3, range: 300, falloff: 1, head: 1,
+    base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1 },
 ];
 // as 7 armas clássicas (padrão do x1 e do mata-mata); as novas são marcadas na lista ou vêm nas classes
 const CLASSIC_IDS = () => ['knife', 'pistol', 'deagle', 'smg', 'shotgun', 'rifle', 'sniper'].map(id => WEAPONS.findIndex(w => w.id === id));
-const GUN_IDS = () => WEAPONS.map((w, i) => i).filter(i => !WEAPONS[i].nade && !WEAPONS[i].build);
+const GUN_IDS = () => WEAPONS.map((w, i) => i).filter(i => !WEAPONS[i].nade && !WEAPONS[i].build && !WEAPONS[i].hidden);
 const WI = id => WEAPONS.findIndex(w => w.id === id);
 // Recoil estilo CS: cada arma tem um padrão fixo de spray (sempre igual, dá para aprender a compensar).
 // keys = [tiro, graus para cima, graus para a direita]; a bala vai para o ponto do padrão e a câmera mostra metade dele.
@@ -1754,6 +1781,17 @@ function setGunShape(c, w) {
   } else if (w.id === 'revolver') {
     part(m2, 0.04, 0.04, 0.24, 0, 0.045, -0.13); part(metal, 0.06, 0.07, 0.07, 0, 0.03, -0.01); part(C.wood, 0.045, 0.11, 0.05, 0, -0.04, 0.04);
     c.grip.set(0, -0.03, 0.04); c.fore.set(-0.03, -0.05, 0.05); c.oneHand = false; c.muzzle.position.set(0, 0.045, -0.26);
+  } else if (w.id === 'sword') {
+    part(0xc9ced6, 0.03, 0.09, 1.0, 0, 0, -0.55); part(0xb08a3a, 0.26, 0.04, 0.05, 0, 0, -0.04); part(0x3b2a1c, 0.035, 0.035, 0.22, 0, 0, 0.08);
+    c.grip.set(0, 0, 0.06); c.oneHand = true; c.muzzle.position.set(0, 0, -1.0);
+  } else if (w.id === 'bow') {
+    part(C.wood, 0.03, 0.03, 0.12, 0, 0, 0); for (const sd of [-1, 1]) { const l = part(C.wood, 0.025, 0.42, 0.03, 0, sd * 0.22, -0.08); l.rotation.x = sd * -0.35; }
+    part(0xdddddd, 0.006, 0.82, 0.006, 0, 0, 0.06);
+    c.grip.set(0, 0, 0); c.fore.set(0, 0, 0.18); c.oneHand = false; c.muzzle.position.set(0, 0, -0.2);
+  } else if (w.id === 'minigun') {
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(m2, 0.025, 0.7, 0.025, Math.cos(a) * 0.05, 0.03 + Math.sin(a) * 0.05, -0.5, CYL).rotation.x = Math.PI / 2; }
+    part(metal, 0.16, 0.16, 0.36, 0, 0.03, -0.02); part(C.olive, 0.12, 0.12, 0.16, -0.1, -0.06, 0.02);
+    c.grip.set(0, -0.08, 0.1); c.fore.set(0, 0.1, -0.12); c.oneHand = false; c.muzzle.position.set(0, 0.03, -0.86);
   } else if (w.id === 'crossbow') {
     part(C.wood, 0.06, 0.07, 0.6, 0, 0, -0.1); part(metal, 0.62, 0.03, 0.04, 0, 0.02, -0.34); part(0x5a3d22, 0.02, 0.02, 0.4, 0, 0.05, -0.15);
     c.grip.set(0, -0.05, 0.08); c.fore.set(0, -0.04, -0.22); c.oneHand = false; c.muzzle.position.set(0, 0.05, -0.4);
@@ -1765,14 +1803,15 @@ function setGunShape(c, w) {
     part(metal, 0.045, 0.065, L, 0, 0.04, -L / 2 + 0.05); part(m2, 0.04, 0.11, 0.05, 0, -0.03, 0.02);
     c.grip.set(0, -0.03, 0.02); c.fore.set(-0.03, -0.05, 0.03); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L + 0.05);
   } else {
-    const L = { smg: 0.5, shotgun: 0.85, rifle: 0.78, sniper: 1.05, lmg: 0.95, semi: 0.9 }[w.id] || 0.7;
-    const wood = w.id === 'shotgun' || w.id === 'sniper' || w.id === 'semi';
+    const L = { smg: 0.5, shotgun: 0.85, rifle: 0.78, sniper: 1.05, lmg: 0.95, semi: 0.9, musket: 1.2, blunder: 0.8 }[w.id] || 0.7;
+    const wood = w.id === 'shotgun' || w.id === 'sniper' || w.id === 'semi' || w.id === 'musket' || w.id === 'blunder';
     part(metal, 0.06, 0.09, L * 0.55, 0, 0.02, -L * 0.18);                                     // corpo
     part(m2, 0.028, L * 0.45, 0.028, 0, 0.04, -L * 0.62, CYL).rotation.x = Math.PI / 2;     // cano
     part(wood ? C.wood : metal, 0.05, 0.09, 0.2, 0, -0.01, 0.2);                             // coronha
     part(wood ? C.wood : m2, 0.055, 0.05, L * 0.28, 0, -0.03, -L * 0.42);                    // guarda-mão
     part(m2, 0.04, 0.1, 0.045, 0, -0.06, 0.02);                                                // cabo
-    if (w.id !== 'shotgun') part(m2, 0.035, 0.13, 0.06, 0, -0.09, -L * 0.2).rotation.x = 0.25; // pente
+    if (w.id !== 'shotgun' && !wood) part(m2, 0.035, 0.13, 0.06, 0, -0.09, -L * 0.2).rotation.x = 0.25; // pente
+    if (w.id === 'blunder') part(0x8a6a2a, 0.07, 0.09, 0.07, 0, 0.04, -L * 0.9, CYL).rotation.x = Math.PI / 2;   // boca larga
     if (w.id === 'sniper') part(C.black, 0.05, 0.28, 0.05, 0, 0.11, -0.12, CYL).rotation.x = Math.PI / 2;
     if (w.id === 'semi') part(C.black, 0.04, 0.07, 0.06, 0, 0.09, -0.1);   // mira red dot
     c.grip.set(0, -0.06, 0.02); c.fore.set(0, -0.05, -L * 0.42); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L * 0.85);
@@ -2250,6 +2289,37 @@ function buildViewModels(sleeve) {
     hands(g, [0, -0.1, 0.04], [-0.02, -0.06, -0.26]);
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.04, -0.56), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
+  mk('musket', new THREE.Vector3(0.22, -0.24, -0.44), g => {
+    X(g, C.wood, 0.06, 0.075, 0.62, 0, 0.0, -0.18); Cy(g, C.metal2, 0.022, 0.62, 0, 0.045, -0.5); X(g, C.wood, 0.055, 0.1, 0.26, 0, -0.03, 0.24, 0.1);
+    const bolt = X(g, C.metal, 0.03, 0.04, 0.05, 0.035, 0.05, 0.02); const mag = X(g, 0xb08a3a, 0.065, 0.02, 0.03, 0, 0.0, -0.45);
+    hands(g, [0, -0.06, 0.1], [-0.01, -0.02, -0.3]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.045, -0.81), boltTravel: new THREE.Vector3(0, 0.02, 0) };
+  });
+  mk('blunder', new THREE.Vector3(0.22, -0.23, -0.44), g => {
+    X(g, C.wood, 0.06, 0.075, 0.42, 0, 0.0, -0.08); Cy(g, 0x8a6a2a, 0.03, 0.4, 0, 0.045, -0.36); Cy(g, 0x8a6a2a, 0.06, 0.07, 0, 0.045, -0.58);
+    X(g, C.wood, 0.055, 0.1, 0.24, 0, -0.03, 0.22, 0.1); const bolt = X(g, C.metal, 0.03, 0.04, 0.05, 0.035, 0.05, 0.04); const mag = X(g, C.metal2, 0.02, 0.02, 0.02, 0, -0.04, 0.0);
+    hands(g, [0, -0.06, 0.09], [-0.01, -0.02, -0.22]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.045, -0.62), boltTravel: new THREE.Vector3(0, 0.02, 0) };
+  });
+  mk('minigun', new THREE.Vector3(0.24, -0.26, -0.46), g => {
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; Cy(g, C.metal2, 0.014, 0.5, Math.cos(a) * 0.035, 0.03 + Math.sin(a) * 0.035, -0.44); }
+    X(g, C.metal, 0.12, 0.12, 0.26, 0, 0.03, -0.06); const mag = X(g, C.olive, 0.1, 0.1, 0.12, -0.08, -0.06, 0.0);
+    const bolt = Cy(g, C.metal, 0.05, 0.04, 0, 0.03, -0.66); X(g, C.black, 0.04, 0.1, 0.05, 0, -0.07, 0.08, -0.2);
+    hands(g, [0, -0.07, 0.1], [0, 0.07, -0.12]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.03, -0.7), boltTravel: new THREE.Vector3(0, 0, 0.01) };
+  });
+  mk('bow', new THREE.Vector3(0.12, -0.2, -0.46), g => {
+    X(g, C.wood, 0.035, 0.12, 0.035, 0, 0, 0); for (const sd of [-1, 1]) { const l = X(g, C.wood, 0.022, 0.3, 0.025, 0, sd * 0.2, -0.05); l.rotation.x = sd * 0.4; }
+    const mag = X(g, 0xdddddd, 0.004, 0.62, 0.004, 0, 0, 0.06); const bolt = X(g, 0x5a3d22, 0.012, 0.012, 0.5, 0.01, 0.0, -0.1);
+    hands(g, [0, -0.02, 0.0], [0.02, -0.02, 0.16]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0, -0.35), boltTravel: new THREE.Vector3(0, 0, 0) };
+  });
+  mk('sword', new THREE.Vector3(0.24, -0.25, -0.42), g => {
+    const bolt = X(g, 0xd0d5dc, 0.012, 0.07, 0.72, 0, 0.02, -0.42); X(g, 0xe6e9ee, 0.013, 0.015, 0.72, 0, 0.055, -0.42);
+    const mag = X(g, 0xb08a3a, 0.2, 0.035, 0.04, 0, 0.0, -0.05); X(g, 0x3b2a1c, 0.035, 0.035, 0.16, 0, 0.0, 0.05);
+    X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.05); const ar = X(g, sleeve, 0.07, 0.07, 0.2, 0.02, -0.06, 0.17); ar.rotation.set(0.45, 0.1, 0);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.01, -0.8), boltTravel: new THREE.Vector3(0, 0, 0) };
+  });
   mk('build', new THREE.Vector3(0.22, -0.21, -0.42), g => {
     X(g, C.wood, 0.035, 0.035, 0.3, 0, -0.02, 0.0); const bolt = X(g, 0x8a8f96, 0.12, 0.06, 0.06, 0, 0.0, -0.16); X(g, 0x8a8f96, 0.03, 0.03, 0.07, 0.07, 0.0, -0.16);
     const mag = X(g, 0xb48a58, 0.14, 0.09, 0.03, -0.12, -0.04, -0.12); X(g, 0x6e4f2c, 0.142, 0.012, 0.032, -0.12, -0.03, -0.12);
@@ -2282,7 +2352,7 @@ const pv = { recoil: { x: 0, y: 0 }, landDip: 0, bob: 0, step: 0, jumpQ: -9, god
 const loadoutIds = () => (mode && mode.classes) ? classIds(myClass) : (mode && mode.pickup) ? [WI('knife')].concat(mode.weapons.includes(WI('pistol')) ? [WI('pistol')] : []) :
   (mode && mode.cfg && mode.cfg.duel && duelLoadout(mode, player.team)) || (mode && mode.weapons) || CLASSIC_IDS();
 function resetPlayerWeapons() {
-  const keep = pw.slots[pw.cur] && pw.slots[pw.cur].w;
+  const keep = !(mode && mode.cfg && mode.cfg.duel === 'chess') && pw.slots[pw.cur] && pw.slots[pw.cur].w;
   pw.slots = loadoutIds().map(i => ({ w: WEAPONS[i], wi: i, mag: WEAPONS[i].mag, reserve: WEAPONS[i].reserve }));
   if (mode && mode.pickup) pw.slots.sort((a, b) => CAT_ORDER.indexOf(wCat(a.w)) - CAT_ORDER.indexOf(wCat(b.w)));
   pw.reloadT = 0; pw.shotSpread = 0; pw.zoom = 0; pw.rezoom = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0;
@@ -2291,7 +2361,7 @@ function resetPlayerWeapons() {
   pw.prev = idx; selectWeapon(idx, true); buildSlots();
 }
 function defaultSlot() {
-  for (const id of ['rifle', 'semi', 'lmg', 'smg', 'sniper', 'crossbow', 'rocket', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
+  for (const id of ['rifle', 'semi', 'lmg', 'minigun', 'smg', 'sniper', 'musket', 'crossbow', 'bow', 'blunder', 'rocket', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'sword', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
   return 0;
 }
 function selectWeapon(i, force) {
@@ -2374,7 +2444,7 @@ function updatePlayer(dt) {
   // agachar no ar encolhe as pernas (como no CS): os pés sobem e dá para alcançar lugares mais altos
   if (!p.grounded && p.h !== oldH) { const d = oldH - p.h; p.pos.y += d; if (collides(p.pos, p.h)) p.pos.y -= d; }
   const walking = input && isHeld('walk');
-  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1);
+  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1) * (Ab.on ? Ab.speedMul() : 1);
   const wishS = maxS * (p.crouching ? 0.34 : walking ? 0.52 : 1);
   if (input && isDown('jump')) pv.jumpQ = now;
   if (!p.grounded && input && isDown('crouch')) p.slideReady = true; // precisa apertar agachar no ar (segurar desde o chão não vale)
@@ -2407,13 +2477,16 @@ function updatePlayer(dt) {
     accel(p.vel, wish, airS, 2.5 * airS * dt);           // controle no ar até a velocidade de corrida (estilo Krunker)
     accel(p.vel, wish, Math.min(airS, 0.8), 14 * airS * dt); // strafe no ar: virar o mouse junto com A/D soma velocidade (estilo CS)
     p.vel.y = Math.max(p.vel.y - GRAV * dt, -40);
+    if (Ab.on) Ab.air(p, dt, input);
   }
+  if (Ab.on) Ab.force(p, dt);
   hs = Math.hypot(p.vel.x, p.vel.z);
   const cap = Math.max(24, MV.max + 6);
   if (hs > cap) { p.vel.x *= cap / hs; p.vel.z *= cap / hs; }
   const was = p.grounded;
   moveBody(p, p.vel.x * dt, p.vel.y * dt, p.vel.z * dt);
   if (p.grounded && !was) {
+    if (Ab.on) Ab.land(p);
     pv.landDip = clamp(-fallV * 0.012, 0, 0.12); pw.landT = 0.35;
     if (MV.slide && p.crouching && p.slideReady) startSlide(p, true);
     else if (fallV < -6) play('land', 0.7);
@@ -2492,11 +2565,12 @@ function updateWeapons(dt) {
   patternAt(w, pw.spray, pw.punch);
   if (pw.rezoom && now >= pw.rezoomAt) { if (slot.mag > 0 && !pw.reloadT) { pw.zoom = pw.rezoom; pw.zoomAt = now; } pw.rezoom = 0; }
   pw.spread = computeSpread();
-  if (!player.alive || !canInput()) { wheel = 0; return; }
+  if (!player.alive || !canInput() || (mode && mode.noWeapons)) { wheel = 0; return; }
   const n = pw.slots.length;
   for (let i = 0; i < 7; i++) if (isDown('w' + (i + 1))) selectWeapon(i);
   if (isDown('knife')) { const k = pw.slots.findIndex(s => s.w.melee); if (k >= 0) selectWeapon(k === pw.cur ? pw.prev : k); }
-  if (isDown('last')) selectWeapon(pw.prev);
+  if (Ab.on) { if (isDown('ab1')) Ab.use(0); if (isDown('ab2')) Ab.use(1); }
+  else if (isDown('last')) selectWeapon(pw.prev);
   if (wheel > 0) selectWeapon((pw.cur + 1) % n); else if (wheel < 0) selectWeapon((pw.cur + n - 1) % n);
   wheel = 0;
   const autoF = S.touch.autoFire && touchOn() && assist.onTarget;
@@ -2545,6 +2619,7 @@ function tryFire(pressedNow) {
     // besta e foguete: o projétil sai um pouco à frente do olho, na direção da mira, e voa de verdade (acerto contado quando chega)
     const from = eye0.clone().addScaledVector(dir, 0.5).addScaledVector(new THREE.Vector3(0, -1, 0), 0.06);
     pv0 = fireProj(player, w, from, dir, mode && mode.perfect ? 0 : pw.spread); muzzleWorld.copy(from); res = { hit: false };
+    if (Ab.homingNext) { Ab.homingNext = false; ground.proj[ground.proj.length - 1].homing = true; }
   } else res = (mode && mode.aimShot && mode.aimShot(eye0.clone(), dir, muzzleWorld)) || fireWeapon(player, w, eye0.clone(), dir, mode && mode.perfect ? 0 : pw.spread, muzzleWorld);
   if (mode && mode.stats) { mode.stats.shots++; if (res.hit) mode.stats.hits++; }
   if (mode && mode.net) Net.send(pv0 ? { t: 'shot', w: s.wi, pp: v3a(muzzleWorld), pv: v3a(pv0) } : { t: 'shot', w: s.wi, a: v3a(muzzleWorld), b: v3a(res.end) });
@@ -2726,7 +2801,7 @@ function updateBot(c, dt) {
   }
   const spd = cfg.speed * w.speed * SPEED_MULT, a = 30 * dt;
   const tx = desired.x * spd, tz = desired.z * spd;
-  c.vel.x += clamp(tx - c.vel.x, -a, a); c.vel.z += clamp(tz - c.vel.z, -a, a);
+  if (!(c.pullT > now)) { c.vel.x += clamp(tx - c.vel.x, -a, a); c.vel.z += clamp(tz - c.vel.z, -a, a); }
   c.vel.y = c.grounded ? -2 : Math.max(c.vel.y - GRAV * dt, -40);
   const ox = c.pos.x, oz = c.pos.z;
   moveBody(c, c.vel.x * dt, c.vel.y * dt, c.vel.z * dt);
@@ -2882,6 +2957,7 @@ function startX1(cfgIn, net, ids) {
   if (cfg.chess && !(typeof cfg.chess === 'object' && CH_W[cfg.chess.a] && CH_W[cfg.chess.d] && (cfg.chess.ac === 'w' || cfg.chess.ac === 'b'))) delete cfg.chess;
   if (cfg.chess && !cfg.teamWeapons) delete cfg.chess;
   if (cfg.duel === 'chess' && !cfg.teamWeapons) cfg.duel = 'normal';
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap');
   const hpOf = t => cfg.teamHp ? cfg.teamHp[t] : cfg.hp;
   $('#chess').hidden = true;
   const mapDef = cfg.customMap ? { build: () => buildCustom(cfg.customMap) } : MAPS.find(m => m.id === cfg.map) || MAPS[0];
@@ -2955,6 +3031,7 @@ function startX1(cfgIn, net, ids) {
     const c = cfg.chess, myCol = (myTeam === 0) !== !!c.flip ? 'w' : 'b', mine = myCol === c.ac ? c.a : c.d, theirs = myCol === c.ac ? c.d : c.a;
     mode.chessBanner = () => banner(`${myCol === c.ac ? 'Ataque' : 'Defesa'}: ${CH_NAME[mine]} x ${CH_NAME[theirs]}`, `Sua arma: ${WEAPONS[WI(CH_W[mine])].name} (${CH_HP[mine]} de vida)  ·  inimigo: ${WEAPONS[WI(CH_W[theirs])].name} (${CH_HP[theirs]})`, 4);
     mode.chessBanner();
+    Ab.reset(mine);
     $('#pMenu').textContent = 'Desistir do duelo'; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
   }
   if (mode.classes) openClassPick();
@@ -3044,11 +3121,16 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         return;
       }
       if (!host || !this.live) return;
-      const alive = t => combatants.some(c => c.team === t && c.alive);
+      const alive = t => combatants.some(c => c.team === t && c.alive && !c.summon);
       if (!alive(v.team)) this.endRound(alive(1 - v.team) ? 1 - v.team : null);
     },
     update(dt) {
       if (net) Net.update(dt);
+      if (cfg.chess) {
+        // como no FPS Chess: quem fica 3 s sem levar dano regenera rápido
+        for (const c of combatants) if (c.alive && !c.remote && c.hp < c.maxHp && now - (c.lastHurt ?? -99) > 3) c.hp = Math.min(c.maxHp, c.hp + 28 * dt);
+        Ab.tick(dt);
+      }
       if (cfg.duel === 'gungame') {
         const key = this.score.join(',');
         if (key !== this.ggKey) {
@@ -3408,7 +3490,16 @@ function onNetMsg(m) {
     }
     case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
-    case 'chess': case 'chmv': case 'chff': Chess.onMsg(m); break;
+    case 'chess': case 'chmv': case 'chff': case 'chhold': Chess.onMsg(m); break;
+    case 'pull': if (inGame && Array.isArray(m.v)) { const v = a2v(m.v); if (!isFinite(v.x + v.y + v.z) || v.length() > 40) break; if (m.to === Net.myId) applyPull(player, v); else if (Net.role === 'host' && mode.netBots && mode.netBots.get(m.to)) applyPull(mode.netBots.get(m.to), v); } break;
+    case 'sumreq': if (inGame && Net.role === 'host' && mode.cfg && mode.cfg.chess && r && Array.isArray(m.p)) { const pp = a2v(m.p); if (isFinite(pp.x + pp.y + pp.z)) spawnSummons(r.team, pp, +m.y || 0); } break;
+    case 'nbadd': if (inGame && Net.role === 'guest' && Array.isArray(m.p) && WEAPONS[m.w] && !remoteOf(String(m.id))) {
+      const id = String(m.id).slice(0, 6), team = m.team ? 1 : 0, sp = { pos: a2v(m.p), yaw: +m.y || 0 };
+      const rb = createCombatant(String(m.name || 'Peão').slice(0, 16), shade(TEAM_COLORS[team], 3), sp, false);
+      Object.assign(rb, { remote: true, isNetBot: true, summon: true, netId: id, team, maxHp: 50, hp: 50, spawnIdx: 9, wi: m.w });
+      rb.net = { tp: rb.pos.clone(), tv: new THREE.Vector3(), ty: rb.yaw, at: performance.now(), has: false };
+      setGunShape(rb, WEAPONS[m.w]); applySkin(rb, null); mode.remotes.set(id, rb);
+    } break;
     case 'rtc': Voice.onMsg(m); break;
     case 'acmd': case 'anote': case 'acam': case 'ateam': case 'acfg': case 'aadm': onAdminMsg(m); break;
     case 'kicked': Net.kicked = true; break;
@@ -3493,7 +3584,7 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['chess', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
+const HOST_ONLY = new Set(['chess', 'nbadd', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
 const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
@@ -4751,6 +4842,7 @@ function updateBuildGhost(w) {
 // ---- projéteis
 function projMesh(kind) {
   const g = new THREE.Group();
+  if (kind === 'piece') { const pc = chPieceMesh((Math.random() < 0.5 ? 'w' : 'b') + 'PNBR'[Math.floor(Math.random() * 4)]); pc.scale.setScalar(0.42); pc.rotation.x = Math.PI / 2; g.add(pc); return g; }
   if (kind === 'bolt') {
     const s = mesh(CYL, 0x5a3d22, 0.025, 0.7, 0.025, 0, 0, 0, g); s.rotation.x = Math.PI / 2;
     const tip = mesh(CONE, 0xc8ccd2, 0.05, 0.1, 0.05, 0, 0, -0.38, g); tip.rotation.x = -Math.PI / 2;
@@ -4773,6 +4865,12 @@ function fireProj(shooter, w, origin, dir, spread) {
 function updateProj(dt) {
   for (const p of ground.proj.slice()) {
     p.t += dt; p.vel.y -= (p.w.proj.grav || 0) * dt;
+    // flecha teleguiada do Cavalo: vira devagar na direção do inimigo mais perto da linha de voo
+    if (p.homing && !p.stuck && p.owner && !p.owner.remote) {
+      let best = null, ba = 1.2; const vd = p.vel.clone().normalize();
+      for (const c of combatants) { if (!c.alive || c.team === p.owner.team) continue; const to = chestPos(c).sub(p.pos); const a = to.clone().normalize().angleTo(vd); if (a < ba && to.length() < 80) { ba = a; best = c; } }
+      if (best) { const sp = p.vel.length(), want = chestPos(best).sub(p.pos).normalize().multiplyScalar(sp); p.vel.lerp(want, Math.min(1, dt * 5)).setLength(sp); p.vel.y += (p.w.proj.grav || 0) * dt; }
+    }
     const step = p.vel.length() * dt, dir = p.vel.clone().normalize();
     const h = p.stuck ? null : trace(p.pos, dir, step + 0.05, p.owner);
     if (p.stuck) { if (p.t > p.stuck) { world.remove(p.mesh); ground.proj.splice(ground.proj.indexOf(p), 1); } continue; }
@@ -4782,9 +4880,9 @@ function updateProj(dt) {
     if (hp || p.t > 6) {
       const ud = h && h.object.userData, at = hp ? hp.clone().addScaledVector(dir, -0.12) : p.pos.clone();
       const mine = p.owner && !p.owner.remote;
-      if (p.w.proj.kind === 'rocket') {
+      if (p.w.proj.kind === 'rocket' || p.w.proj.kind === 'piece') {
         world.remove(p.mesh); ground.proj.splice(ground.proj.indexOf(p), 1);
-        explode(at, p.owner, { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0.4, push: 15 });
+        explode(at, p.owner, p.w.proj.kind === 'piece' ? { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0 } : { r: p.w.proj.r, dmg: p.w.dmg, name: p.w.name, self: 0.4, push: 15 });
         continue;
       }
       // seta: acerta quem estiver no caminho ou crava na parede
@@ -4837,7 +4935,7 @@ function updateNades(dt) {
       }
     }
     n.mesh.position.copy(n.pos); n.mesh.rotation.x += n.vel.length() * dt * 2;
-    if (n.t >= n.fuse) { ground.nades.splice(ground.nades.indexOf(n), 1); world.remove(n.mesh); explode(n.pos, n.owner); }
+    if (n.t >= n.fuse) { ground.nades.splice(ground.nades.indexOf(n), 1); world.remove(n.mesh); explode(n.pos, n.owner, n.bishop ? { r: 6, dmg: 85, name: 'Bomba do Bispo', self: 0, push: 19 } : {}); }
   }
 }
 function explode(pos, owner, o = {}) {
@@ -4881,7 +4979,7 @@ function onGroundMsg(m) {
   if (!pickupOn()) return;
   if (m.t === 'pick') { const it = ground.items.find(x => x.id === m.id); if (it) { removeItem(it); if (it.home && !mode.rounds) mode._respawnItems = (mode._respawnItems || []).concat([{ at: now + 20, it }]); } }
   if (m.t === 'drop' && WEAPONS[m.w] && !ground.items.some(x => x.id === m.id)) spawnItem(m.w, a2v(m.p), { id: String(m.id).slice(0, 16), mag: +m.m || 0, reserve: +m.r || 0, vel: a2v(m.v) });
-  if (m.t === 'nade' && remoteOf(m.f)) { spawnNade(a2v(m.p), a2v(m.v), remoteOf(m.f), 1.6); startAnim(remoteOf(m.f), 'throw', 0.5); }
+  if (m.t === 'nade' && remoteOf(m.f)) { spawnNade(a2v(m.p), a2v(m.v), remoteOf(m.f), clamp(+m.fu || 1.6, 0.5, 3)); startAnim(remoteOf(m.f), 'throw', 0.5); }
 }
 // =====================================================================================
 // Chat e spray na partida
@@ -5391,6 +5489,7 @@ function enterPlaying() {
   $('#menu').hidden = true; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true;
   $('#hud').hidden = false; dmgNums = []; if (player) $('#hud').style.setProperty('--hud-team', hex(player.color)); document.body.classList.toggle('pickup', !!(mode && mode.pickup)); applyLayout();
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
+  $('#pChess').hidden = !(mode && mode.type === 'chessw'); if (!(mode && mode.type === 'chessw')) setHint('');
   $('#pAdmin').hidden = !(mode && mode.type === 'x1' && isAdmin());
   $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para todos)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
@@ -5411,6 +5510,7 @@ function goMenu() {
   const wasNet = mode && mode.net;
   if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
+  Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#pChess').hidden = true; $('#chess').hidden = true;
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
@@ -5421,7 +5521,7 @@ function goMenu() {
 }
 function setPaused(p) {
   if (state !== 'playing') return;
-  paused = p; $('#pause').hidden = !p; if (p) { pausedAt = performance.now(); closeChat(); }
+  paused = p; $('#pause').hidden = !p; if (!p) $('#chess').hidden = true; if (p) { pausedAt = performance.now(); closeChat(); }
   if (p) { if (document.exitPointerLock && locked()) document.exitPointerLock(); }
   else lockPointer();
   updateLockHint();
@@ -5709,7 +5809,6 @@ for (const [pid, bid] of Object.entries(PANEL_BACK)) {
 new MutationObserver(() => $('#menu').classList.toggle('insub', $('#mainButtons').hidden)).observe($('#mainButtons'), { attributes: true, attributeFilter: ['hidden'] });
 addEventListener('keydown', e => {
   if (e.code !== 'Escape' || state !== 'menu' || !$('#settings').hidden || capturing) return;
-  if (!$('#chess').hidden) { Chess.exit(); return; }
   for (const [pid, bid] of Object.entries(PANEL_BACK)) if (!$('#' + pid).hidden) { $('#' + bid).click(); break; }
 });
 // Descobre qual placa de vídeo o navegador está usando; "SwiftShader", "llvmpipe" ou "Basic Render" = desenho por software (lento)
@@ -6360,7 +6459,7 @@ function frame(t) {
     const kcOn = kcApply(dt);
     renderer.clear(); renderer.render(scene, camera);
     if (kcOn) kcRestore();
-    else if (player.alive && !thirdOn()) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
+    else if (player.alive && !thirdOn() && !(mode && mode.noWeapons)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
     if (skinView) { heroFade(1); updateSkinView(dt); $('#heroTag').hidden = true; }
@@ -6390,13 +6489,13 @@ window.__dmg = (v, d, a) => damage(v, d, a, "Rifle", "body", null);
 // Xadrez FPS (estilo FPS Chess): xadrez normal, mas toda captura vira um duelo em primeira pessoa.
 // Cada peça luta com a sua arma; se o atacante vence, come a peça; se perde, é ele que sai do tabuleiro.
 // =====================================================================================
-const CH_W = { P: 'pistol', N: 'shotgun', B: 'sniper', R: 'lmg', Q: 'rifle', K: 'deagle' };
-const CH_HP = { P: 100, N: 110, B: 100, R: 130, Q: 130, K: 150 };
+const CH_W = { P: 'musket', N: 'bow', B: 'blunder', R: 'sniper', Q: 'minigun', K: 'sword' };
+const CH_HP = { P: 100, N: 100, B: 110, R: 100, Q: 130, K: 175 };
 const CH_NAME = { P: 'Peão', N: 'Cavalo', B: 'Bispo', R: 'Torre', Q: 'Dama', K: 'Rei' };
 const CH_FEM = { Q: true, R: true };
 const CH_GLYPH = { K: '♚\uFE0E', Q: '♛\uFE0E', R: '♜\uFE0E', B: '♝\uFE0E', N: '♞\uFE0E', P: '♟\uFE0E' };
 const CH_VAL = { P: 100, N: 300, B: 320, R: 500, Q: 900, K: 20000 };
-const CH_MAPS = ['duelo', 'aim', 'patio', 'pool'];
+const CH_MAPS = ['duelo', 'aim', 'patio'];
 const chColorName = (c, p) => c === 'w' ? (CH_FEM[p] ? 'branca' : 'branco') : (CH_FEM[p] ? 'preta' : 'preto');
 const chPieceName = (pc) => CH_NAME[pc[1]] + ' ' + chColorName(pc[0], pc[1]);
 const chSqName = sq => 'abcdefgh'[sq & 7] + (8 - (sq >> 3));
@@ -6548,6 +6647,392 @@ function chBotMove(st, level) {
   return best;
 }
 
+// ---- Xadrez no mundo do jogo: tabuleiro gigante no chão, você anda por ele e arrasta as peças
+const CHW_SQ = 3, CHW_LIFT = 1.3;
+const chSqPos = sq => new THREE.Vector3(((sq & 7) - 3.5) * CHW_SQ, 0, ((sq >> 3) - 3.5) * CHW_SQ);
+const chPosSq = (x, z) => { const c = Math.floor(x / CHW_SQ + 4), r = Math.floor(z / CHW_SQ + 4); return c >= 0 && c < 8 && r >= 0 && r < 8 ? r * 8 + c : -1; };
+let CH_MATS = null;
+function chMats() {
+  return CH_MATS || (CH_MATS = {
+    w: new THREE.MeshStandardMaterial({ color: 0xeee6d3, roughness: 0.42, metalness: 0.05 }),
+    b: new THREE.MeshStandardMaterial({ color: 0x23262c, roughness: 0.32, metalness: 0.2 }),
+    tgt: new THREE.MeshBasicMaterial({ color: 0x5fd17a, transparent: true, opacity: 0.55, depthWrite: false }),
+    cap: new THREE.MeshBasicMaterial({ color: 0xe84a4a, transparent: true, opacity: 0.6, depthWrite: false }),
+    hov: new THREE.MeshBasicMaterial({ color: 0xf2a03a, transparent: true, opacity: 0.75, depthWrite: false }),
+    last: new THREE.MeshBasicMaterial({ color: 0xf2a03a, transparent: true, opacity: 0.22, depthWrite: false }),
+  });
+}
+function chLathe(pts, m) {
+  const me = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 28), m);
+  me.castShadow = me.receiveShadow = true; return me;
+}
+function chPart(geo, m, x, y, z, sx = 1, sy = 1, sz = 1) { const me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.scale.set(sx, sy, sz); me.castShadow = me.receiveShadow = true; return me; }
+// peça 3D (uns 2 a 4 metros de altura), com o "pé" no chão
+function chPieceMesh(pc) {
+  const m = chMats()[pc[0]], g = new THREE.Group(), t = pc[1];
+  const SPH = new THREE.SphereGeometry(1, 20, 14), BX = new THREE.BoxGeometry(1, 1, 1);
+  const base = [[0, 0], [1.0, 0], [1.0, 0.16], [0.86, 0.26], [0.8, 0.4]];
+  let top = 0;
+  if (t === 'P') { g.add(chLathe(base.concat([[0.55, 0.55], [0.4, 0.78], [0.3, 1.1], [0.5, 1.2], [0.5, 1.28], [0.26, 1.36], [0, 1.36]]), m)); g.add(chPart(SPH, m, 0, 1.68, 0, 0.42, 0.42, 0.42)); top = 2.1; }
+  if (t === 'R') {
+    g.add(chLathe(base.concat([[0.75, 0.55], [0.6, 0.8], [0.58, 1.75], [0.8, 1.85], [0.8, 2.25], [0, 2.25]]), m));
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const b = chPart(BX, m, Math.sin(a) * 0.62, 2.4, Math.cos(a) * 0.62, 0.3, 0.32, 0.3); b.rotation.y = a; g.add(b); }
+    top = 2.6;
+  }
+  if (t === 'B') { g.add(chLathe(base.concat([[0.6, 0.55], [0.42, 0.85], [0.3, 1.55], [0.55, 1.65], [0.55, 1.72], [0.3, 1.8], [0, 1.8]]), m)); g.add(chPart(SPH, m, 0, 2.2, 0, 0.44, 0.6, 0.44)); g.add(chPart(SPH, m, 0, 2.86, 0, 0.13, 0.13, 0.13)); top = 3.0; }
+  if (t === 'N') {
+    g.add(chLathe(base.concat([[0.7, 0.5], [0.62, 0.7], [0, 0.72]]), m));
+    const neck = chPart(BX, m, 0, 1.3, 0.12, 0.62, 1.3, 0.8); neck.rotation.x = -0.25; g.add(neck);
+    const head = chPart(BX, m, 0, 1.95, -0.32, 0.56, 0.5, 1.15); head.rotation.x = 0.35; g.add(head);
+    const mane = chPart(BX, m, 0, 1.75, 0.5, 0.3, 1.0, 0.25); mane.rotation.x = -0.3; g.add(mane);
+    for (const s of [-1, 1]) g.add(chPart(BX, m, s * 0.18, 2.3, 0.12, 0.12, 0.3, 0.14));
+    top = 2.45;
+  }
+  if (t === 'Q') {
+    g.add(chLathe(base.concat([[0.65, 0.55], [0.44, 0.9], [0.3, 1.9], [0.6, 2.05], [0.6, 2.12], [0.34, 2.2], [0.56, 2.62], [0, 2.56]]), m));
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.add(chPart(SPH, m, Math.sin(a) * 0.52, 2.66, Math.cos(a) * 0.52, 0.1, 0.1, 0.1)); }
+    g.add(chPart(SPH, m, 0, 2.82, 0, 0.17, 0.17, 0.17)); top = 3.0;
+  }
+  if (t === 'K') {
+    g.add(chLathe(base.concat([[0.68, 0.55], [0.46, 0.9], [0.32, 2.0], [0.62, 2.15], [0.62, 2.22], [0.36, 2.3], [0.5, 2.66], [0, 2.7]]), m));
+    g.add(chPart(BX, m, 0, 3.05, 0, 0.17, 0.66, 0.17)); g.add(chPart(BX, m, 0, 3.12, 0, 0.5, 0.17, 0.17)); top = 3.4;
+  }
+  g.scale.setScalar(1.2);
+  if (pc[0] === 'b') g.rotation.y = Math.PI;   // cavalo olha para o adversário
+  g.userData.top = top * 1.2;
+  return g;
+}
+function buildChessWorld() {
+  newWorld();
+  const H = 22;
+  box(0, 0, H * 2, 1, H * 2, C.concrete, -1);
+  box(0, H + 0.5, H * 2 + 2, 4, 1, C.wall); box(0, -H - 0.5, H * 2 + 2, 4, 1, C.wall);
+  box(H + 0.5, 0, 1, 4, H * 2, C.wall); box(-H - 0.5, 0, 1, 4, H * 2, C.wall);
+  // moldura e casas (bem baixinhas para dar para andar por cima)
+  box(0, 0, 8 * CHW_SQ + 1.6, 0.1, 8 * CHW_SQ + 1.6, 0x3b2a1c, 0, false);
+  for (let sq = 0; sq < 64; sq++) { const p = chSqPos(sq); box(p.x, p.z, CHW_SQ, 0.14, CHW_SQ, ((sq >> 3) + (sq & 7)) % 2 ? 0x56606b : 0xd3d7dc, 0, false); }
+  for (let i = 0; i < 8; i++) {
+    const x = (i - 3.5) * CHW_SQ, z = (i - 3.5) * CHW_SQ, e = 4 * CHW_SQ + 1.6;
+    label('abcdefgh'[i], x, 0.6, e, 0.8); label('abcdefgh'[i], x, 0.6, -e, 0.8);
+    label(String(8 - i), e, 0.6, z, 0.8); label(String(8 - i), -e, 0.6, z, 0.8);
+  }
+  decal(0, 18, 14, 3, C.sideA); decal(0, -18, 14, 3, C.sideB);
+  const ta = teamLine([[0, 17.5], [-4, 17.5], [4, 17.5]]), tb = teamLine([[0, -17.5], [4, -17.5], [-4, -17.5]]);
+  mapInfo = { name: 'Tabuleiro', spawns: ta.concat(tb), teamSpawns: [ta, tb], waypoints: [], playerSpawn: ta[0], targets: [] };
+  shadowSize(26);
+}
+function startChessWorld() {
+  initAudio();
+  const net = Chess.online && Net.role ? Net : null;
+  buildChessWorld(); clearCombatants(); feedEl.innerHTML = ''; Admin.watch = null;
+  applyPhysics({ gravity: 1, speed: 1, bhop: X1.bhop });
+  const myTeam = Chess.my === 'w' ? 0 : 1;
+  const sp = Chess.ret ? { pos: Chess.ret.pos.clone(), yaw: Chess.ret.yaw } : mapInfo.teamSpawns[myTeam][0];
+  Chess.ret = null;
+  setupPlayer(sp, TEAM_COLORS[myTeam], net ? net.myName : 'Você');
+  player.team = myTeam; player.spawnIdx = 0;
+  const K = WI('knife');
+  pw.slots = [{ w: WEAPONS[K], wi: K, mag: 1, reserve: 0 }]; pw.cur = 0; selectWeapon(0, true); buildSlots();
+  mode = makeChessWorldMode(net, myTeam);
+  document.body.classList.add('noweap');
+  if (net) {
+    mode.remotes = new Map();
+    for (const p of net.roster) {
+      if (p.id === net.myId) continue;
+      const r = createCombatant(p.name, TEAM_COLORS[p.team], mapInfo.teamSpawns[p.team][0], false);
+      Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: 100, hp: 100, spawnIdx: 0, wi: K });
+      r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+      setGunShape(r, WEAPONS[K]); applySkin(r, p.skin || null); applyCos(r, p.cos);
+      mode.remotes.set(p.id, r);
+    }
+  }
+  enterPlaying();
+  $('#pChess').hidden = false; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
+  $('#pMenu').textContent = net ? 'Voltar para a sala' : 'Menu principal';
+  mode.sync();
+  banner('Xadrez FPS', Chess.st.turn === Chess.my ? 'Sua vez: segure o clique numa peça sua e arraste' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot', 3);
+  lockPointer();
+  Chess.maybeBot();
+}
+function makeChessWorldMode(net, myTeam) {
+  const M = chMats(), root = new THREE.Group(); world.add(root);
+  const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.14), tmp = new THREE.Vector3();
+  const tile = (mat, sq) => { const t = new THREE.Mesh(new THREE.BoxGeometry(CHW_SQ * 0.92, 0.04, CHW_SQ * 0.92), mat); const p = chSqPos(sq); t.position.set(p.x, 0.17, p.z); return t; };
+  const marks = new THREE.Group(); root.add(marks);
+  const hover = tile(M.hov, 0); hover.scale.set(1.04, 1, 1.04); hover.visible = false; root.add(hover);
+  return {
+    type: 'chessw', net, host: !net || net.role === 'host', myTeam, teams: true, over: false, noFire: true, noWeapons: true, noFeed: true, remotes: null,
+    cfg: { chessWorld: true }, score: [0, 0], pieces: new Map(), drag: null, anim: null, lastKey: '', holdAcc: 0, remoteHold: null, duelAt: -1,
+    enemies: () => false,
+    teamName: t => (t === 0 ? 'Brancas' : 'Pretas'),
+    topParts() {
+      const st = Chess.st, cnt = col => st.b.filter(p => p && p[0] === col).length;
+      const mine = Chess.my, opp = mine === 'w' ? 'b' : 'w';
+      const turn = Chess.result ? 'Fim' : Chess.pending ? 'Duelo' : st.turn === mine ? 'Sua vez' : Chess.online ? 'Amigo' : 'Bot';
+      return { l: [mine === 'w' ? 'Brancas (você)' : 'Pretas (você)', cnt(mine), mine === 'w' ? 0xe8e2d4 : 0x3a3f47], r: [opp === 'w' ? 'Brancas' : 'Pretas', cnt(opp), opp === 'w' ? 0xe8e2d4 : 0x3a3f47], mid: turn, hot: st.turn === mine && !Chess.result, sub: `Lance ${st.n} · peças no tabuleiro`, ping: net ? Net.ping : null };
+    },
+    top() { return 'Xadrez FPS'; },
+    onDeath() {},
+    restart() {},
+    // recria as peças conforme o estado do xadrez
+    sync() {
+      for (const g of this.pieces.values()) root.remove(g);
+      this.pieces.clear(); marks.clear();
+      const st = Chess.st;
+      for (let sq = 0; sq < 64; sq++) if (st.b[sq]) { const g = chPieceMesh(st.b[sq]); g.position.copy(chSqPos(sq)).setY(0.14); g.userData.sq = sq; g.traverse(o => { o.userData.sq = sq; }); root.add(g); this.pieces.set(sq, g); }
+      const L = st.last;
+      if (L) { marks.add(tile(M.last, L.from)); marks.add(tile(L.fail ? M.cap : M.last, L.to)); }
+      const key = L ? `${L.from}-${L.to}-${st.n}-${st.turn}` : '';
+      // anima o lance que acabou de acontecer (bot, amigo ou depois do duelo)
+      if (key && key !== this.lastKey && this.lastKey !== '' && this.pieces.get(L.to) && !L.mine) this.anim = { g: this.pieces.get(L.to), a: chSqPos(L.from).setY(0.14), b: chSqPos(L.to).setY(0.14), t: 0 };
+      this.lastKey = key || '-';
+      this.drag = null;
+    },
+    showTargets(list) {
+      marks.children.filter(o => o.userData.tg).forEach(o => marks.remove(o));
+      for (const m of list) { const t = tile(m.cap >= 0 ? M.cap : M.tgt, m.to); t.userData.tg = 1; marks.add(t); }
+    },
+    aim() {
+      camera.updateMatrixWorld(); ray.setFromCamera({ x: 0, y: 0 }, camera); ray.far = 40;
+      const hits = ray.intersectObjects([...this.pieces.values()], true);
+      const gp = ray.ray.intersectPlane(plane, tmp) ? tmp.clone() : null;
+      return { sq: hits.length ? hits[0].object.userData.sq : -1, dist: hits.length ? hits[0].distance : 99, ground: gp };
+    },
+    update(dt) {
+      if (net) Net.update(dt);
+      // empurra quem estiver dentro de uma peça
+      for (const c of combatants) {
+        if (!c.alive || c.remote) continue;
+        for (const [sq, g] of this.pieces) {
+          if (this.drag && this.drag.sq === sq) continue;
+          const dx = c.pos.x - g.position.x, dz = c.pos.z - g.position.z, d = Math.hypot(dx, dz), R = 1.25;
+          if (d < R) { const k = d > 0.01 ? (R - d) / d : 1; c.pos.x += (d > 0.01 ? dx : 1) * k; c.pos.z += (d > 0.01 ? dz : 0) * k; }
+        }
+      }
+      if (this.anim) {
+        const A = this.anim; A.t = Math.min(1, A.t + dt / 0.9);
+        const e = A.t < 0.5 ? 2 * A.t * A.t : 1 - Math.pow(-2 * A.t + 2, 2) / 2;
+        A.g.position.lerpVectors(A.a, A.b, e); A.g.position.y = 0.14 + Math.sin(A.t * Math.PI) * 1.6;
+        if (A.t >= 1) this.anim = null;
+      }
+      // peça que o amigo está arrastando
+      if (this.remoteHold) {
+        const h = this.remoteHold, g = this.pieces.get(h.s);
+        if (g && h.s >= 0) { g.position.x += (h.x - g.position.x) * Math.min(1, dt * 12); g.position.z += (h.z - g.position.z) * Math.min(1, dt * 12); g.position.y = 0.14 + CHW_LIFT; }
+      }
+      if (this.duelAt > 0 && now >= this.duelAt) { this.duelAt = -1; const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); return; } }
+      this.updateDrag(dt);
+    },
+    updateDrag(dt) {
+      const myTurn = Chess.canMove(), input = canInput();
+      const a = input ? this.aim() : { sq: -1, ground: null };
+      const own = a.sq >= 0 && Chess.st.b[a.sq] && Chess.st.b[a.sq][0] === Chess.my;
+      const grabKey = isDown('fire') || isDown('use'), dropKey = !isHeld('fire') && !isHeld('use');
+      if (!this.drag) {
+        hover.visible = myTurn && own && a.dist < 22;
+        if (hover.visible) { const p = chSqPos(a.sq); hover.position.set(p.x, 0.18, p.z); }
+        setHint(myTurn ? (own && a.dist < 22 ? `Segure o clique para pegar ${CH_FEM[Chess.st.b[a.sq][1]] ? 'a' : 'o'} ${CH_NAME[Chess.st.b[a.sq][1]]} (${WEAPONS[WI(CH_W[Chess.st.b[a.sq][1]])].name})` : 'Sua vez: mire numa peça sua e segure o clique') : Chess.result ? Chess.endText() : Chess.pending ? 'Duelo!' : Chess.thinking ? 'O bot está pensando…' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot');
+        if (myTurn && own && a.dist < 22 && grabKey) {
+          const moves = chLegal(Chess.st, a.sq);
+          this.drag = { sq: a.sq, moves, g: this.pieces.get(a.sq), byKey: isDown('use') };
+          this.showTargets(moves); play('zoom', 0.6);
+        }
+        return;
+      }
+      // arrastando: a peça segue a mira pelo chão
+      const D = this.drag, g = D.g;
+      if (!myTurn || !g) { this.cancelDrag(); return; }
+      const gp = a.ground || g.position.clone();
+      gp.x = clamp(gp.x, -4 * CHW_SQ + 0.5, 4 * CHW_SQ - 0.5); gp.z = clamp(gp.z, -4 * CHW_SQ + 0.5, 4 * CHW_SQ - 0.5);
+      g.position.x += (gp.x - g.position.x) * Math.min(1, dt * 14); g.position.z += (gp.z - g.position.z) * Math.min(1, dt * 14);
+      g.position.y = 0.14 + CHW_LIFT + Math.sin(now * 5) * 0.1;
+      const over = chPosSq(g.position.x, g.position.z), mv = D.moves.find(m => m.to === over);
+      hover.visible = over >= 0; if (over >= 0) { const p = chSqPos(over); hover.position.set(p.x, 0.19, p.z); }
+      setHint(mv ? (mv.cap >= 0 ? `Solte para atacar: ${chPieceName(Chess.st.b[mv.cap])} (${WEAPONS[WI(CH_W[Chess.st.b[mv.cap][1]])].name})` : `Solte para jogar em ${chSqName(over)}`) : 'Leve até uma casa verde (ou vermelha, para atacar)');
+      if (net && (this.holdAcc += dt) > 0.1) { this.holdAcc = 0; Net.send({ t: 'chhold', s: D.sq, x: +g.position.x.toFixed(2), z: +g.position.z.toFixed(2) }); }
+      const release = D.byKey ? isDown('use') && now > (D.at || (D.at = now)) + 0.05 : dropKey;
+      if (!release) return;
+      if (net) Net.send({ t: 'chhold', s: -1 });
+      if (!mv) { this.cancelDrag(); return; }
+      this.drag = null; hover.visible = false; this.showTargets([]);
+      g.position.copy(chSqPos(mv.to)).setY(0.14);
+      Chess.mineNext = true;
+      Chess.play(mv);
+    },
+    cancelDrag() {
+      const D = this.drag; this.drag = null; hover.visible = false; this.showTargets([]);
+      if (D && D.g) D.g.position.copy(chSqPos(D.sq)).setY(0.14);
+    },
+  };
+}
+function setHint(t) { const h = $('#chHint'); if (h._t !== t) { h._t = t; h.textContent = t; } h.hidden = !t; }
+
+// ---- habilidades das peças no duelo (inspiradas no FPS Chess). Q = habilidade 1, E = habilidade 2
+const CH_AB = {
+  P: [['sprint', 'Corrida', 9], ['summon', 'Chamar peões', 30]],
+  N: [['charge', 'Investida', 6], ['homing', 'Flecha teleguiada', 7]],
+  B: [['bomb', 'Bomba (pule nela para voar)', 6], ['glide', 'Planar: segure Espaço no ar', 0]],
+  R: [['wall', 'Mureta', 7], ['grapple', 'Gancho', 5]],
+  Q: [['throw', 'Arremessar peça', 8], ['fly', 'Voar: segure Espaço', 0]],
+  K: [['pound', 'Salto esmagador', 8], ['pull', 'Luz que puxa', 10]],
+};
+const Ab = {
+  on: false, pc: null, cd: [0, 0], sprintT: 0, charge: null, grap: null, pound: null, fuel: 1, homingNext: false, beam: null,
+  reset(pc) {
+    this.on = !!pc && !!CH_AB[pc]; this.pc = pc; this.cd = [0, 0]; this.sprintT = 0; this.charge = null; this.grap = null; this.pound = null; this.fuel = 1; this.homingNext = false;
+    if (this.beam) { this.beam.parent && this.beam.parent.remove(this.beam); this.beam = null; }
+    $('#abHud').hidden = !this.on; if (this.on) this.hud(true);
+  },
+  speedMul() { return this.sprintT > 0 ? 1.6 : 1; },
+  fwd() { return new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ')); },
+  use(i) {
+    if (!this.on || !player.alive) return;
+    const [id, name, cd] = CH_AB[this.pc][i];
+    if (!cd) { banner(name, '', 1.4); return; }
+    if (this.cd[i] > 0) { play('empty', 0.6); return; }
+    const ok = this.act(id);
+    if (ok === false) { play('empty', 0.6); return; }
+    this.cd[i] = cd;
+  },
+  act(id) {
+    const p = player, eye = eyePos(p), f = this.fwd();
+    const flat = new THREE.Vector3(f.x, 0, f.z).normalize();
+    if (id === 'sprint') { this.sprintT = 3.5; play('round', 0.4); return; }
+    if (id === 'summon') { summonPawns(p); return; }
+    if (id === 'charge') { this.charge = { t: 0.55, dir: flat, hit: new Set() }; p.grounded = false; p.vel.y = 2.5; play('land', 0.9); return; }
+    if (id === 'homing') { this.homingNext = true; play('zoom', 0.6); return; }
+    if (id === 'bomb') {
+      const at = eye.clone().addScaledVector(f, 0.4), v = f.clone().multiplyScalar(16).add(new THREE.Vector3(0, 3, 0)).add(p.vel.clone().multiplyScalar(0.6));
+      spawnNade(at, v, p, 1.3); ground.nades[ground.nades.length - 1].bishop = true; startAnim(p, 'throw', 0.5);
+      if (mode && mode.net) Net.send({ t: 'nade', p: v3a(at), v: v3a(v), fu: 1.3 });
+      play('knife', 0.8); return;
+    }
+    if (id === 'wall') {
+      const spot = buildSpot(p, 'wall'); if (!spot) return false;
+      const bid = 'b' + (Net.myId || '') + (++buildSeq);
+      placeBuild(bid, 'wall', spot.p, spot.ax, Net.myId || 'me'); startAnim(p, 'build', 0.35);
+      if (mode && mode.net) Net.send({ t: 'build', id: bid, k: 'wall', p: v3a(spot.p), a: spot.ax });
+      return;
+    }
+    if (id === 'grapple') {
+      scene.updateMatrixWorld();
+      raycaster.set(eye, f); raycaster.far = 45;
+      const h = raycaster.intersectObjects(worldMeshes, false)[0]; if (!h) return false;
+      this.grap = { pt: h.point.clone(), t: 0 }; p.grounded = false; play('knifeWall', 0.9);
+      return;
+    }
+    if (id === 'throw') {
+      const w = WEAPONS[WI('pcthrow')], at = eye.clone().addScaledVector(f, 0.7);
+      const v = fireProj(p, w, at, f.clone().add(new THREE.Vector3(0, 0.06, 0)).normalize(), 0);
+      if (mode && mode.net) Net.send({ t: 'shot', w: WI('pcthrow'), pp: v3a(at), pv: v3a(v) });
+      startAnim(p, 'throw', 0.5); play('knife', 1); return;
+    }
+    if (id === 'pound') {
+      scene.updateMatrixWorld();
+      raycaster.set(eye, f); raycaster.far = 26;
+      const h = raycaster.intersectObjects(worldMeshes, false)[0];
+      let tgt = h ? h.point.clone() : p.pos.clone().addScaledVector(flat, 14);
+      const d = new THREE.Vector3(tgt.x - p.pos.x, 0, tgt.z - p.pos.z); if (d.length() > 20) d.setLength(20);
+      const T = clamp(d.length() / 13, 0.55, 1.15), dy = clamp(tgt.y - p.pos.y, -2, 4);
+      p.vel.set(d.x / T, (dy + 0.5 * GRAV * T * T) / T, d.z / T); p.grounded = false;
+      this.pound = { t: 0 }; play('land', 1); return;
+    }
+    if (id === 'pull') {
+      scene.updateMatrixWorld();
+      let best = null, ba = 0.2;
+      for (const c of combatants) {
+        if (c === p || !c.alive || c.team === p.team) continue;
+        const to = chestPos(c).sub(eye), dist = to.length(); if (dist > 34) continue;
+        const ang = to.normalize().angleTo(f); if (ang > ba) continue;
+        raycaster.set(eye, to); raycaster.far = dist - 0.5; if (raycaster.intersectObjects(worldMeshes, false).length) continue;
+        best = c; ba = ang;
+      }
+      if (!best) return false;
+      const pull = p.pos.clone().sub(best.pos).setY(0); const L = pull.length(); pull.setLength(Math.min(22, 6 + L * 0.9)).setY(5.5);
+      applyPull(best, pull);
+      if (best.remote && mode && mode.net) Net.send({ t: 'pull', to: best.netId, v: v3a(pull) });
+      this.showBeam(eye, chestPos(best)); play('zoom', 1);
+      return;
+    }
+  },
+  showBeam(a, b) {
+    if (this.beam && this.beam.parent) this.beam.parent.remove(this.beam);
+    const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+    this.beam = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xfff2a8, transparent: true, opacity: 0.95 })); this.beam.userData.t = 0.45; world.add(this.beam);
+  },
+  // movimento especial (chamado no updatePlayer, depois da física normal)
+  force(p, dt) {
+    if (this.charge) {
+      const C = this.charge; C.t -= dt;
+      p.vel.x = C.dir.x * 21; p.vel.z = C.dir.z * 21;
+      for (const c of combatants) {
+        if (c === p || !c.alive || c.team === p.team || C.hit.has(c)) continue;
+        if (c.pos.distanceTo(p.pos) < 1.9) { C.hit.add(c); damage(c, 55, p, 'Investida', 'body', C.dir.clone()); if (!c.remote) applyPull(c, C.dir.clone().multiplyScalar(12).setY(5)); else if (mode && mode.net) Net.send({ t: 'pull', to: c.netId, v: v3a(C.dir.clone().multiplyScalar(12).setY(5)) }); showHit({ hit: true, head: false, kill: !c.alive }); play('knifeHit', 1); }
+      }
+      if (C.t <= 0) this.charge = null;
+    }
+    if (this.grap) {
+      const G = this.grap; G.t += dt;
+      const to = G.pt.clone().sub(eyePos(p)), d = to.length();
+      if (d < 2 || G.t > 1.6 || isDown('jump')) { this.grap = null; if (isDown('jump')) p.vel.y = Math.max(p.vel.y, 7); }
+      else { to.normalize(); p.vel.lerp(to.multiplyScalar(24), Math.min(1, dt * 9)); p.grounded = false; this.showBeam(eyePos(p).add(new THREE.Vector3(0, -0.3, 0)), G.pt); this.beam.userData.t = 0.05; }
+    }
+  },
+  // no ar: bispo plana, dama voa
+  air(p, dt, input) {
+    const jump = input && isHeld('jump');
+    if (this.pc === 'B' && jump && p.vel.y < -2.2) p.vel.y = -2.2;
+    if (this.pc === 'Q' && jump && this.fuel > 0) { p.vel.y = Math.min(7, p.vel.y + 34 * dt); this.fuel = Math.max(0, this.fuel - dt / 2.6); }
+  },
+  land(p) {
+    if (!this.pound) return;
+    this.pound = null;
+    explode(p.pos.clone().add(new THREE.Vector3(0, 0.3, 0)), p, { r: 5, dmg: 80, name: 'Salto esmagador', self: 0 });
+    pv.kick = 1;
+  },
+  tick(dt) {
+    if (!this.on) return;
+    this.cd[0] = Math.max(0, this.cd[0] - dt); this.cd[1] = Math.max(0, this.cd[1] - dt);
+    this.sprintT = Math.max(0, this.sprintT - dt);
+    if (player.grounded) this.fuel = Math.min(1, this.fuel + dt * 0.45);
+    if (this.beam) { this.beam.userData.t -= dt; if (this.beam.userData.t <= 0) { this.beam.parent && this.beam.parent.remove(this.beam); this.beam = null; } }
+    this.hud();
+  },
+  hud(force) {
+    const L = CH_AB[this.pc]; if (!L) return;
+    const key = i => keyLabel(S.keys[i ? 'ab2' : 'ab1']);
+    const txt = L.map(([id, name, cd], i) => {
+      const left = this.cd[i], ready = !cd || left <= 0;
+      const extra = id === 'fly' ? ` <i style="width:${Math.round(this.fuel * 100)}%"></i>` : id === 'homing' && this.homingNext ? ' ✓' : id === 'sprint' && this.sprintT > 0 ? ' ✓' : '';
+      return `<div class="ab${ready ? ' ok' : ''}"><b>${cd ? key(i) : 'Espaço'}</b><span>${name}${extra.startsWith(' <i') ? '' : extra}</span>${cd && !ready ? `<em>${Math.ceil(left)}</em>` : ''}${extra.startsWith(' <i') ? `<u>${extra}</u>` : ''}</div>`;
+    }).join('');
+    const el = $('#abHud'); if (force || el._t !== txt) { el._t = txt; el.innerHTML = txt; }
+  },
+};
+function applyPull(c, v) {
+  if (c === player || !c.remote) { c.vel.copy(v); c.grounded = false; if (c.bot) c.pullT = now + 0.6; }
+}
+// peão: chama dois peões do tabuleiro para lutar do seu lado (no online, o anfitrião cria e controla)
+function summonPawns(p) {
+  if (mode && mode.net && !mode.host) { Net.send({ t: 'sumreq', p: v3a(p.pos), y: +p.yaw.toFixed(3) }); return; }
+  spawnSummons(p.team, p.pos, p.yaw);
+}
+let sumSeq = 0;
+function spawnSummons(team, pos, yaw) {
+  const d = DIFF[(mode && mode.cfg && mode.cfg.diff) ?? 1] || DIFF[1];
+  for (const s of [-1, 1]) {
+    const sp = { pos: pos.clone().add(new THREE.Vector3(Math.cos(yaw) * s * 1.6, 0.05, -Math.sin(yaw) * s * 1.6)), yaw };
+    if (collides(sp.pos, 1.8)) sp.pos.copy(pos);
+    const b = createBot(Object.assign(botDefaults(), { name: 'Peão chamado', weapon: WI('musket'), acc: d.acc * 0.75, react: d.react * 1.3, speed: d.speed, view: d.view, fov: d.fov, hp: 50, respawn: false }), sp, shade(TEAM_COLORS[team], 3));
+    b.team = team; b.summon = true; b.spawnIdx = 9;
+    if (mode && mode.net && mode.netBots) {
+      const id = 's' + (++sumSeq); Object.assign(b, { netId: id, netBot: true }); mode.netBots.set(id, b);
+      Net.send({ t: 'nbadd', id, name: b.name, team, w: WI('musket'), p: v3a(sp.pos), y: +yaw.toFixed(3) });
+    }
+  }
+  banner('Peões chamados!', '', 1.2); play('round', 0.5);
+}
+
 // ---- partida de xadrez (tela do tabuleiro + duelos)
 const Chess = {
   st: null, online: false, my: 'w', level: 1, sel: -1, moves: [], msg: '', result: null, pending: null, thinking: false, duelOn: false, flip: false,
@@ -6557,23 +7042,24 @@ const Chess = {
   openLocal() {
     initAudio(); this.online = false; this.load();
     if (!this.st || chResult(this.st)) this.newLocal(this.my);
-    else { this.msg = 'Partida salva: continue de onde parou.'; this.show(); this.maybeBot(); }
+    else { this.msg = 'Partida salva: continue de onde parou.'; this.enter(); }
   },
   newLocal(my) {
     this.online = false; this.my = my; this.st = chNew(); this.result = null; this.pending = null; this.sel = -1;
     this.msg = my === 'w' ? 'Você joga de brancas e começa. Clique numa peça e depois na casa.' : 'Você joga de pretas. O bot começa.';
-    this.save(); this.show(); this.maybeBot();
+    this.save(); this.ret = null; this.enter(true);
   },
-  show() {
-    $('#menu').hidden = true; $('#chess').hidden = false; $('#hud').hidden = true;
-    this.result = this.st ? chResult(this.st) : null; this.render();
+  // entra no tabuleiro gigante (ou só atualiza, se já estiver nele)
+  enter(fresh) {
+    this.result = this.st ? chResult(this.st) : null;
+    $('#chess').hidden = true;
+    if (!fresh && state === 'playing' && mode && mode.type === 'chessw') { mode.sync(); this.maybeBot(); return; }
+    startChessWorld();
   },
+  // painel com o tabuleiro de cima e as opções (abre pela pausa)
+  show() { $('#chess').hidden = false; this.result = this.st ? chResult(this.st) : null; this.render(); },
   hide() { $('#chess').hidden = true; },
-  exit() {
-    this.hide(); this.thinking = false;
-    $('#menu').hidden = false;
-    if (this.online && Net.role) openNetPanel();
-  },
+  exit() { this.hide(); if (state === 'playing' && paused) setPaused(false); },
   canMove() { return this.st && !this.result && !this.pending && !this.thinking && this.st.turn === this.my; },
   click(sq) {
     if (!this.canMove()) return;
@@ -6588,15 +7074,18 @@ const Chess = {
   },
   // um lance escolhido por quem tem a vez (você, o bot ou, no online, o convidado)
   play(m) {
+    const mine = this.mineNext; this.mineNext = false;
     if (this.online && Net.role === 'guest') { Net.send({ t: 'chmv', a: m.from, b: m.to }); this.msg = 'Lance enviado…'; this.render(); return; }
     if (m.cap >= 0) { this.startDuel(m); return; }
     this.st = chApply(this.st, m); this.msg = '';
+    if (mine) this.st.last.mine = 1;
     this.after();
   },
   after(note) {
     this.result = chResult(this.st);
     if (note) this.msg = note;
     if (this.result) this.msg = (note ? note + ' ' : '') + this.endText();
+    if (state === 'playing' && mode && mode.type === 'chessw') { mode.sync(); if (this.result) banner('Fim de jogo', this.endText(), 6); else if (note) banner(note.length > 60 ? 'Duelo decidido' : note, note.length > 60 ? note : '', 4); else if (chInCheck(this.st, this.st.turn)) banner('Xeque!', '', 1.5); }
     else if (chInCheck(this.st, this.st.turn)) this.msg = (note ? note + ' ' : '') + (this.st.turn === this.my ? 'Você está em xeque!' : 'Xeque!');
     this.save(); this.render(); this.broadcast();
     play(this.result ? 'round' : 'step', 0.6);
@@ -6612,24 +7101,26 @@ const Chess = {
     const tok = this.botTok = {}, st0 = this.st;
     setTimeout(() => {
       if (tok !== this.botTok || st0 !== this.st) return;
-      if (!this.thinking || $('#chess').hidden) { this.thinking = false; return; }
+      if (!this.thinking || !(state === 'playing' && mode && mode.type === 'chessw')) { this.thinking = false; return; }
       const m = chBotMove(this.st, this.level); this.thinking = false;
       if (!m) { this.after(); return; }
       if (m.cap >= 0) {
         // o bot vai capturar: você defende num duelo (clique para entrar, assim o mouse trava)
         this.pending = m; this.st = Object.assign(chClone(this.st), { last: { from: m.from, to: m.to } });
         this.msg = `${chPieceName(this.st.b[m.from])} ataca seu ${CH_NAME[this.st.b[m.cap][1]]} em ${chSqName(m.to)}! Defenda no duelo.`;
-        this.render(); play('round', 0.6); return;
+        this.render(); play('round', 0.6);
+        if (mode && mode.type === 'chessw') { banner(`${chPieceName(this.st.b[m.from])} ataca!`, `Defenda seu ${CH_NAME[this.st.b[m.cap][1]]} em ${chSqName(m.to)}: o duelo começa em 3 s`, 3); mode.duelAt = now + 3; const g = mode.pieces.get(m.from); if (g) mode.anim = { g, a: g.position.clone(), b: chSqPos(m.to).setY(0.14).lerp(g.position, 0.35), t: 0 }; }
+        return;
       }
       this.st = chApply(this.st, m); this.after();
-    }, 450);
+    }, 650);
   },
   // monta o duelo da captura m
   duelCfg(m) {
     const st = this.st, a = st.b[m.from], d = st.b[m.cap], ac = a[0];
     // time 0 = brancas, time 1 = pretas (no online, o time laranja é das brancas)
     const tc = ['w', 'b'], pieceOf = col => col === ac ? a[1] : d[1], K = WI('knife');
-    const teamWeapons = tc.map(col => [WI(CH_W[pieceOf(col)]), K]);
+    const teamWeapons = tc.map(col => pieceOf(col) === 'K' ? [WI(CH_W.K)] : [WI(CH_W[pieceOf(col)]), K]);
     const teamHp = tc.map(col => CH_HP[pieceOf(col)]);
     return Object.assign(clone(X1), {
       map: CH_MAPS[Math.floor(Math.random() * CH_MAPS.length)], format: 'rounds', target: 1, roundTime: 90, allies: 0, enemies: 1, diff: [0, 1, 2][this.level],
@@ -6639,6 +7130,7 @@ const Chess = {
   },
   startDuel(m) {
     this.pending = m; this.duelOn = true;
+    if (player && mode && mode.type === 'chessw') this.ret = { pos: player.pos.clone(), yaw: player.yaw };
     const cfg = this.duelCfg(m);
     if (this.online) { this.broadcast(); Net.startMatch(cfg); }
     else {
@@ -6650,9 +7142,9 @@ const Chess = {
   // fim do duelo: team = time que venceu
   duelDone(team) {
     const m = this.pending; this.duelOn = false;
-    const back = () => { if (mode) mode.net = null; goMenu(); this.show(); };
+    const back = () => { Ab.reset(null); this.enter(true); };
     if (!m) { back(); return; }
-    if (this.online && Net.role === 'guest') { back(); this.msg = 'Duelo encerrado. Atualizando o tabuleiro…'; this.render(); return; }
+    if (this.online && Net.role === 'guest') { this.msg = 'Duelo encerrado. Atualizando o tabuleiro…'; back(); return; }
     let winCol = team === 0 ? 'w' : 'b';
     if (!this.online && this.my === 'b') winCol = team === 0 ? 'b' : 'w';
     const a = this.st.b[m.from], d = this.st.b[m.cap], ac = a[0];
@@ -6670,8 +7162,8 @@ const Chess = {
     const n = Net.teamSizes();
     if (n[0] !== 1 || n[1] !== 1) { Net.setStatus('Xadrez FPS online é 1 contra 1: deixe uma pessoa em cada time.'); renderNetLobby(); return; }
     if (!this.online || !this.st || this.result) { this.st = chNew(); this.result = null; this.pending = null; this.msg = 'Brancas (time laranja) começam.'; }
-    this.online = true; this.my = Net.me().team === 0 ? 'w' : 'b'; this.sel = -1;
-    this.broadcast(true); this.show();
+    this.online = true; this.my = Net.me().team === 0 ? 'w' : 'b'; this.sel = -1; this.ret = null;
+    this.broadcast(true); this.enter(true);
   },
   broadcast(open) { if (this.online && Net.role === 'host') Net.send({ t: 'chess', st: this.st, msg: this.msg, open: open ? 1 : 0, pend: this.pending ? 1 : 0 }); },
   onMsg(m) {
@@ -6683,8 +7175,10 @@ const Chess = {
         this.play(mv);
       }
       if (m.t === 'chff' && mode && mode.cfg && mode.cfg.chess && !mode.over) { const p = Net.byId(m.f); if (p) mode.finish(1 - p.team); }
+      if (m.t === 'chhold' && mode && mode.type === 'chessw') mode.remoteHold = { s: m.s | 0, x: +m.x || 0, z: +m.z || 0 };
       return;
     }
+    if (m.t === 'chhold') { if (mode && mode.type === 'chessw') mode.remoteHold = { s: m.s | 0, x: clamp(+m.x || 0, -15, 15), z: clamp(+m.z || 0, -15, 15) }; return; }
     if (m.t !== 'chess' || !m.st || !Array.isArray(m.st.b) || m.st.b.length !== 64) return;
     const okPc = x => x === null || (typeof x === 'string' && /^[wb][PNBRQK]$/.test(x));
     if (!m.st.b.every(okPc)) return;
@@ -6693,7 +7187,9 @@ const Chess = {
     const me = Net.me(); this.my = me && me.team === 0 ? 'w' : 'b'; this.sel = -1;
     this.result = chResult(this.st);
     if (this.result) this.msg = this.endText();
-    if (state !== 'playing' && (m.open || !$('#chess').hidden || !$('#netSetup').hidden)) this.show();
+    const inWorld = state === 'playing' && mode && mode.type === 'chessw';
+    if (m.open && !inWorld && !(state === 'playing' && mode && mode.cfg && mode.cfg.chess)) { this.ret = null; this.enter(true); }
+    else if (inWorld) { mode.sync(); this.render(); }
   },
   // ---- desenho
   render() {
@@ -6718,7 +7214,7 @@ const Chess = {
     $('#chTurn').textContent = turnTxt + (this.result ? '' : `  ·  lance ${st.n}`);
     $('#chTurn').className = 'chturn' + (st.turn === this.my && !this.result && !this.pending ? ' me' : '');
     $('#chMsg').textContent = this.msg || (this.online ? `Você joga de ${this.my === 'w' ? 'brancas (time laranja)' : 'pretas (time azul)'}.` : '');
-    $('#chDuel').hidden = !(this.pending && this.pending.from != null && !this.online && st.turn !== this.my);
+    $('#chDuel').hidden = true;
     // peças comidas
     const count = col => { const n = {}; for (const p of st.b) if (p && p[0] === col) n[p[1]] = (n[p[1]] || 0) + 1; return n; };
     const full = { P: 8, N: 2, B: 2, R: 2, Q: 1, K: 1 };
@@ -6730,11 +7226,11 @@ const Chess = {
     $('#chNewW').hidden = this.online; $('#chNewB').hidden = this.online; $('#chLevel').parentNode.hidden = this.online;
     $('#chNewOnline').hidden = !(this.online && host);
     $('#chLevel').value = this.level;
-    $('#chExit').textContent = this.online ? 'Voltar para a sala' : 'Menu principal';
+    $('#chExit').textContent = 'Voltar ao tabuleiro';
   },
 };
 function chLegend() {
-  return Object.keys(CH_W).map(k => `<div class="chleg"><span class="pc w">${CH_GLYPH[k]}</span><b>${CH_NAME[k]}</b><span>${esc(WEAPONS[WI(CH_W[k])].name)} · ${CH_HP[k]} de vida</span></div>`).join('');
+  return Object.keys(CH_W).map(k => `<div class="chleg"><span class="pc w">${CH_GLYPH[k]}</span><b>${CH_NAME[k]}</b><span>${esc(WEAPONS[WI(CH_W[k])].name)} · ${CH_HP[k]} de vida<br><small class="note">${CH_AB[k].map(a => esc(a[1])).join(' · ')}</small></span></div>`).join('');
 }
 
 $('#chLegend').innerHTML = chLegend();
@@ -6743,11 +7239,12 @@ $('#chNewW').onclick = () => Chess.newLocal('w');
 $('#chNewB').onclick = () => Chess.newLocal('b');
 $('#chNewOnline').onclick = () => { Chess.st = null; Chess.startOnline(); };
 $('#chExit').onclick = () => Chess.exit();
+$('#pChess').onclick = () => Chess.show();
 $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); Chess.save(); };
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { Chess, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { Chess, Ab, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
