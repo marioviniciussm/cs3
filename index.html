@@ -937,7 +937,7 @@ function initAudio() {
   const thump = (dur, dec, g) => make(dur, (t, w, s) => { s.lp += (w - s.lp) * 0.08; return (s.lp * 3 + Math.sin(2 * Math.PI * 70 * t) * 0.4) * Math.exp(-t * dec) * g; });
   Object.assign(buffers, {
     pistol: shot(0.22, 26, 140, 0.55, 0.9), shotgun: shot(0.45, 11, 70, 0.35, 1), rifle: shot(0.2, 22, 110, 0.5, 0.95), sniper: shot(0.7, 7, 55, 0.3, 1),
-    deagle: shot(0.32, 16, 95, 0.42, 1), smg: shot(0.15, 30, 170, 0.62, 0.8), revolver: shot(0.42, 12, 80, 0.38, 1), lmg: shot(0.2, 24, 95, 0.48, 0.95),
+    deagle: shot(0.32, 16, 95, 0.42, 1), smg: shot(0.15, 30, 170, 0.62, 0.8), revolver: shot(0.42, 12, 80, 0.38, 1), lmg: shot(0.2, 24, 95, 0.48, 0.95), semi: shot(0.27, 17, 105, 0.45, 1),
     bow: make(0.3, (t, w, s) => { s.lp += (w - s.lp) * 0.3; return (Math.sin(2 * Math.PI * (220 - 160 * t) * t) * 0.7 * Math.exp(-t * 14) + (w - s.lp) * 0.5 * Math.exp(-t * 40)); }),
     rocket: make(0.7, (t, w, s) => { s.lp += (w - s.lp) * 0.1; return (s.lp * 2.4 * Math.min(1, t * 60) * Math.exp(-t * 4) + (w - s.lp) * 0.4 * Math.exp(-t * 9)); }),
     build: make(0.2, (t, w, s) => { s.lp += (w - s.lp) * 0.25; return (s.lp * 2 + Math.sin(2 * Math.PI * 180 * t) * 0.6) * Math.exp(-t * 25) * 0.9; }),
@@ -1480,6 +1480,9 @@ const WEAPONS = [
     base: 0.003, move: 0.02, air: 0.05, perShot: 0, maxShot: 0, recover: 1, recoilP: 3, recoilY: 0.4, speed: 0.85 },
   { id: 'build', name: 'Construtor', snd: 'build', build: true, dmg: 0, pellets: 1, interval: 0.35, auto: false, mag: 6, reserve: 0, reload: 0, draw: 0.35, range: 0, falloff: 1, head: 1,
     base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1.02 },
+  // rifle semiautomático: um tiro por clique, preciso e forte (2 no peito, 1 na cabeça), mas sem rajada
+  { id: 'semi', name: 'Rifle semiautomático', snd: 'semi', dmg: 52, pellets: 1, interval: 0.2, auto: false, mag: 20, reserve: 60, reload: 2.6, draw: 0.65, range: 280, falloff: 0.985, head: 2.6,
+    base: 0.001, move: 0.07, air: 0.3, perShot: 0.005, maxShot: 0.018, recover: 0.4, recoilP: 1.9, recoilY: 0.3, speed: 0.9 },
 ];
 // as 7 armas clássicas (padrão do x1 e do mata-mata); as novas são marcadas na lista ou vêm nas classes
 const CLASSIC_IDS = () => ['knife', 'pistol', 'deagle', 'smg', 'shotgun', 'rifle', 'sniper'].map(id => WEAPONS.findIndex(w => w.id === id));
@@ -1497,6 +1500,7 @@ const RECOIL = {
   rifle: { rec: 10, k: 5, keys: [[0, 0, 0], [1, 0.5, 0.1], [3, 2.3, 0.3], [6, 5.4, 0.5], [9, 7.2, 0.2], [12, 7.7, -2], [16, 8, -4.5], [20, 8.2, -1], [24, 8, 3.8], [27, 8.3, 2], [30, 8.1, 0]] },
   shotgun: { rec: 1.6, k: 1, keys: [[0, 0, 0], [1, 4.5, 0.4], [2, 7, -0.4], [7, 8, 0]] },
   sniper: { rec: 1.2, k: 0.5, keys: [[0, 0, 0], [1, 5, 0.3], [5, 6, 0]] },
+  semi: { rec: 5, k: 2, keys: [[0, 0, 0], [1, 1.7, 0.2], [2, 3, -0.3], [4, 4.4, 0.35], [7, 5.4, -0.2], [10, 5.8, 0], [20, 6, 0]] },
 };
 function patternAt(w, n, out) {
   const R = RECOIL[w.id]; out.x = 0; out.y = 0; if (!R || n <= 0) return out;
@@ -1660,8 +1664,8 @@ function setGunShape(c, w) {
     part(metal, 0.045, 0.065, L, 0, 0.04, -L / 2 + 0.05); part(m2, 0.04, 0.11, 0.05, 0, -0.03, 0.02);
     c.grip.set(0, -0.03, 0.02); c.fore.set(-0.03, -0.05, 0.03); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L + 0.05);
   } else {
-    const L = { smg: 0.5, shotgun: 0.85, rifle: 0.78, sniper: 1.05, lmg: 0.95 }[w.id] || 0.7;
-    const wood = w.id === 'shotgun' || w.id === 'sniper';
+    const L = { smg: 0.5, shotgun: 0.85, rifle: 0.78, sniper: 1.05, lmg: 0.95, semi: 0.9 }[w.id] || 0.7;
+    const wood = w.id === 'shotgun' || w.id === 'sniper' || w.id === 'semi';
     part(metal, 0.06, 0.09, L * 0.55, 0, 0.02, -L * 0.18);                                     // corpo
     part(m2, 0.028, L * 0.45, 0.028, 0, 0.04, -L * 0.62, CYL).rotation.x = Math.PI / 2;     // cano
     part(wood ? C.wood : metal, 0.05, 0.09, 0.2, 0, -0.01, 0.2);                             // coronha
@@ -1669,6 +1673,7 @@ function setGunShape(c, w) {
     part(m2, 0.04, 0.1, 0.045, 0, -0.06, 0.02);                                                // cabo
     if (w.id !== 'shotgun') part(m2, 0.035, 0.13, 0.06, 0, -0.09, -L * 0.2).rotation.x = 0.25; // pente
     if (w.id === 'sniper') part(C.black, 0.05, 0.28, 0.05, 0, 0.11, -0.12, CYL).rotation.x = Math.PI / 2;
+    if (w.id === 'semi') part(C.black, 0.04, 0.07, 0.06, 0, 0.09, -0.1);   // mira red dot
     c.grip.set(0, -0.06, 0.02); c.fore.set(0, -0.05, -L * 0.42); c.oneHand = false; c.muzzle.position.set(0, 0.04, -L * 0.85);
   }
   c.gun.add(G); c.gunParts = G;
@@ -2075,6 +2080,14 @@ function buildViewModels(sleeve) {
     hands(g, [0, -0.07, 0.06], [-0.04, -0.08, 0.02]);
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.045, -0.26), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
+  mk('semi', new THREE.Vector3(0.22, -0.235, -0.44), g => {
+    X(g, C.metal, 0.06, 0.085, 0.34, 0, 0.03, -0.06); Cy(g, C.metal2, 0.022, 0.46, 0, 0.05, -0.46); X(g, C.wood, 0.066, 0.065, 0.24, 0, 0.025, -0.33);
+    const mag = X(g, C.metal2, 0.045, 0.12, 0.07, 0, -0.06, -0.1, 0.2); X(g, C.wood, 0.055, 0.09, 0.27, 0, -0.005, 0.22);
+    X(g, C.wood, 0.042, 0.1, 0.05, 0, -0.05, 0.05, -0.28); const bolt = X(g, C.metal2, 0.025, 0.02, 0.035, 0.04, 0.05, -0.08);
+    X(g, C.black, 0.035, 0.06, 0.06, 0, 0.1, -0.08); X(g, 0xd23a3a, 0.012, 0.012, 0.004, 0, 0.11, -0.112);   // red dot
+    hands(g, [0, -0.06, 0.07], [-0.01, -0.005, -0.3]);
+    return { bolt, mag, muzzle: new THREE.Vector3(0, 0.05, -0.69), boltTravel: new THREE.Vector3(0, 0, 0.05) };
+  });
   mk('crossbow', new THREE.Vector3(0.2, -0.22, -0.44), g => {
     X(g, C.wood, 0.06, 0.07, 0.5, 0, 0.0, -0.05); X(g, C.wood, 0.05, 0.1, 0.18, 0, -0.03, 0.22, 0.12);
     const bolt = X(g, 0x5a3d22, 0.018, 0.018, 0.42, 0, 0.045, -0.12); X(g, 0xc8ccd2, 0.03, 0.03, 0.05, 0, 0.045, -0.35);
@@ -2138,7 +2151,7 @@ function resetPlayerWeapons() {
   pw.prev = idx; selectWeapon(idx, true); buildSlots();
 }
 function defaultSlot() {
-  for (const id of ['rifle', 'lmg', 'smg', 'sniper', 'crossbow', 'rocket', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
+  for (const id of ['rifle', 'semi', 'lmg', 'smg', 'sniper', 'crossbow', 'rocket', 'deagle', 'revolver', 'shotgun', 'pistol', 'build', 'knife']) { const i = pw.slots.findIndex(s => s.w.id === id); if (i >= 0) return i; }
   return 0;
 }
 function selectWeapon(i, force) {
@@ -2755,7 +2768,7 @@ function startX1(cfgIn, net, ids) {
       const bc = Object.assign(botDefaults(), { name: (team === myTeam ? 'Aliado ' : 'Bot ') + NAMES[n++ % NAMES.length], weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov,
         hp: cfg.hp, move: cfg.botMove, shoot: cfg.botShoot });
       // com classes, cada bot sorteia uma (menos Construtor e Ninja, que bot não sabe usar direito)
-      if (mode.classes) { const k = CLASSES.filter(x => x.w.length && x.id !== 'construtor')[Math.floor(Math.random() * 8)]; bc.weapon = WI(k.w[0]); bc.hp = Math.round(cfg.hp * k.hp / 100); bc.speed *= k.spd; bc.name += ' · ' + k.name; }
+      if (mode.classes) { const k = (L => L[Math.floor(Math.random() * L.length)])(CLASSES.filter(x => x.w.length && x.id !== 'construtor')); bc.weapon = WI(k.w[0]); bc.hp = Math.round(cfg.hp * k.hp / 100); bc.speed *= k.spd; bc.name += ' · ' + k.name; }
       const list = ts[team], b = createBot(bc, list[idx % list.length], shade(TEAM_COLORS[team], idx));
       b.team = team; b.spawnIdx = idx;
     };
@@ -5561,6 +5574,7 @@ const CLASSES = [
   { id: 'detetive', name: 'Detetive', w: ['revolver', 'deagle'], hp: 100, spd: 1.08, desc: 'Dois canos curtos e certeiros.' },
   { id: 'besteiro', name: 'Besteiro', w: ['crossbow', 'pistol'], hp: 100, spd: 1.06, desc: 'Besta: a seta cai com a distância. Mata com um no peito.' },
   { id: 'foguete', name: 'Foguete', w: ['rocket', 'pistol'], hp: 130, spd: 0.95, desc: 'Lança-foguete. Atire no chão para pular alto.' },
+  { id: 'patrulheiro', name: 'Patrulheiro', w: ['semi', 'pistol'], hp: 100, spd: 1.02, desc: 'Rifle semiautomático: um tiro por clique, preciso de longe.' },
   { id: 'construtor', name: 'Construtor', w: ['build', 'smg'], hp: 110, spd: 1, desc: 'Ergue paredes e caixotes, com submetralhadora para se defender.' },
   { id: 'ninja', name: 'Ninja', w: [], hp: 100, spd: 1.3, desc: 'Só a faca, mas é o mais rápido de todos.' },
 ];
