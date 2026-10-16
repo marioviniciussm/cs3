@@ -274,6 +274,8 @@ button.mode:not(.primary):hover, button.mode:not(.primary):focus-visible, button
 button.mode.primary:hover, button.mode.primary:focus-visible { filter: brightness(1.06); outline: none; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .tiles.modegrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#edHud { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6; background: rgba(10,12,16,0.72); color: #e9edf0; padding: 8px 14px; border-left: 3px solid var(--accent, #f2a03a); font: 13px/1.45 var(--body, sans-serif); max-width: min(92vw, 860px); text-align: center; pointer-events: none; }
+#edHud small { opacity: 0.8; } #edHud .edcol { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; border: 1px solid #fff; }
 .micbar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; } .micbar i { display: block; height: 100%; width: 0; background: var(--accent, #f2a03a); transition: width 0.08s; }
 button.tile b { font: 700 15px var(--display); letter-spacing: 0.02em; }
 button.tile small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; margin-top: -4px; }
@@ -591,6 +593,9 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
     <button class="btn" id="pAdmin" hidden>Menu de admin</button>
     <button class="btn" id="pChess" hidden>Tabuleiro e opções do xadrez</button>
     <p class="note" id="pMic" hidden></p>
+    <button class="btn" id="pEdSave" hidden>Salvar o mapa</button>
+    <button class="btn" id="pEdPlay" hidden>Salvar e testar no x1</button>
+    <button class="btn" id="pEdPlan" hidden>Voltar ao editor (planta)</button>
     <button class="btn" id="pSaveMap" hidden>Salvar este mapa nos meus</button>
     <button class="btn" id="pRestart">Reiniciar</button>
     <button class="btn" id="pMenu">Menu principal</button>
@@ -3125,6 +3130,7 @@ function updateWeapons(dt) {
   patternAt(w, pw.spray, pw.punch);
   if (pw.rezoom && now >= pw.rezoomAt) { if (slot.mag > 0 && !pw.reloadT) { pw.zoom = pw.rezoom; pw.zoomAt = now; } pw.rezoom = 0; }
   pw.spread = computeSpread();
+  if (mode && mode.onWheel && wheel && canInput()) mode.onWheel(Math.sign(wheel));
   if (!player.alive || !canInput() || (mode && mode.noWeapons)) { wheel = 0; return; }
   const n = pw.slots.length;
   for (let i = 0; i < 7; i++) if (isDown('w' + (i + 1))) selectWeapon(i);
@@ -4108,6 +4114,7 @@ function renderMEPanel() {
     ${sel ? `<div class="row"><label for="meUp">Em cima de (m)</label><input type="range" id="meUp" min="0" max="6" step="0.2" value="${sel[6] || 0}"><output>${(sel[6] || 0).toFixed(1)}</output></div>` : ''}
     <p class="note" style="margin:0">${{ box: 'Arraste no mapa para desenhar uma caixa (um toque faz um caixote de 1,2 m).', move: 'Toque numa caixa para escolher e arraste para mover. Depois mude altura e cor acima.', del: 'Toque numa caixa para apagar.', a: 'Toque para pôr ou tirar um ponto de nascimento do time A (até 5).', B: 'Toque para pôr ou tirar um ponto de nascimento do time B (até 5).' }[ME.tool]}${ME.mirror ? ' Com espelhar ligado, o outro lado copia tudo invertido, para o x1 ficar justo.' : ''}</p>
     <div class="btnrow"><button class="btn small" id="meUndo" ${ME.undo.length ? '' : 'disabled'}>Desfazer</button><button class="btn small" id="meClear">Limpar</button><button class="btn small" id="me3d">${ME.view3d ? 'Voltar à planta' : 'Ver em 3D'}</button></div>
+    <button class="btn primary" id="meFly">Editar em 3D (voar dentro do mapa)</button>
     <div class="btnrow"><button class="btn small primary" id="meSave">Salvar</button><button class="btn small" id="mePlay">Jogar x1 aqui</button></div>
     <div class="btnrow"><button class="btn small" id="meCopy">Copiar código</button><button class="btn small" id="meImport">Colar código</button>${ME.id ? '<button class="btn small" id="meDel">Excluir</button>' : ''}</div>
     <p class="note" id="meMsg" aria-live="polite" style="margin:0"></p>
@@ -4127,11 +4134,7 @@ function renderMEPanel() {
   q('#meUndo').onclick = () => { const u = ME.undo.pop(); if (u) { ME.map = JSON.parse(u); ME.sel = -1; renderMEPanel(); meRebuild(); } };
   q('#meClear').onclick = () => { mePush(); m.b = []; m.a = []; m.B = []; ME.sel = -1; renderMEPanel(); meRebuild(); };
   q('#me3d').onclick = () => { ME.view3d = !ME.view3d; $('#mapEd').classList.toggle('v3d', ME.view3d); renderMEPanel(); if (!ME.view3d) meResize(); };
-  const save = () => {
-    const L = loadMyMaps(); if (!ME.id) ME.id = Math.random().toString(36).slice(2, 8);
-    const e = { id: ME.id, map: sanitizeMap(m) }, k = L.findIndex(x => x.id === ME.id);
-    if (k >= 0) L.splice(k, 1); L.unshift(e); saveMyMaps(L); refreshCustomMaps();
-  };
+  const save = meSaveMap;
   q('#meSave').onclick = () => { save(); renderMEPanel(); $('#meMsg').textContent = 'Salvo. Ele aparece na lista de mapas do x1.'; };
   q('#mePlay').onclick = () => { save(); X1.map = 'c_' + ME.id; saveX1(); $('#mapEd').hidden = true; $('#menu').hidden = false; $('#bX1').onclick(); };
   q('#meCopy').onclick = async () => {
@@ -4146,9 +4149,102 @@ function renderMEPanel() {
   };
   if (q('#meDel')) q('#meDel').onclick = () => { if (!confirm(`Excluir o mapa "${m.n}"?`)) return; saveMyMaps(loadMyMaps().filter(x => x.id !== ME.id)); refreshCustomMaps(); ME.map = blankMap(); ME.id = null; ME.sel = -1; renderMEPanel(); meRebuild(); };
   q('#meBack').onclick = closeMapEditor;
+  q('#meFly').onclick = () => { $('#mapEd').hidden = true; startMapEdit3D(); };
 }
 
-// ---- histórico de x1 (fica salvo neste aparelho)
+function meSaveMap() {
+  const L = loadMyMaps(); if (!ME.id) ME.id = Math.random().toString(36).slice(2, 8);
+  const e = { id: ME.id, map: sanitizeMap(ME.map) }, k = L.findIndex(x => x.id === ME.id);
+  if (k >= 0) L.splice(k, 1); L.unshift(e); saveMyMaps(L); refreshCustomMaps();
+}
+// ---- editor em 3D: você voa dentro do mapa e põe ou tira caixas com a mira (estilo editor do Krunker)
+const ED_PIECES = [['Caixote', 1.2, 1.2, 1.2], ['Caixa grande', 2.4, 2.4, 2.4], ['Muro baixo', 3, 1.1, 0.6], ['Parede', 4, 3, 0.5], ['Parede de lado', 0.5, 3, 4],
+  ['Plataforma', 4, 0.5, 4], ['Degrau', 2, 0.5, 1], ['Pilar', 1, 4, 1], ['Viga', 6, 0.5, 1]];
+const ED = { piece: 0, col: 0, custom: null, blocks: [], marks: [], ghost: null, frame: null, hov: -1, place: null, hud: null };
+const edSize = () => ED.custom || ED_PIECES[ED.piece].slice(1);
+function edRebuild() {
+  const m = ME.map;
+  for (const o of ED.blocks) { world.remove(o.mesh); const k = worldMeshes.indexOf(o.mesh); if (k >= 0) worldMeshes.splice(k, 1); const j = colliders.indexOf(o.col); if (j >= 0) colliders.splice(j, 1); }
+  for (const o of ED.marks) world.remove(o);
+  ED.blocks = m.b.map((b, i) => { const mesh = box(b[0], b[1], b[2], b[3], b[4], MAP_COLORS[b[5]], b[6] || 0); mesh.userData.edi = i; return { mesh, col: colliders[colliders.length - 1] }; });
+  // pontos de nascimento viram colunas coloridas (sem colisão)
+  ED.marks = [];
+  for (const [L, col] of [[m.a.length ? m.a : defaultSpawns(m, 0), 0xdb8540], [m.B.length ? m.B : defaultSpawns(m, 1), 0x5280c7]])
+    for (const sp of L) { const p = mesh(CYL, col, 0.5, 2, 0.5, sp[0], 1, sp[1], world); p.material = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55 }); ED.marks.push(p); }
+}
+function startMapEdit3D() {
+  initAudio(); const m = ME.map = sanitizeMap(ME.map);
+  newWorld(); walls(m.w, m.d, m.h, MAP_COLORS[m.c]);
+  world.userData.baked = true;   // sem juntar as caixas: cada uma continua sendo um objeto que dá para mirar
+  clearCombatants(); feedEl.innerHTML = ''; ED.blocks = []; ED.marks = []; edRebuild();
+  mapInfo = { name: m.n, spawns: [], teamSpawns: [[], []], waypoints: [], playerSpawn: { pos: new THREE.Vector3(0, 1.5, m.d - 2), yaw: 0 }, targets: [] };
+  shadowSize(Math.max(m.w, m.d) + 4);
+  setupPlayer(mapInfo.playerSpawn);
+  pv.noclip = true; player.flyK = true; pv.god = true;
+  if (!ED.ghost) {
+    ED.ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4, depthWrite: false }));
+    ED.frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), new THREE.LineBasicMaterial({ color: 0xff4d4d }));
+  }
+  scene.add(ED.ghost, ED.frame);
+  if (!ED.hud) { ED.hud = document.createElement('div'); ED.hud.id = 'edHud'; document.body.appendChild(ED.hud); }
+  mode = {
+    type: 'edit', over: false, noFire: true, noWeapons: true, noFeed: true, cfg: {}, enemies: () => false,
+    top() { return 'Editor 3D'; },
+    topParts: () => ({ l: ['Caixas', ME.map.b.length, 0xf2a03a], r: ['Espelho', ME.mirror ? 'on' : 'off', 0x7fb7e6], mid: 'Editor 3D', sub: ME.map.n }),
+    onDeath() {}, restart() { startMapEdit3D(); },
+    onWheel(d) { ED.custom = null; ED.piece = (ED.piece + d + ED_PIECES.length) % ED_PIECES.length; },
+    update() { edUpdate(); },
+  };
+  document.body.classList.add('noweap');
+  enterPlaying();
+  banner('Editor 3D', 'Voe com WASD, espaço e agachar. Clique põe, botão direito tira.', 3);
+}
+function edLeave() { if (ED.ghost) scene.remove(ED.ghost, ED.frame); if (ED.hud) ED.hud.hidden = true; }
+const _edRay = new THREE.Raycaster();
+function edUpdate() {
+  const m = ME.map, H = ED.hud; H.hidden = state !== 'playing' || paused;
+  const [sx, sy, sz] = edSize();
+  _edRay.set(camera.position, new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion)); _edRay.far = 45;
+  const hit = _edRay.intersectObjects(worldMeshes, false)[0];
+  ED.hov = hit && hit.object.userData.edi != null ? hit.object.userData.edi : -1; ED.place = null;
+  if (hit && hit.face) {
+    const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld), p = hit.point, sn = v => Math.round(v * 2) / 2;
+    const hb = ED.hov >= 0 ? m.b[ED.hov] : null;
+    let x, z, y0;
+    if (n.y > 0.5) { x = sn(p.x); z = sn(p.z); y0 = Math.round(p.y * 10) / 10; }
+    else if (n.y < -0.5) { x = sn(p.x); z = sn(p.z); y0 = Math.max(0, Math.round((p.y - sy) * 10) / 10); }
+    else { x = sn(p.x + n.x * sx / 2); z = sn(p.z + n.z * sz / 2); y0 = hb ? hb[6] || 0 : Math.max(0, sn(p.y - sy / 2)); }
+    x = clamp(x, -m.w + sx / 2, m.w - sx / 2); z = clamp(z, -m.d + sz / 2, m.d - sz / 2); y0 = clamp(y0, 0, 10);
+    ED.place = [x, z, sx, sy, sz, ED.col, y0];
+  }
+  ED.ghost.visible = !!ED.place && ED.hov < 0 || !!ED.place;
+  if (ED.place) { const P = ED.place; ED.ghost.position.set(P[0], P[6] + P[3] / 2, P[1]); ED.ghost.scale.set(P[2], P[3], P[4]); ED.ghost.material.color.setHex(MAP_COLORS[ED.col]); }
+  ED.frame.visible = ED.hov >= 0;
+  if (ED.hov >= 0) { const b = m.b[ED.hov]; ED.frame.position.set(b[0], (b[6] || 0) + b[3] / 2, b[1]); ED.frame.scale.set(b[2] + 0.04, b[3] + 0.04, b[4] + 0.04); }
+  if (canInput()) {
+    const mirrorOf = i => { const b = m.b[i]; return m.b.findIndex((o, j) => j !== i && Math.abs(o[0] + b[0]) < 0.01 && Math.abs(o[1] + b[1]) < 0.01 && Math.abs(o[2] - b[2]) < 0.01 && Math.abs(o[4] - b[4]) < 0.01 && Math.abs((o[6] || 0) - (b[6] || 0)) < 0.01); };
+    if (isDown('fire') && ED.place) {
+      if (m.b.length >= 298) banner('Limite de caixas', 'O mapa aceita até 300', 1.5);
+      else { mePush(); const P = ED.place.slice(); m.b.push(P); if (ME.mirror && (Math.abs(P[0]) > 0.01 || Math.abs(P[1]) > 0.01)) m.b.push([-P[0], -P[1], ...P.slice(2)]); edRebuild(); play('build', 0.5); }
+    }
+    if (isDown('scope') && ED.hov >= 0) { mePush(); const mi = ME.mirror ? mirrorOf(ED.hov) : -1; m.b = m.b.filter((_, j) => j !== ED.hov && j !== mi); edRebuild(); play('empty', 0.7); }
+    if (isDown('use') && ED.hov >= 0) { const b = m.b[ED.hov]; ED.custom = [b[2], b[3], b[4]]; ED.col = b[5]; banner('Copiado', `${b[2]} × ${b[3]} × ${b[4]} m`, 1); }
+    if (isDown('reload')) ED.col = (ED.col + 1) % MAP_COLORS.length;
+    for (let i = 0; i < 9; i++) if (pressed.has('Digit' + (i + 1)) && ED_PIECES[i]) { ED.piece = i; ED.custom = null; }
+    if (pressed.has('KeyZ') && ME.undo.length) { ME.map = JSON.parse(ME.undo.pop()); edRebuild(); }
+    if (pressed.has('KeyX')) ME.mirror = !ME.mirror;
+    if (pressed.has('KeyO') || pressed.has('KeyP')) {
+      // ponto de nascimento onde você está (O = laranja, P = azul)
+      mePush(); const k = pressed.has('KeyO') ? 'a' : 'B', L = m[k], sp = [Math.round(clamp(player.pos.x, -m.w + 0.6, m.w - 0.6) * 2) / 2, Math.round(clamp(player.pos.z, -m.d + 0.6, m.d - 0.6) * 2) / 2];
+      const j = L.findIndex(q => Math.hypot(q[0] - sp[0], q[1] - sp[1]) < 1.2); if (j >= 0) L.splice(j, 1); else { if (L.length >= 5) L.shift(); L.push(sp); }
+      if (ME.mirror) m[k === 'a' ? 'B' : 'a'] = L.map(q => [-q[0], -q[1]]); edRebuild();
+    }
+  }
+  const [a, b2, c] = edSize(), nm = ED.custom ? 'Copiada' : ED_PIECES[ED.piece][0];
+  const html = `<b>${esc(nm)}</b> ${a} × ${b2} × ${c} m <span class="edcol" style="background:${hexCss(MAP_COLORS[ED.col])}"></span> · espelho ${ME.mirror ? 'ligado' : 'desligado'} · ${m.b.length} caixas` +
+    `<br><small>Clique põe · botão direito tira · rodinha ou 1-9 troca a peça · ${keyLabel(S.keys.reload)} cor · ${keyLabel(S.keys.use)} copia a caixa da mira · Z desfaz · X espelho · O/P nascimento laranja/azul · Esc salva e testa</small>`;
+  if (H._h !== html) { H._h = html; H.innerHTML = html; }
+}
 const HIST_KEY = 'cs3.web.hist';
 function loadHist() { const h = loadJSON(HIST_KEY); return { matches: h.matches || [], vs: h.vs || {} }; }
 function saveHist(h) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) {} }
@@ -6388,6 +6484,8 @@ function enterPlaying() {
   $('#pRestart').hidden = !!(mode && mode.net && !mode.host);
   $('#pChess').hidden = !(mode && mode.type === 'chessw'); if (!(mode && mode.type === 'chessw')) setHint('');
   $('#pAdmin').hidden = !(mode && mode.type === 'x1' && isAdmin());
+  for (const id of ['#pEdSave', '#pEdPlay', '#pEdPlan']) $(id).hidden = !(mode && mode.type === 'edit');
+  $('#pRestart').hidden = $('#pRestart').hidden || !!(mode && mode.type === 'edit');
   $('#pRestart').textContent = mode && mode.net ? 'Reiniciar partida (para todos)' : 'Reiniciar';
   $('#pMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
   $('#eMenu').textContent = mode && mode.net ? 'Voltar para a sala' : 'Menu principal';
@@ -6408,6 +6506,7 @@ function goMenu() {
   if (wasNet && state === 'playing') { if (Net.role === 'host') { Net.inMatch = false; Net.send({ t: 'lobby' }); } else Net.send({ t: 'leftmatch' }); }
   closeChat(); chatLog.innerHTML = '';
   Ab.reset(null); setHint(''); document.body.classList.remove('noweap'); $('#chCur').hidden = true; Plaza.closeTable(); $('#pChess').hidden = true; $('#chess').hidden = true;
+  if (mode && mode.type === 'edit') edLeave();
   state = 'menu'; paused = false; devOpen = false; mode = null; skinView = null;
   buildArena(); clearCombatants();
   $('#menu').hidden = false; $('#pause').hidden = true; $('#end').hidden = true; $('#settings').hidden = true; $('#dev').hidden = true; $('#hud').hidden = true;
@@ -6418,6 +6517,7 @@ function goMenu() {
 }
 // no pause do online: mostra se o seu microfone está saindo e deixa ligar de novo
 function pauseMic() {
+  if (ED.hud && mode && mode.type === 'edit') ED.hud.hidden = true;
   const el = $('#pMic'), on = mode && mode.net && S.audio.voice; el.hidden = !on; if (!on) return;
   el.innerHTML = Voice.micState === 'on' ? `🎤 Seu microfone está saindo${Voice.micLabel ? ' (' + esc(Voice.micLabel) + ')' : ''}${S.audio.ptt ? `, segurando ${keyLabel(S.keys.talk)}` : ''}. Troque o aparelho em Configurações → Áudio.`
     : `🔇 Seu microfone não está saindo (o navegador não liberou). <button class="btn small" id="pMicOn">Ligar microfone</button>`;
@@ -7154,6 +7254,9 @@ $('#pMenu').onclick = () => goMenu();
 $('#eAgain').onclick = () => mode.restart();
 $('#eAdmin').onclick = () => openAdmin();
 $('#pAdmin').onclick = () => openAdmin();
+$('#pEdSave').onclick = () => { meSaveMap(); $('#pEdSave').textContent = 'Salvo ✓'; setTimeout(() => { $('#pEdSave').textContent = 'Salvar o mapa'; }, 1500); };
+$('#pEdPlay').onclick = () => { meSaveMap(); goMenu(); X1.map = 'c_' + ME.id; saveX1(); $('#bX1').onclick(); };
+$('#pEdPlan').onclick = () => { goMenu(); openMapEditor(); };
 $('#pSaveMap').onclick = () => { const e = saveFriendMap(); $('#pSaveMap').hidden = true; if (e) sysChat(e, true); else sysChat('Mapa salvo! Ele aparece no Editor de mapa e na lista de mapas do x1.'); };
 $('#admClose').onclick = () => closeAdmin();
 $('#admApply').onclick = () => applyAdminRules();
@@ -8753,7 +8856,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
