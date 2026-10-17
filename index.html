@@ -705,7 +705,7 @@ function saveSettings() { try { localStorage.setItem('cs3.web.settings', JSON.st
 
 function keyLabel(code) {
   if (!code) return '—';
-  const m = { Mouse0: 'Mouse 1', Mouse1: 'Mouse 3', Mouse2: 'Mouse 2', Space: 'Espaço', ShiftLeft: 'Shift esq.', ShiftRight: 'Shift dir.', ControlLeft: 'Ctrl esq.',
+  const m = { Mouse0: 'Mouse 1', Mouse1: 'Mouse 3', Mouse2: 'Mouse 2', Mouse3: 'Mouse 4', Mouse4: 'Mouse 5', WheelUp: 'Rodinha ↑', WheelDown: 'Rodinha ↓', Space: 'Espaço', ShiftLeft: 'Shift esq.', ShiftRight: 'Shift dir.', ControlLeft: 'Ctrl esq.',
     ControlRight: 'Ctrl dir.', AltLeft: 'Alt', Tab: 'Tab', Enter: 'Enter', CapsLock: 'Caps', Backquote: '`' };
   if (m[code]) return m[code];
   if (code.startsWith('Key')) return code.slice(3);
@@ -791,7 +791,18 @@ addEventListener('mousemove', e => {
   if (!acceptMove(e.movementX, e.movementY)) return;
   look.x += e.movementX; look.y += e.movementY;
 });
-addEventListener('wheel', e => { if (locked()) wheel += Math.sign(e.deltaY); }, { passive: true });
+// a rodinha também vale como tecla (WheelUp / WheelDown): dá para pular, trocar de arma etc. rolando
+const wheelBound = code => Object.values(S.keys).includes(code);
+addEventListener('wheel', e => {
+  if (!e.deltaY) return;
+  const code = e.deltaY < 0 ? 'WheelUp' : 'WheelDown';
+  if (capturing) { e.preventDefault(); assignKey(capturing, code); capturing = null; renderSettings(); return; }
+  if (!locked()) return;
+  // rolagem ligada a uma ação: aperta a ação (e segura um instante, para quem usa como agachar) e não troca de arma
+  if (wheelBound(code)) { pressed.add(code); held.add(code); clearTimeout(wheelUp[code]); wheelUp[code] = setTimeout(() => held.delete(code), 120); return; }
+  wheel += Math.sign(e.deltaY);
+}, { passive: false });
+const wheelUp = {};
 // Ctrl + rodinha é o zoom do navegador (bagunça a HUD); na partida o Ctrl é agachar, então o zoom fica desligado
 addEventListener('wheel', e => { if (e.ctrlKey && state === 'playing') e.preventDefault(); }, { passive: false, capture: true });
 
@@ -7596,8 +7607,8 @@ function renderSettings() {
   } else if (setTab === 2) {
     h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador; F11 na partida faz o mesmo)') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') +
       `<p class="note">Recoil estilo CS: o primeiro tiro vai exatamente na mira. Segurando o tiro, cada arma sobe sempre no mesmo desenho (a metralhadora sobe reto e depois puxa para a esquerda e para a direita); puxe o mouse para baixo e para o lado contrário para compensar. Correndo, pulando ou logo depois de cair a mira abre muito: pare ou ande com Shift para acertar.</p>` +
-      `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla (ou botão do mouse). Esc cancela.</p>` +
-      ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
+      `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla, um botão do mouse ou role a rodinha (para cima ou para baixo: ótimo para pular no bunny hop). Esc cancela.</p>` +
+      ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla, botão ou role a rodinha…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
   } else if (setTab === 5) {
     h = `<div class="row"><span></span><button class="btn primary small" id="sEdTouch">Editar layout dos controles</button><span></span></div>` +
       Sel('touch', 'mode', 'Controles de toque', ['Automático (liga no celular)', 'Sempre ligados', 'Desligados']) +
