@@ -2481,7 +2481,7 @@ function animateModel(c, dt) {
 }
 
 function damage(victim, amount, attacker, weapon, zone, dir) {
-  if (!victim.alive) return false;
+  if (!victim.alive || victim.spec) return false;
   if (attacker && attacker !== victim && mode && mode.teams && attacker.team === victim.team) return false;
   if (victim.remote) {
     if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }, victim.netId);
@@ -2523,7 +2523,7 @@ function respawn(c, sp) {
 const raycaster = new THREE.Raycaster();
 function trace(origin, dir, range, shooter) {
   const list = worldMeshes.slice();
-  for (const c of combatants) if (c !== shooter && c.alive) for (const hb of c.hitboxes) list.push(hb);
+  for (const c of combatants) if (c !== shooter && c.alive && !c.spec) for (const hb of c.hitboxes) list.push(hb);
   raycaster.set(origin, dir); raycaster.far = range;
   const hits = raycaster.intersectObjects(list, false);
   return hits.length ? hits[0] : null;
@@ -3733,7 +3733,7 @@ function teamSpawn(team, idx) {
 // espectador (online): invisível, voa, não leva dano e ninguém mira nele.
 // Botão de atirar segue o próximo jogador (3ª pessoa), botão de mirar volta a voar livre.
 function makeSpectator() {
-  player.spec = true; player.team = 2; player.group.visible = false;
+  player.spec = true; player.team = 2; player.group.visible = false; player.specVis = !!(Net.me() && Net.me().spec === 2);
   pv.god = true; pv.noclip = true; player.flyK = true;
   const K = WI('knife'); pw.slots = [{ w: WEAPONS[K], wi: K, mag: 1, reserve: 0 }]; pw.cur = 0; selectWeapon(0, true); buildSlots();
   document.body.classList.add('noweap');
@@ -3746,6 +3746,18 @@ function specUpdate() {
   if (isDown('scope') && Admin.watch) watchCombatant(null);
 }
 const SPEC_TIP = 'Clique: seguir um jogador · botão direito: voar livre (Espaço sobe, agachar desce)';
+const SPEC_COLOR = 0x9a8cff;
+function addSpecRemotes(net, sp) {
+  const K = WI('knife');
+  for (const p of net.roster) {
+    if (p.spec !== 2 || p.id === net.myId) continue;
+    const r = createCombatant(p.name, SPEC_COLOR, sp, false);
+    Object.assign(r, { remote: true, spec: true, netId: p.id, team: 2, maxHp: 100, hp: 100, spawnIdx: 0, wi: K });
+    r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+    setGunShape(r, WEAPONS[K]); applySkin(r, p.skin || null); applyCos(r, p.cos);
+    mode.remotes.set(p.id, r);
+  }
+}
 function startX1(cfgIn, net, ids) {
   initAudio();
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
@@ -3797,6 +3809,7 @@ function startX1(cfgIn, net, ids) {
       setGunShape(r, WEAPONS[rw]); applySkin(r, p.skin || null); applyCos(r, p.cos);
       mode.remotes.set(p.id, r);
     }
+    addSpecRemotes(net, teamSpawn(0, 0));
     mode.netBots = new Map();
     const d = DIFF[cfg.diff] || DIFF[1], cnt = [lineup.filter(p => p.team === 0).length, lineup.filter(p => p.team === 1).length];
     for (const nb of Array.isArray(cfg.netBots) ? cfg.netBots.slice(0, 12) : []) {
@@ -3838,6 +3851,8 @@ function startX1(cfgIn, net, ids) {
   applyDuel(mode);
   mode.started = !mode.classes;
   $('#pClass').hidden = !mode.classes;
+  // ninguém mira em quem está assistindo (nem os bots)
+  if (net) { const e0 = mode.enemies; mode.enemies = (a, b) => !a.spec && !b.spec && e0(a, b); }
   if (spec) {
     makeSpectator(); player.pos.y += 4;
     banner('Assistindo', cfg.chess ? `Duelo: ${CH_NAME[cfg.chess.a]} x ${CH_NAME[cfg.chess.d]}. ${SPEC_TIP}` : SPEC_TIP, 5);
@@ -3861,7 +3876,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
   const enemyBots = () => combatants.filter(c => c.team !== myTeam);
   const ffa = x1Ffa(cfg), gg = cfg.duel === 'gungame';
   // todos contra todos: quem está na frente (sem contar quem pergunta)
-  const ffaLead = (not) => { let b = null; for (const c of combatants) if (c !== not && !c.summon && (!b || c.kills > b.kills)) b = c; return b; };
+  const ffaLead = (not) => { let b = null; for (const c of combatants) if (c !== not && !c.summon && !c.spec && (!b || c.kills > b.kills)) b = c; return b; };
   const ffaTxt = c => gg ? `nível ${Math.min(c.kills, ggLadder(cfg).length - 1) + 1}` : `${c.kills}`;
   return {
     type: 'x1', cfg, net, host, rounds, teams: !ffa, ffa, ffaLead, ffaWinner: null, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remotes: null,
@@ -4554,7 +4569,7 @@ function endX1(team) {
   const sc = `${m.teamName(my)} ${m.score[my]} x ${m.score[1 - my]} ${m.teamName(1 - my)}`;
   $('#endWinner').innerHTML = (team == null ? '<b>Empate</b>' : team === my ? '<b style="color:var(--accent)">Você venceu!</b>' : `<b>${esc(m.teamName(team))} venceu</b>`) + `<br>${esc(sc)}`;
   if (m.ffa) {
-    const w = m.ffaWinner, rank = combatants.filter(c => !c.summon).sort((a, b) => b.kills - a.kills), pos = rank.indexOf(player) + 1;
+    const w = m.ffaWinner, rank = combatants.filter(c => !c.summon && !c.spec).sort((a, b) => b.kills - a.kills), pos = rank.indexOf(player) + 1;
     $('#endWinner').innerHTML = (!w ? '<b>Empate</b>' : w === player ? '<b style="color:var(--accent)">Você venceu!</b>' : `<b>${esc(w.name)} venceu</b>`) + `<br>${esc(`Você ficou em ${pos}º de ${rank.length} com ${player.kills} abate${player.kills === 1 ? '' : 's'}`)}`;
   }
   fillScore($('#endBody'));
@@ -4627,7 +4642,7 @@ function onNetMsg(m) {
     case 'full': Net.setStatus('A sala está cheia (máximo ' + NET_MAX + ' jogadores).'); break;
     case 'roster':
       if (!Array.isArray(m.ro)) break;
-      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, spec: p.spec ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
+      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, spec: p.spec === 2 ? 2 : p.spec ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
       renderNetLobby(); Voice.sync(); break;
     case 'resend': sendMySkin('skin'); break;
     case 'gone': {
@@ -4759,7 +4774,7 @@ const Net = {
   setStatus(t) { this.status = t; renderNetLobby(); },
   // ---- anfitrião
   teamSizes() { const n = [0, 0]; for (const p of this.roster) if (!p.spec) n[p.team]++; return n; },
-  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, spec: p.spec ? 1 : 0, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, spec: p.spec | 0, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
   hostConn(conn) {
     conn.on('data', m => this.hostData(conn, m));
     conn.on('close', () => this.dropGuest(conn));
@@ -4895,12 +4910,12 @@ const Net = {
   },
   setTeam(id, team) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.team = team ? 1 : 0; this.pushRoster(); },
   // quem assiste não entra nas partidas: fica voando invisível (no Xadrez FPS, só olha o tabuleiro)
-  setSpec(id, on) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.spec = on ? 1 : 0; this.pushRoster(); },
+  setSpec(id, on) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.spec = on === 2 ? 2 : on ? 1 : 0; this.pushRoster(); },
   update(dt) {
     updateRemote(dt);
     this.sendAcc += dt;
     specUpdate();
-    if (this.sendAcc >= 1 / 30 && player && !player.spec) { this.sendAcc = 0; this.send(netState()); }
+    if (this.sendAcc >= 1 / 30 && player && (!player.spec || player.specVis)) { this.sendAcc = 0; this.send(netState()); }
     if (this.role === 'host' && mode && mode.netBots && mode.netBots.size && (this.botAcc = (this.botAcc || 0) + dt) >= 1 / 20) {
       this.botAcc = 0;
       this.send({ t: 'bs', l: [...mode.netBots.values()].map(b => [b.netId, v3a(b.pos), v3a(b.vel), +b.yaw.toFixed(3), +(b.pitch || 0).toFixed(3), +(b.crouch || 0).toFixed(2), WEAPONS.indexOf(b.weapon.w), b.alive ? 1 : 0, Math.ceil(b.hp), b.bot && b.bot.reloadT > 0 ? 1 : 0]) });
@@ -6868,7 +6883,7 @@ function buildSlots() {
   H('slots')._cur = -1;
 }
 function fillScore(tbody) {
-  const list = combatants.filter(c => !c.zombie).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+  const list = combatants.filter(c => !c.zombie && !c.spec).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   tbody.innerHTML = list.map(c => `<tr class="${c.isPlayer ? 'me' : ''}"><td><span class="dot" style="background:${hex(c.color)}"></span>${esc(c.name)}${c.isPlayer ? ' (você)' : ''}${c.alive ? '' : ' <span style="color:var(--muted)">(morto)</span>'}</td><td>${c.kills}</td><td>${c.deaths}</td><td>${(c.deaths ? c.kills / c.deaths : c.kills).toFixed(2)}</td></tr>`).join('');
 }
 
@@ -7501,6 +7516,7 @@ function renderNetLobby() {
   ro.hidden = !(role && Net.roster.length);
   if (!ro.hidden) {
     const plBtn = p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Clique para trocar: laranja, azul, assistir' : ''}">${esc(p.name)}${p.lv ? ` <small>Nv ${p.lv | 0}</small>` : ''}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>` +
+      (p.spec && host && !Net.inMatch ? `<button class="btn small" data-svis="${esc(p.id)}" title="Os jogadores veem (ou não) quem está assistindo">${p.spec === 2 ? '👁 Visível para todos' : '👻 Invisível'}</button>` : p.spec && p.spec === 2 ? '<span class="note">visível</span>' : '') +
       (p.id !== Net.myId && cleanFc(p.fc) && !Prof.isFriend(p.fc) ? `<button class="btn small" data-addf="${esc(cleanFc(p.fc))}" data-fn="${esc(p.name)}">+ amigo</button>` : '');
     const col = t => `<div class="team"><b style="color:${hex(TEAM_COLORS[t])}">${t ? 'Time azul' : 'Time laranja'}</b>` + Net.roster.filter(p => p.team === t && !p.spec).map(plBtn).join('') + '</div>';
     const specs = Net.roster.filter(p => p.spec);
@@ -7510,6 +7526,7 @@ function renderNetLobby() {
       const p = Net.byId(b.dataset.pl); if (!p) return;
       if (p.spec) { p.team = 0; Net.setSpec(p.id, 0); } else if (p.team === 0) Net.setTeam(p.id, 1); else Net.setSpec(p.id, 1);
     });
+    ro.querySelectorAll('[data-svis]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.svis); if (p) Net.setSpec(p.id, p.spec === 2 ? 1 : 2); });
     ro.querySelectorAll('[data-addf]').forEach(b => b.onclick = () => { Friends.add(b.dataset.addf, b.dataset.fn); renderNetLobby(); });
   }
   const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test', rjG = host && netGame === 'rj';
@@ -8177,6 +8194,7 @@ function startChessWorld() {
       setGunShape(r, WEAPONS[K]); applySkin(r, p.skin || null); applyCos(r, p.cos);
       mode.remotes.set(p.id, r);
     }
+    addSpecRemotes(net, { pos: new THREE.Vector3(0, 3, 15), yaw: 0 });
   }
   enterPlaying();
   $('#pChess').hidden = false; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
