@@ -97,6 +97,7 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 #netRoster .team { display: flex; flex-direction: column; gap: 4px; background: rgb(255 255 255 / 0.04); padding: 8px; border-radius: 6px; min-height: 60px; }
 #netRoster .pl { font: inherit; text-align: left; padding: 5px 8px; border-radius: 4px; border: 1px solid rgb(255 255 255 / 0.12); background: rgb(0 0 0 / 0.25); color: inherit; cursor: pointer; }
 #netRoster .pl:disabled { cursor: default; opacity: 1; }
+#netRoster .team.spec { grid-column: 1 / -1; min-height: 0; }
 #netRoster .pl:not(:disabled):hover { border-color: var(--accent); }
 #chat { position: absolute; width: min(440px, 62vw); display: flex; flex-direction: column; gap: 3px; font-family: var(--body); font-size: 15px; pointer-events: none; }
 #chatLog { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
@@ -3533,7 +3534,7 @@ function pickSpawn(c) {
   if (mode && mode.ffa) pts = pts.concat(ffaPoints());
   if (!pts.length) pts = [mapInfo.playerSpawn];
   const scored = pts.map(sp => {
-    let m = 999; for (const o of combatants) if (o !== c && o.alive && (!mode || mode.enemies(c, o))) m = Math.min(m, o.pos.distanceTo(sp.pos));
+    let m = 999; for (const o of combatants) if (o !== c && o.alive && !o.spec && (!mode || mode.enemies(c, o))) m = Math.min(m, o.pos.distanceTo(sp.pos));
     return [m, sp];
   }).sort((a, b) => b[0] - a[0]);
   // sorteia entre os mais longe dos inimigos (não sempre o mesmo canto)
@@ -3693,7 +3694,7 @@ function randomGun(cfg) {
 // aplica as armas do duelo no jogador e nos bots (troca na hora, como no gun game depois de um abate)
 function applyDuel(m) {
   if (!m || !m.cfg || !m.cfg.duel || m.cfg.duel === 'normal') return;
-  const mine = duelLoadout(m, player.team, player);
+  const mine = !player.spec && duelLoadout(m, player.team, player);
   if (mine) {
     const want = mine.join(','), have = pw.slots.map(s => s.wi).join(',');
     if (want !== have) { pw.slots = []; resetPlayerWeapons(); }
@@ -3729,6 +3730,22 @@ function teamSpawn(team, idx) {
   }
   return base;
 }
+// espectador (online): invisível, voa, não leva dano e ninguém mira nele.
+// Botão de atirar segue o próximo jogador (3ª pessoa), botão de mirar volta a voar livre.
+function makeSpectator() {
+  player.spec = true; player.team = 2; player.group.visible = false;
+  pv.god = true; pv.noclip = true; player.flyK = true;
+  const K = WI('knife'); pw.slots = [{ w: WEAPONS[K], wi: K, mag: 1, reserve: 0 }]; pw.cur = 0; selectWeapon(0, true); buildSlots();
+  document.body.classList.add('noweap');
+  mode.spec = true; mode.noWeapons = true; mode.noFire = true;
+  const e0 = mode.enemies; mode.enemies = (a, b) => !a.spec && !b.spec && e0(a, b);
+}
+function specUpdate() {
+  if (!mode || !mode.spec || !player || !canInput()) return;
+  if (isDown('fire')) { const L = combatants.filter(c => c !== player && c.alive && !c.summon); if (L.length) watchCombatant(L[(L.indexOf(Admin.watch) + 1) % L.length], 1); }
+  if (isDown('scope') && Admin.watch) watchCombatant(null);
+}
+const SPEC_TIP = 'Clique: seguir um jogador · botão direito: voar livre (Espaço sobe, agachar desce)';
 function startX1(cfgIn, net, ids) {
   initAudio();
   const cfg = resolveMapCfg(duelFix(Object.assign(clone(X1_DEFAULT), cfgIn)));
@@ -3748,9 +3765,9 @@ function startX1(cfgIn, net, ids) {
   if (adminOpen) { adminOpen = false; $('#adminMenu').hidden = true; }
   applyPhysics(cfg);
   // online: quem joga esta partida (quem entrou depois espera a próxima)
-  const lineup = net ? net.roster.filter(p => !ids || ids.includes(p.id)) : null;
+  const lineup = net ? net.roster.filter(p => !p.spec && (!ids || ids.includes(p.id))) : null;
   const meP = net && (net.me() || { id: net.myId, team: 0 });
-  const myTeam = net ? meP.team : 0;
+  const spec = !!(net && meP.spec), myTeam = net && !spec ? meP.team : 0;
   const tIdx = id => lineup.filter(p => p.team === lineup.find(q => q.id === id).team).findIndex(p => p.id === id);
   const weapons = cfg.teamWeapons ? cfg.teamWeapons[myTeam] : cfgWeapons(cfg);
   mode = makeX1Mode(cfg, net, weapons, myTeam);
@@ -3765,7 +3782,7 @@ function startX1(cfgIn, net, ids) {
   } else if (cfg.fromPlaza) mode.restart = () => startPlaza();
   mode.classes = !!cfg.classes && (!cfg.duel || cfg.duel === 'normal');
   mode.pickup = !mode.classes && (!cfg.duel || cfg.duel === 'normal') && (cfg.ground === 'on' || (cfg.ground !== 'off' && !!mapInfo.items));
-  const ts = mapInfo.teamSpawns, myIdx = net ? Math.max(0, tIdx(meP.id)) : 0;
+  const ts = mapInfo.teamSpawns, myIdx = net && !spec ? Math.max(0, tIdx(meP.id)) : 0;
   setupPlayer(teamSpawn(myTeam, myIdx), TEAM_COLORS[myTeam], net ? net.myName : 'Você');
   player.team = myTeam; player.maxHp = player.hp = hpOf(myTeam); player.spawnIdx = myIdx;
   pw.infinite = !!cfg.infinite;
@@ -3821,7 +3838,11 @@ function startX1(cfgIn, net, ids) {
   applyDuel(mode);
   mode.started = !mode.classes;
   $('#pClass').hidden = !mode.classes;
-  if (cfg.chess) {
+  if (spec) {
+    makeSpectator(); player.pos.y += 4;
+    banner('Assistindo', cfg.chess ? `Duelo: ${CH_NAME[cfg.chess.a]} x ${CH_NAME[cfg.chess.d]}. ${SPEC_TIP}` : SPEC_TIP, 5);
+    if (cfg.chess) { $('#pMenu').textContent = 'Continuar assistindo'; $('#pRestart').hidden = true; $('#pAdmin').hidden = true; }
+  } else if (cfg.chess) {
     const c = cfg.chess, myCol = (myTeam === 0) !== !!c.flip ? 'w' : 'b', mine = myCol === c.ac ? c.a : c.d, theirs = myCol === c.ac ? c.d : c.a;
     mode.chessBanner = () => banner(`${myCol === c.ac ? 'Ataque' : 'Defesa'}: ${CH_NAME[mine]} x ${CH_NAME[theirs]}`, `Sua arma: ${WEAPONS[WI(CH_W[mine])].name} (${CH_HP[mine]} de vida)  ·  inimigo: ${WEAPONS[WI(CH_W[theirs])].name} (${CH_HP[theirs]})`, 4);
     mode.chessBanner();
@@ -3847,6 +3868,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     stats: { shots: 0, hits: 0, hsKills: 0 }, score: [0, 0], round: 0, live: false, nextRoundAt: -1, finishAt: -1, finishTeam: null, timeLeft: rounds ? cfg.roundTime : cfg.time * 60, sendAcc: 0,
     enemies: ffa ? (a, b) => a !== b : (a, b) => a.team !== b.team,
     teamName(t) {
+      if (this.spec) { const on = combatants.filter(c => c.team === t && !c.summon); return on.length === 1 ? on[0].name : t ? 'Time azul' : 'Time laranja'; }
       if (net) {
         const on = combatants.filter(c => c.team === t);
         if (t === myTeam) return on.length > 1 ? 'Seu time' : 'Você';
@@ -3884,7 +3906,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (rounds) {
         this.round++; this.timeLeft = cfg.roundTime;
         const keep = this.pickup && !first && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
-        if (!first || !net) for (const c of combatants) if (!c.remote) respawn(c, teamSpawn(c.team, c.spawnIdx));
+        if (!first || !net) for (const c of combatants) if (!c.remote && !c.spec) respawn(c, teamSpawn(c.team, c.spawnIdx));
         if (!first) clearBuilds();
         if (this.pickup && !first) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
         if (this.chessBanner) this.chessBanner();
@@ -3899,14 +3921,14 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       this.round = m.n; this.score = m.s; this.timeLeft = m.tl; this.live = true; if (m.g != null) this.roundGun = m.g;
       if (cfg.duel === 'roleta' && Rol.def(m.rr)) Rol.apply(this, m.rr, true);
       const keep = this.pickup && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
-      respawn(player, teamSpawn(myTeam, player.spawnIdx)); clearBuilds();
+      if (!player.spec) respawn(player, teamSpawn(myTeam, player.spawnIdx)); clearBuilds();
       if (this.pickup) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
       if (this.chessBanner) this.chessBanner(); else if (cfg.duel !== 'roleta') banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
     endRound(winner) {
       this.live = false;
       if (winner != null) this.score[winner]++;
-      const won = winner === myTeam;
+      const won = !this.spec && winner === myTeam;
       banner(winner == null ? 'Round empatado' : won ? (this.teamName(myTeam) === 'Você' ? 'Você venceu o round' : 'Seu time venceu o round') : `${this.teamName(winner)} venceu o round`,
         `${this.score[myTeam]} x ${this.score[1 - myTeam]}`, 2.6);
       play(won ? 'kill' : 'round', 0.7);
@@ -4516,6 +4538,14 @@ function endX1(team) {
   mode.over = true;
   if (mode.horde) { Horde.end(); return; }
   if (mode.cfg && mode.cfg.chess) { if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
+  if (mode.spec) {
+    if (document.exitPointerLock && locked()) document.exitPointerLock();
+    const m = mode, w = m.ffa ? m.ffaWinner : null;
+    $('#endWinner').innerHTML = m.ffa ? (w ? `<b>${esc(w.name)} venceu</b>` : '<b>Empate</b>') : team == null ? '<b>Empate</b>' : `<b>${esc(m.teamName(team))} venceu</b>`;
+    fillScore($('#endBody')); $('#endStats').innerHTML = '<p class="note">Você assistiu esta partida.</p>';
+    const again = $('#eAgain'); again.disabled = !m.host; again.textContent = m.host ? 'Jogar novamente' : 'Aguardando o anfitrião…';
+    $('#end').hidden = false; return;
+  }
   if (mode.ffa) { const o = mode.ffaLead(player); mode.score[mode.myTeam] = player.kills; mode.score[1 - mode.myTeam] = o ? o.kills : 0; }
   const R = recordX1(team);
   Prof.onMatch(team != null && team === mode.myTeam, mode.cfg, !!mode.net);
@@ -4597,7 +4627,7 @@ function onNetMsg(m) {
     case 'full': Net.setStatus('A sala está cheia (máximo ' + NET_MAX + ' jogadores).'); break;
     case 'roster':
       if (!Array.isArray(m.ro)) break;
-      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
+      Net.roster = m.ro.slice(0, NET_MAX).map(p => ({ id: String(p.id).slice(0, 8), name: String(p.name || 'Jogador').slice(0, 16), team: p.team ? 1 : 0, spec: p.spec ? 1 : 0, skin: cleanSkin(p.skin), cos: cleanCos(p.cos) }));
       renderNetLobby(); Voice.sync(); break;
     case 'resend': sendMySkin('skin'); break;
     case 'gone': {
@@ -4728,8 +4758,8 @@ const Net = {
   },
   setStatus(t) { this.status = t; renderNetLobby(); },
   // ---- anfitrião
-  teamSizes() { const n = [0, 0]; for (const p of this.roster) n[p.team]++; return n; },
-  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
+  teamSizes() { const n = [0, 0]; for (const p of this.roster) if (!p.spec) n[p.team]++; return n; },
+  pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, spec: p.spec ? 1 : 0, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
   hostConn(conn) {
     conn.on('data', m => this.hostData(conn, m));
     conn.on('close', () => this.dropGuest(conn));
@@ -4847,7 +4877,7 @@ const Net = {
     const n = this.teamSizes(), a = cfg.botsA | 0, b = cfg.botsB | 0;
     if (cfg.sandbox || cfg.map === 'teste') return this.role === 'host';
     // todos contra todos: os times não importam, basta ter mais alguém (gente ou bot)
-    if (x1Ffa(duelFix(clone(cfg)))) return this.role === 'host' && this.roster.length + a + b >= 2;
+    if (x1Ffa(duelFix(clone(cfg)))) return this.role === 'host' && n[0] + n[1] + a + b >= 2;
     return this.role === 'host' && (this.roster.length >= 2 || a + b > 0) && n[0] + a > 0 && n[1] + b > 0;
   },
   // o anfitrião manda uma mensagem como se fosse um dos bots dele
@@ -4864,10 +4894,13 @@ const Net = {
     startX1(cfg, this);
   },
   setTeam(id, team) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.team = team ? 1 : 0; this.pushRoster(); },
+  // quem assiste não entra nas partidas: fica voando invisível (no Xadrez FPS, só olha o tabuleiro)
+  setSpec(id, on) { const p = this.byId(id); if (!p || this.role !== 'host' || this.inMatch) return; p.spec = on ? 1 : 0; this.pushRoster(); },
   update(dt) {
     updateRemote(dt);
     this.sendAcc += dt;
-    if (this.sendAcc >= 1 / 30 && player) { this.sendAcc = 0; this.send(netState()); }
+    specUpdate();
+    if (this.sendAcc >= 1 / 30 && player && !player.spec) { this.sendAcc = 0; this.send(netState()); }
     if (this.role === 'host' && mode && mode.netBots && mode.netBots.size && (this.botAcc = (this.botAcc || 0) + dt) >= 1 / 20) {
       this.botAcc = 0;
       this.send({ t: 'bs', l: [...mode.netBots.values()].map(b => [b.netId, v3a(b.pos), v3a(b.vel), +b.yaw.toFixed(3), +(b.pitch || 0).toFixed(3), +(b.crouch || 0).toFixed(2), WEAPONS.indexOf(b.weapon.w), b.alive ? 1 : 0, Math.ceil(b.hp), b.bot && b.bot.reloadT > 0 ? 1 : 0]) });
@@ -6394,7 +6427,8 @@ function setCam(m) {
 }
 function watchCombatant(c, m) {
   Admin.watch = c; if (c) Admin.watchCam = m || 1;
-  sysChat(c ? `Assistindo ${c.name} (${CAM_NAMES[Admin.watchCam]}). Saia com /ver sozinho.` : 'Câmera de volta em você.');
+  const sp = mode && mode.spec;
+  sysChat(c ? `Assistindo ${c.name} (${CAM_NAMES[Admin.watchCam]}). ${sp ? 'Clique segue o próximo; botão direito volta a voar.' : 'Saia com /ver sozinho.'}` : sp ? 'Voando livre.' : 'Câmera de volta em você.');
 }
 // sozinho executa direto; online o convidado admin pede ao anfitrião
 function serverCmd(cmd, args) {
@@ -6759,6 +6793,7 @@ function enterPlaying() {
 function goMenu() {
   // Xadrez FPS: sair no meio do duelo é desistir dele (a outra peça vence)
   if (mode && mode.cfg && mode.cfg.chess && !mode.over && state === 'playing') {
+    if (mode.spec) { setPaused(false); banner('Assistindo', 'O duelo continua: o tabuleiro volta quando ele acabar', 2); return; }
     if (mode.net && !mode.host) { Net.send({ t: 'chff' }); setPaused(false); banner('Desistindo do duelo…', '', 1.5); return; }
     mode.finish(1 - mode.myTeam); return;
   }
@@ -7450,7 +7485,7 @@ function renderNetLobby() {
   if (host) {
     if (Net.status === 'waiting' || Net.open) {
       html = `Código da sala:<br><span class="code">${esc(Net.code)}</span><br>`;
-      html += Net.open ? 'Monte os times e inicie. Clique num nome para trocar de time.' : 'Passe o código para os seus amigos (até ' + NET_MAX + ' jogadores).';
+      html += Net.open ? 'Monte os times e inicie. Clique num nome para trocar de time ou deixar só assistindo.' : 'Passe o código para os seus amigos (até ' + NET_MAX + ' jogadores).';
     } else html = esc(Net.status);
     if (Net.status && Net.status !== 'waiting' && Net.open) html += '<br>' + esc(Net.status);
   } else if (role === 'guest') {
@@ -7465,11 +7500,16 @@ function renderNetLobby() {
   const ro = $('#netRoster');
   ro.hidden = !(role && Net.roster.length);
   if (!ro.hidden) {
-    const col = t => `<div class="team"><b style="color:${hex(TEAM_COLORS[t])}">${t ? 'Time azul' : 'Time laranja'}</b>` +
-      Net.roster.filter(p => p.team === t).map(p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Trocar de time' : ''}">${esc(p.name)}${p.lv ? ` <small>Nv ${p.lv | 0}</small>` : ''}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>` +
-        (p.id !== Net.myId && cleanFc(p.fc) && !Prof.isFriend(p.fc) ? `<button class="btn small" data-addf="${esc(cleanFc(p.fc))}" data-fn="${esc(p.name)}">+ amigo</button>` : '')).join('') + '</div>';
-    ro.innerHTML = col(0) + col(1);
-    ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const p = Net.byId(b.dataset.pl); if (p) Net.setTeam(p.id, 1 - p.team); });
+    const plBtn = p => `<button class="pl" data-pl="${esc(p.id)}" ${host && !Net.inMatch ? '' : 'disabled'} title="${host ? 'Clique para trocar: laranja, azul, assistir' : ''}">${esc(p.name)}${p.lv ? ` <small>Nv ${p.lv | 0}</small>` : ''}${p.id === Net.myId ? ' (você)' : p.id === 'h' ? ' (anfitrião)' : ''}</button>` +
+      (p.id !== Net.myId && cleanFc(p.fc) && !Prof.isFriend(p.fc) ? `<button class="btn small" data-addf="${esc(cleanFc(p.fc))}" data-fn="${esc(p.name)}">+ amigo</button>` : '');
+    const col = t => `<div class="team"><b style="color:${hex(TEAM_COLORS[t])}">${t ? 'Time azul' : 'Time laranja'}</b>` + Net.roster.filter(p => p.team === t && !p.spec).map(plBtn).join('') + '</div>';
+    const specs = Net.roster.filter(p => p.spec);
+    const specCol = specs.length || host ? `<div class="team spec"><b>👁 Assistindo</b>${specs.map(plBtn).join('') || '<span class="note">Ninguém. Clique num nome até ele vir para cá (você também pode).</span>'}</div>` : '';
+    ro.innerHTML = col(0) + col(1) + specCol;
+    ro.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => {
+      const p = Net.byId(b.dataset.pl); if (!p) return;
+      if (p.spec) { p.team = 0; Net.setSpec(p.id, 0); } else if (p.team === 0) Net.setTeam(p.id, 1); else Net.setSpec(p.id, 1);
+    });
     ro.querySelectorAll('[data-addf]').forEach(b => b.onclick = () => { Friends.add(b.dataset.addf, b.dataset.fn); renderNetLobby(); });
   }
   const ng = $('#netGame'), chessG = host && netGame === 'chess', plazaG = host && netGame === 'plaza', hordeG = host && netGame === 'horde', testG = host && netGame === 'test', rjG = host && netGame === 'rj';
@@ -8130,7 +8170,7 @@ function startChessWorld() {
   if (net) {
     mode.remotes = new Map();
     for (const p of net.roster) {
-      if (p.id === net.myId) continue;
+      if (p.id === net.myId || p.spec) continue;
       const r = createCombatant(p.name, TEAM_COLORS[p.team], mapInfo.teamSpawns[p.team][0], false);
       Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: 100, hp: 100, spawnIdx: 0, wi: K });
       r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
@@ -8142,7 +8182,8 @@ function startChessWorld() {
   $('#pChess').hidden = false; $('#pRestart').hidden = true; $('#pAdmin').hidden = true;
   $('#pMenu').textContent = net ? 'Voltar para a sala' : 'Menu principal';
   mode.sync();
-  banner('Xadrez FPS', Chess.st.turn === Chess.my ? 'Sua vez: segure o clique numa peça sua e arraste' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot', 3);
+  if (Chess.my === 's') { makeSpectator(); player.pos.y += 3; banner('Xadrez FPS · assistindo', `${SPEC_TIP}. V: ver de cima`, 4); }
+  else banner('Xadrez FPS', Chess.st.turn === Chess.my ? 'Sua vez: segure o clique numa peça sua e arraste' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot', 3);
   lockPointer();
   Chess.maybeBot();
 }
@@ -8159,6 +8200,7 @@ function makeChessWorldMode(net, myTeam) {
     teamName: t => (t === 0 ? 'Brancas' : 'Pretas'),
     topParts() {
       const st = Chess.st, cnt = col => st.b.filter(p => p && p[0] === col).length;
+      if (Chess.my === 's') return { l: ['Brancas', cnt('w'), 0xe8e2d4], r: ['Pretas', cnt('b'), 0x3a3f47], mid: Chess.result ? 'Fim' : Chess.pending ? 'Duelo' : st.turn === 'w' ? 'Brancas' : 'Pretas', hot: false, sub: `Lance ${st.n} · você está assistindo`, ping: net ? Net.ping : null };
       const mine = Chess.my, opp = mine === 'w' ? 'b' : 'w';
       const turn = Chess.result ? 'Fim' : Chess.pending ? 'Duelo' : st.turn === mine ? 'Sua vez' : Chess.online ? 'Amigo' : 'Bot';
       return { l: [mine === 'w' ? 'Brancas (você)' : 'Pretas (você)', cnt(mine), mine === 'w' ? 0xe8e2d4 : 0x3a3f47], r: [opp === 'w' ? 'Brancas' : 'Pretas', cnt(opp), opp === 'w' ? 0xe8e2d4 : 0x3a3f47], mid: turn, hot: st.turn === mine && !Chess.result, sub: `Lance ${st.n} · peças no tabuleiro`, ping: net ? Net.ping : null };
@@ -8245,7 +8287,7 @@ function makeChessWorldMode(net, myTeam) {
         if (this.topV) a.dist = 0;
         hover.visible = myTurn && own && a.dist < 22;
         if (hover.visible) { const p = chSqPos(a.sq); hover.position.set(p.x, 0.18, p.z); }
-        setHint(myTurn ? (own && a.dist < 22 ? `Segure o clique para pegar ${CH_FEM[Chess.st.b[a.sq][1]] ? 'a' : 'o'} ${CH_NAME[Chess.st.b[a.sq][1]]} (${WEAPONS[WI(CH_W[Chess.st.b[a.sq][1]])].name})` : (this.topV ? 'Visão de cima: leve o cursor até uma peça sua e segure o clique (V volta)' : 'Sua vez: mire numa peça sua e segure o clique (V: ver de cima)')) : Chess.result ? Chess.endText() : Chess.pending ? 'Duelo!' : Chess.thinking ? 'O bot está pensando…' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot');
+        setHint(myTurn ? (own && a.dist < 22 ? `Segure o clique para pegar ${CH_FEM[Chess.st.b[a.sq][1]] ? 'a' : 'o'} ${CH_NAME[Chess.st.b[a.sq][1]]} (${WEAPONS[WI(CH_W[Chess.st.b[a.sq][1]])].name})` : (this.topV ? 'Visão de cima: leve o cursor até uma peça sua e segure o clique (V volta)' : 'Sua vez: mire numa peça sua e segure o clique (V: ver de cima)')) : Chess.result ? Chess.endText() : Chess.pending ? 'Duelo!' : Chess.my === 's' ? `Assistindo: vez das ${Chess.st.turn === 'w' ? 'brancas' : 'pretas'}` : Chess.thinking ? 'O bot está pensando…' : Chess.online ? 'Vez do seu amigo' : 'Vez do bot');
         if (myTurn && own && a.dist < 22 && grabKey) {
           const moves = chLegal(Chess.st, a.sq);
           this.drag = { sq: a.sq, moves, g: this.pieces.get(a.sq), byKey: isDown('use') };
@@ -8662,6 +8704,7 @@ const Chess = {
   },
   endText() {
     const r = this.result; if (!r) return '';
+    if (this.my === 's') return r.winner == null ? `${r.why}: empate.` : `${r.why}: ${r.winner === 'w' ? 'as brancas' : 'as pretas'} venceram.`;
     return r.winner == null ? `${r.why}: empate.` : r.winner === this.my ? `${r.why}: você venceu a partida!` : `${r.why}: ${this.online ? 'seu amigo venceu' : 'o bot venceu'}.`;
   },
   maybeBot() {
@@ -8734,19 +8777,19 @@ const Chess = {
     const n = Net.teamSizes();
     if (n[0] !== 1 || n[1] !== 1) { Net.setStatus('Xadrez FPS online é 1 contra 1: deixe uma pessoa em cada time.'); renderNetLobby(); return; }
     if (!this.online || !this.st || this.result) { this.st = chNew(); this.result = null; this.pending = null; this.msg = 'Brancas (time laranja) começam.'; }
-    this.online = true; this.my = Net.me().team === 0 ? 'w' : 'b'; this.sel = -1; this.ret = null;
+    this.online = true; this.my = Net.me().spec ? 's' : Net.me().team === 0 ? 'w' : 'b'; this.sel = -1; this.ret = null;
     this.broadcast(true); this.enter(true);
   },
   broadcast(open) { if (this.online && Net.role === 'host') Net.send({ t: 'chess', st: this.st, msg: this.msg, open: open ? 1 : 0, pend: this.pending ? 1 : 0 }); },
   onMsg(m) {
     if (Net.role === 'host') {
       if (m.t === 'chmv' && this.online && this.st && !this.pending && !this.result) {
-        const p = Net.byId(m.f); if (!p) return;
+        const p = Net.byId(m.f); if (!p || p.spec) return;
         const col = p.team === 0 ? 'w' : 'b'; if (col !== this.st.turn) return;
         const mv = chLegal(this.st, m.a | 0).find(x => x.to === (m.b | 0)); if (!mv) { this.broadcast(); return; }
         this.play(mv);
       }
-      if (m.t === 'chff' && mode && mode.cfg && mode.cfg.chess && !mode.over) { const p = Net.byId(m.f); if (p) mode.finish(1 - p.team); }
+      if (m.t === 'chff' && mode && mode.cfg && mode.cfg.chess && !mode.over) { const p = Net.byId(m.f); if (p && !p.spec) mode.finish(1 - p.team); }
       if (m.t === 'chhold' && mode && mode.type === 'chessw') mode.remoteHold = { s: m.s | 0, x: +m.x || 0, z: +m.z || 0 };
       return;
     }
@@ -8756,7 +8799,7 @@ const Chess = {
     if (!m.st.b.every(okPc)) return;
     this.online = true; this.st = m.st; this.st.log = Array.isArray(this.st.log) ? this.st.log.slice(-40) : [];
     this.pending = m.pend ? {} : null; this.msg = String(m.msg || '').slice(0, 200);
-    const me = Net.me(); this.my = me && me.team === 0 ? 'w' : 'b'; this.sel = -1;
+    const me = Net.me(); this.my = me && me.spec ? 's' : me && me.team === 0 ? 'w' : 'b'; this.sel = -1;
     this.result = chResult(this.st);
     if (this.result) this.msg = this.endText();
     const inWorld = state === 'playing' && mode && mode.type === 'chessw';
@@ -8782,17 +8825,18 @@ const Chess = {
     }
     const bd = $('#chBoard'); bd.innerHTML = h;
     bd.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => this.click(+b.dataset.sq));
-    const turnTxt = this.result ? 'Fim de jogo' : this.pending ? 'Duelo!' : this.thinking ? 'O bot está pensando…' : st.turn === this.my ? 'Sua vez' : this.online ? 'Vez do seu amigo' : 'Vez do bot';
+    const turnTxt = this.result ? 'Fim de jogo' : this.pending ? 'Duelo!' : this.my === 's' ? `Vez das ${st.turn === 'w' ? 'brancas' : 'pretas'}` : this.thinking ? 'O bot está pensando…' : st.turn === this.my ? 'Sua vez' : this.online ? 'Vez do seu amigo' : 'Vez do bot';
     $('#chTurn').textContent = turnTxt + (this.result ? '' : `  ·  lance ${st.n}`);
     $('#chTurn').className = 'chturn' + (st.turn === this.my && !this.result && !this.pending ? ' me' : '');
-    $('#chMsg').textContent = this.msg || (this.online ? `Você joga de ${this.my === 'w' ? 'brancas (time laranja)' : 'pretas (time azul)'}.` : '');
+    $('#chMsg').textContent = this.msg || (this.my === 's' ? 'Você está assistindo.' : this.online ? `Você joga de ${this.my === 'w' ? 'brancas (time laranja)' : 'pretas (time azul)'}.` : '');
     $('#chDuel').hidden = true;
     // peças comidas
     const count = col => { const n = {}; for (const p of st.b) if (p && p[0] === col) n[p[1]] = (n[p[1]] || 0) + 1; return n; };
     const full = { P: 8, N: 2, B: 2, R: 2, Q: 1, K: 1 };
     const lost = col => { const n = count(col); return 'QRBNP'.split('').map(k => CH_GLYPH[k].repeat(Math.max(0, full[k] - (n[k] || 0)))).join(''); };
     const opp = this.my === 'w' ? 'b' : 'w';
-    $('#chCaps').innerHTML = `<div><span class="note">Você comeu</span> <span class="pc ${opp}">${lost(opp) || '—'}</span></div><div><span class="note">Você perdeu</span> <span class="pc ${this.my}">${lost(this.my) || '—'}</span></div>`;
+    if (this.my === 's') $('#chCaps').innerHTML = `<div><span class="note">Brancas comeram</span> <span class="pc b">${lost('b') || '—'}</span></div><div><span class="note">Pretas comeram</span> <span class="pc w">${lost('w') || '—'}</span></div>`;
+    else $('#chCaps').innerHTML = `<div><span class="note">Você comeu</span> <span class="pc ${opp}">${lost(opp) || '—'}</span></div><div><span class="note">Você perdeu</span> <span class="pc ${this.my}">${lost(this.my) || '—'}</span></div>`;
     $('#chLog').innerHTML = st.log.slice(-6).reverse().map(e => `<div>${esc(chPieceName(e.a))} × ${esc(chPieceName(e.d))} em ${chSqName(e.sq)}: <b>${e.w === 'a' ? 'atacante venceu' : 'defensor venceu'}</b></div>`).join('') || '<div class="note">Nenhum duelo ainda.</div>';
     const host = !this.online || Net.role === 'host';
     $('#chNewW').hidden = this.online; $('#chNewB').hidden = this.online; $('#chLevel').parentNode.hidden = this.online;
