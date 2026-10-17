@@ -3518,11 +3518,24 @@ function setupPlayer(sp, color = 0x4073e6, name = 'Jogador') {
   pv.god = false; pv.noclip = false; pw.infinite = false;
 }
 function pickSpawn(c) {
-  const scored = mapInfo.spawns.map(sp => {
+  let pts = mapInfo.spawns;
+  if (mode && mode.ffa) pts = pts.concat(ffaPoints());
+  if (!pts.length) pts = [mapInfo.playerSpawn];
+  const scored = pts.map(sp => {
     let m = 999; for (const o of combatants) if (o !== c && o.alive && (!mode || mode.enemies(c, o))) m = Math.min(m, o.pos.distanceTo(sp.pos));
     return [m, sp];
   }).sort((a, b) => b[0] - a[0]);
-  return scored[Math.floor(Math.random() * Math.min(3, scored.length))][1];
+  // sorteia entre os mais longe dos inimigos (não sempre o mesmo canto)
+  const k = Math.min(scored.length, Math.max(3, Math.ceil(scored.length * 0.4)));
+  return scored[Math.floor(Math.random() * k)][1];
+}
+// todo o chão andável do mapa vira ponto de nascimento (olhando para o meio)
+let FFA_PTS = null;
+function ffaPoints() {
+  if (FFA_PTS && FFA_PTS.world === world) return FFA_PTS.list;
+  const list = (mapInfo.waypoints || []).filter(p => !collides(p, 1.8, 0.5)).map(p => ({ pos: p.clone(), yaw: facing(p.x, p.z) }));
+  FFA_PTS = { world, list };
+  return list;
 }
 
 function startDeathmatch(cfg) {
@@ -3536,7 +3549,7 @@ function startDeathmatch(cfg) {
     createBot(bc, sps[(i + 1) % sps.length], new THREE.Color().setHSL((i / cfg.bots + 0.05) % 1, 0.55, 0.55).getHex());
   }
   mode = {
-    type: 'dm', cfg, over: false, timeLeft: cfg.time * 60,
+    type: 'dm', cfg, over: false, ffa: true, timeLeft: cfg.time * 60,
     enemies: (a, b) => a !== b,
     top() {
       const t = Math.ceil(Math.max(0, this.timeLeft)); const lead = leader();
@@ -3567,7 +3580,10 @@ const WEAPON_PRESETS = [
   ['Sniper + faca', ['sniper', 'knife']], ['Shotgun + faca', ['shotgun', 'knife']], ['Metralhadoras + faca', ['smg', 'rifle', 'knife']], ['Personalizado (marque abaixo)', 'custom'],
 ];
 const X1_DEFAULT = { map: 'duelo', format: 'rounds', target: 5, roundTime: 90, time: 10, allies: 0, enemies: 1, diff: 1, botWeapon: -1, botMove: true, botShoot: true,
-  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false, ggList: [], tod: 'dia', weather: 'limpo' };
+  preset: 0, weapons: CLASSIC_IDS(), ground: 'auto', hp: 100, hsOnly: false, infinite: false, bhop: 1, gravity: 1, speed: 1, duel: 'normal', classes: false, botsA: 0, botsB: 0, sandbox: false, ggList: [], tod: 'dia', weather: 'limpo', ffa: 1 };
+// mata-mata e gun game: todos contra todos (cada um por si), nascendo espalhado pelo mapa
+function x1Ffa(cfg) { return !!+cfg.ffa && cfg.format === 'dm' && !cfg.plaza && !cfg.horde && !cfg.chess && !cfg.sandbox && !cfg.teamWeapons; }
+const ffaColor = i => new THREE.Color().setHSL((i * 0.137 + 0.05) % 1, 0.6, 0.55).getHex();
 // modos curtos de duelo: mudam só as armas (e no gun game, como se vence)
 const DUELS = [['normal', 'Normal (armas escolhidas abaixo)'], ['knife', 'Só faca'], ['awp', 'Só AWP (sniper + faca)'], ['random', 'Arma aleatória por round'], ['gungame', 'Gun game'], ['roleta', 'Roleta do caos (regra sorteada)']];
 // gun game: passa por todas as armas (ou só as escolhidas, na ordem abaixo) e termina na faca
@@ -3583,12 +3599,12 @@ function duelFix(cfg) {
   return cfg;
 }
 // armas que um time tem agora no modo de duelo (null = usa as armas normais da partida)
-function duelLoadout(m, team) {
+function duelLoadout(m, team, c) {
   const d = m.cfg.duel, K = WI('knife');
   if (d === 'knife') return [K];
   if (d === 'awp') return [WI('sniper'), K];
   if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
-  if (d === 'gungame') { const L = ggLadder(m.cfg), id = L[Math.min(m.score[team], L.length - 1)]; return id === K ? [K] : [id, K]; }
+  if (d === 'gungame') { const L = ggLadder(m.cfg), lv = m.ffa ? (c || player).kills : m.score[team], id = L[Math.min(lv, L.length - 1)]; return id === K ? [K] : [id, K]; }
   if (d === 'chess') return m.cfg.teamWeapons ? m.cfg.teamWeapons[team] : null;
   if (d === 'roleta') return m.rule === 'faca' ? [K] : m.rule === 'troca' && m.myGun != null ? [m.myGun, K] : m.weapons;
   return null;
@@ -3666,13 +3682,13 @@ function randomGun(cfg) {
 // aplica as armas do duelo no jogador e nos bots (troca na hora, como no gun game depois de um abate)
 function applyDuel(m) {
   if (!m || !m.cfg || !m.cfg.duel || m.cfg.duel === 'normal') return;
-  const mine = duelLoadout(m, player.team);
+  const mine = duelLoadout(m, player.team, player);
   if (mine) {
     const want = mine.join(','), have = pw.slots.map(s => s.wi).join(',');
     if (want !== have) { pw.slots = []; resetPlayerWeapons(); }
   }
   if (m.cfg.duel !== 'roleta') for (const c of combatants) if (c.bot) {
-    const L = duelLoadout(m, c.team); if (!L) continue;
+    const L = duelLoadout(m, c.team, c); if (!L) continue;
     const id = L[0]; if (c.cfg.weapon !== id) { c.cfg.weapon = id; applyBot(c, c.cfg); }
   }
 }
@@ -3746,7 +3762,7 @@ function startX1(cfgIn, net, ids) {
     mode.remotes = new Map();
     for (const p of lineup) {
       if (p.id === net.myId) continue;
-      const i = tIdx(p.id), r = createCombatant(p.name, shade(TEAM_COLORS[p.team], i), teamSpawn(p.team, i), false);
+      const i = tIdx(p.id), r = createCombatant(p.name, mode.ffa ? ffaColor(lineup.indexOf(p)) : shade(TEAM_COLORS[p.team], i), teamSpawn(p.team, i), false);
       const rw = cfg.teamWeapons ? cfg.teamWeapons[p.team][0] : weapons[0];
       Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: hpOf(p.team), hp: hpOf(p.team), spawnIdx: i, wi: rw });
       r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
@@ -3774,18 +3790,20 @@ function startX1(cfgIn, net, ids) {
     let n = 0;
     const mk = (team, idx) => {
       const wsel = cfg.botWeapon >= 0 && WEAPONS[cfg.botWeapon] ? cfg.botWeapon : guns.length ? guns[Math.floor(Math.random() * guns.length)] : WI('knife');
-      const bc = Object.assign(botDefaults(), { name: (team === myTeam ? 'Aliado ' : 'Bot ') + NAMES[n++ % NAMES.length], weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov,
+      const bc = Object.assign(botDefaults(), { name: (team === myTeam && !mode.ffa ? 'Aliado ' : 'Bot ') + NAMES[n++ % NAMES.length], weapon: wsel, acc: d.acc, react: d.react, speed: d.speed, view: d.view, fov: d.fov,
         hp: hpOf(team), move: cfg.botMove, shoot: cfg.botShoot });
       if (cfg.chess) { const col = (team === 0) !== !!cfg.chess.flip ? 'w' : 'b'; bc.name = chPieceName(col + (col === cfg.chess.ac ? cfg.chess.a : cfg.chess.d)); if (cfg.teamWeapons) bc.weapon = cfg.teamWeapons[team][0]; }
       // com classes, cada bot sorteia uma (menos Construtor e Ninja, que bot não sabe usar direito)
       if (mode.classes) { const k = (L => L[Math.floor(Math.random() * L.length)])(CLASSES.filter(x => x.w.length && x.id !== 'construtor')); bc.weapon = WI(k.w[0]); bc.hp = Math.round(cfg.hp * k.hp / 100); bc.speed *= k.spd; bc.name += ' · ' + k.name; }
-      const list = ts[team], b = createBot(bc, list[idx % list.length], shade(TEAM_COLORS[team], idx));
+      const list = ts[team], b = createBot(bc, list[idx % list.length], mode.ffa ? ffaColor(n) : shade(TEAM_COLORS[team], idx));
       b.team = team; b.spawnIdx = idx;
     };
-    for (let i = 0; i < cfg.allies; i++) mk(myTeam, i + 1);
+    if (!mode.ffa) for (let i = 0; i < cfg.allies; i++) mk(myTeam, i + 1);
     for (let i = 0; i < cfg.enemies; i++) mk(1 - myTeam, i);
   }
   if (mode.classes) { applyClassStats(player, myClass); player.hp = player.maxHp; pw.slots = []; resetPlayerWeapons(); }
+  // todos contra todos: cada um começa num canto diferente do mapa (online, cada um cuida de si e dos seus bots)
+  if (mode.ffa) for (const c of combatants) if (!c.remote) { const sp = pickSpawn(c); c.pos.copy(sp.pos); c.yaw = sp.yaw; }
   enterPlaying();
   resetItems();
   mode.startRound(true);
@@ -3809,10 +3827,14 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
   const rounds = cfg.format === 'rounds', endless = cfg.format === 'endless' && cfg.duel !== 'gungame';
   const host = !net || net.role === 'host';
   const enemyBots = () => combatants.filter(c => c.team !== myTeam);
+  const ffa = x1Ffa(cfg), gg = cfg.duel === 'gungame';
+  // todos contra todos: quem está na frente (sem contar quem pergunta)
+  const ffaLead = (not) => { let b = null; for (const c of combatants) if (c !== not && !c.summon && (!b || c.kills > b.kills)) b = c; return b; };
+  const ffaTxt = c => gg ? `nível ${Math.min(c.kills, ggLadder(cfg).length - 1) + 1}` : `${c.kills}`;
   return {
-    type: 'x1', cfg, net, host, rounds, teams: true, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remotes: null,
+    type: 'x1', cfg, net, host, rounds, teams: !ffa, ffa, ffaLead, ffaWinner: null, weapons, hsOnly: !!cfg.hsOnly, over: false, myTeam, remotes: null,
     stats: { shots: 0, hits: 0, hsKills: 0 }, score: [0, 0], round: 0, live: false, nextRoundAt: -1, finishAt: -1, finishTeam: null, timeLeft: rounds ? cfg.roundTime : cfg.time * 60, sendAcc: 0,
-    enemies: (a, b) => a.team !== b.team,
+    enemies: ffa ? (a, b) => a !== b : (a, b) => a.team !== b.team,
     teamName(t) {
       if (net) {
         const on = combatants.filter(c => c.team === t);
@@ -3823,13 +3845,23 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       const e = enemyBots(); return e.length === 1 ? e[0].name : 'Inimigos';
     },
     topParts() {
+      if (ffa) {
+        const L = ggLadder(cfg), o = ffaLead(player), lv = Math.min(player.kills, L.length - 1);
+        return { l: ['Você', gg ? lv + 1 : player.kills, TEAM_COLORS[0]], r: [o ? o.name : '—', o ? (gg ? Math.min(o.kills, L.length - 1) + 1 : o.kills) : 0, o ? o.color || TEAM_COLORS[1] : TEAM_COLORS[1]], mid: fmtTime(this.timeLeft), hot: this.timeLeft <= 10,
+          sub: gg ? `Todos contra todos · sua arma: ${WEAPONS[L[lv]].name} (${lv + 1}/${L.length})` : `Todos contra todos · até ${cfg.target} abates`, ping: net ? Net.ping : null };
+      }
       const a = myTeam, b = 1 - myTeam;
       const sub = cfg.duel === 'roleta' && this.rule ? `🎲 ${Rol.def(this.rule).name} · ${rounds ? `Round ${this.round} · até ${cfg.target}` : `nova regra em ${Math.max(0, Math.ceil(this.rlNext - now))} s`}` : cfg.duel === 'gungame' ? `Gun game · nível ${Math.min(this.score[a], ggLadder(cfg).length - 1) + 1}/${ggLadder(cfg).length}` : rounds ? `Round ${this.round} · até ${cfg.target}` : endless ? (mapInfo.rjGoal ? RJ.timer() || 'Rocket jump · chegue ao topo' : 'Modo infinito') : `Até ${cfg.target} abates`;
       return { l: [this.teamName(a), this.score[a], TEAM_COLORS[a]], r: [this.teamName(b), this.score[b], TEAM_COLORS[b]], mid: endless ? '∞' : fmtTime(this.timeLeft), hot: !endless && this.timeLeft <= 10, sub, ping: net ? Net.ping : null };
     },
     top() {
-      const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       const ping = net ? `  ·  ping ${Net.ping} ms` : '';
+      if (ffa) {
+        const o = ffaLead(player), L = ggLadder(cfg), lv = Math.min(player.kills, L.length - 1);
+        const lead = o ? `  ·  ${o.name}: ${ffaTxt(o)}` : '';
+        return gg ? `Gun game  ·  você: nível ${lv + 1}/${L.length} (${WEAPONS[L[lv]].name})${lead}  ·  ${fmtTime(this.timeLeft)}${ping}` : `Todos contra todos  ·  você: ${player.kills}${lead}  ·  até ${cfg.target}  ·  ${fmtTime(this.timeLeft)}${ping}`;
+      }
+      const sc = `${this.teamName(myTeam)} ${this.score[myTeam]} x ${this.score[1 - myTeam]} ${this.teamName(1 - myTeam)}`;
       if (cfg.duel === 'gungame') { const L = ggLadder(cfg), lv = Math.min(this.score[myTeam], L.length - 1); return `Gun game  ·  ${sc}  ·  sua arma: ${WEAPONS[L[lv]].name} (${lv + 1}/${L.length})  ·  ${fmtTime(this.timeLeft)}${ping}`; }
       return rounds ? `Round ${this.round}  ·  ${sc}  ·  ${fmtTime(this.timeLeft)}${ping}` : endless ? `${sc}  ·  modo infinito${ping}` : `${sc}  ·  até ${cfg.target} abates  ·  ${fmtTime(this.timeLeft)}${ping}`;
     },
@@ -3848,7 +3880,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
         else if (cfg.duel === 'roleta') {}
         else banner(`Round ${this.round}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`);
         if (net && host) Net.send({ t: 'round', n: this.round, s: this.score, tl: this.timeLeft, g: this.roundGun, rr: this.rule });
-      } else if (cfg.duel === 'roleta') { if (net && host) Net.send({ t: 'roll', r: this.rule }); } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`);
+      } else if (cfg.duel === 'roleta') { if (net && host) Net.send({ t: 'roll', r: this.rule }); } else banner(cfg.duel === 'gungame' ? 'Gun game' : endless ? 'Modo infinito' : 'Mata-mata', (ffa ? 'Todos contra todos. ' : '') + (cfg.duel === 'gungame' ? `Cada abate troca sua arma. Termine com a faca!` : endless ? 'Sem tempo e sem limite de abates. Saia pelo menu quando quiser.' : `Primeiro a ${cfg.target} abates`));
       applyDuel(this);
       play('round', 0.7);
     },
@@ -3874,6 +3906,12 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     finish(team) {
       if (this.over) return;
+      if (ffa) {
+        const w = this.ffaWinner;
+        if (net && host) Net.send({ t: 'over', w: null, s: this.score, fw: w ? (w === player ? Net.myId : w.netId || '') : '' });
+        endX1(w === player ? myTeam : w ? 1 - myTeam : null);
+        return;
+      }
       if (net && host) Net.send({ t: 'over', w: team, s: this.score });
       endX1(team);
     },
@@ -3885,6 +3923,12 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       if (!rounds) {
         if (!v.remote) v.respawnAt = now + 2;
         if (cfg.duel === 'random' && v === player) this.roundGun = randomGun(cfg);
+        if (ffa) {
+          // cada um por si: ganha quem chegar no limite (no gun game, quem passar da faca)
+          const goal = gg ? ggLadder(cfg).length : cfg.target;
+          if (host && a && a !== v && a.kills >= goal && this.finishAt < 0) { this.finishAt = now + 1.2; this.ffaWinner = a; }
+          return;
+        }
         if (host && a && a.team !== v.team) {
           this.score[a.team]++;
           if (net) Net.send({ t: 'score', s: this.score });
@@ -3905,11 +3949,12 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       }
       if (mapInfo.rjGoal) RJ.tick();
       if (cfg.duel === 'gungame') {
-        const key = this.score.join(',');
+        const myLv = ffa ? player.kills : this.score[myTeam];
+        const key = ffa ? combatants.map(c => c.kills).join(',') : this.score.join(',');
         if (key !== this.ggKey) {
           const L = ggLadder(cfg);
-          if (this.ggKey && this.score[myTeam] > +this.ggKey.split(',')[myTeam] && this.score[myTeam] < L.length) { banner(`Nível ${this.score[myTeam] + 1}/${L.length}`, WEAPONS[L[this.score[myTeam]]].name, 1.4); play('round', 0.5); }
-          this.ggKey = key; applyDuel(this);
+          if (this.ggKey && myLv > (this.ggMy ?? 0) && myLv < L.length) { banner(`Nível ${myLv + 1}/${L.length}`, WEAPONS[L[myLv]].name, 1.4); play('round', 0.5); }
+          this.ggKey = key; this.ggMy = myLv; applyDuel(this);
         }
       }
       for (const c of combatants) if (!c.remote && !c.alive && c.respawnAt > 0 && now >= c.respawnAt) respawn(c, pickSpawn(c));
@@ -3927,7 +3972,11 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
           const a = sum(0), b = sum(1);
           this.endRound(a === b ? null : a > b ? 0 : 1);
         }
-        if (!rounds && !endless && this.timeLeft <= 0 && this.finishAt < 0) { this.finishAt = now; this.finishTeam = this.score[0] === this.score[1] ? null : this.score[0] > this.score[1] ? 0 : 1; }
+        if (!rounds && !endless && this.timeLeft <= 0 && this.finishAt < 0) {
+          this.finishAt = now;
+          if (ffa) { const a = ffaLead(null), b = a && ffaLead(a); this.ffaWinner = a && (!b || a.kills > b.kills) ? a : null; }
+          else this.finishTeam = this.score[0] === this.score[1] ? null : this.score[0] > this.score[1] ? 0 : 1;
+        }
         if (this.nextRoundAt > 0 && now >= this.nextRoundAt) this.startRound(false);
         if (this.finishAt >= 0 && now >= this.finishAt) this.finish(this.finishTeam);
       }
@@ -4456,12 +4505,17 @@ function endX1(team) {
   mode.over = true;
   if (mode.horde) { Horde.end(); return; }
   if (mode.cfg && mode.cfg.chess) { if (Net.role === 'host') Net.inMatch = false; Chess.duelDone(team); return; }
+  if (mode.ffa) { const o = mode.ffaLead(player); mode.score[mode.myTeam] = player.kills; mode.score[1 - mode.myTeam] = o ? o.kills : 0; }
   const R = recordX1(team);
   Prof.onMatch(team != null && team === mode.myTeam, mode.cfg, !!mode.net);
   if (document.exitPointerLock && locked()) document.exitPointerLock();
   const m = mode, my = m.myTeam;
   const sc = `${m.teamName(my)} ${m.score[my]} x ${m.score[1 - my]} ${m.teamName(1 - my)}`;
   $('#endWinner').innerHTML = (team == null ? '<b>Empate</b>' : team === my ? '<b style="color:var(--accent)">Você venceu!</b>' : `<b>${esc(m.teamName(team))} venceu</b>`) + `<br>${esc(sc)}`;
+  if (m.ffa) {
+    const w = m.ffaWinner, rank = combatants.filter(c => !c.summon).sort((a, b) => b.kills - a.kills), pos = rank.indexOf(player) + 1;
+    $('#endWinner').innerHTML = (!w ? '<b>Empate</b>' : w === player ? '<b style="color:var(--accent)">Você venceu!</b>' : `<b>${esc(w.name)} venceu</b>`) + `<br>${esc(`Você ficou em ${pos}º de ${rank.length} com ${player.kills} abate${player.kills === 1 ? '' : 's'}`)}`;
+  }
   fillScore($('#endBody'));
   const r = R.rec;
   $('#endStats').innerHTML = `<div class="statgrid"><div><b>${r.k}</b><span>abates</span></div><div><b>${r.d}</b><span>mortes</span></div><div><b>${kd(r.k, r.d)}</b><span>A/M</span></div>
@@ -4595,7 +4649,11 @@ function onNetMsg(m) {
     case 'roll': if (inGame && !mode.host && mode.cfg && mode.cfg.duel === 'roleta') { if (m.r !== mode.rule && Rol.def(m.r)) Rol.apply(mode, m.r, true); if (+m.n > 0) mode.rlNext = now + Math.min(+m.n, RL_EVERY); } break;
     case 'rend': if (inGame && !mode.host) { mode.score = m.s; mode.score[m.w] != null && mode.score[m.w]--; mode.endRound(m.w); } break;
     case 'score': if (inGame && !mode.host) mode.score = m.s; break;
-    case 'over': if (inGame && !mode.host) { mode.score = m.s; endX1(m.w); } break;
+    case 'over': if (inGame && !mode.host) {
+      mode.score = m.s;
+      if (mode.ffa) { const w = m.fw === Net.myId ? player : remoteOf(String(m.fw || '')); mode.ffaWinner = w; endX1(w === player ? mode.myTeam : w ? 1 - mode.myTeam : null); }
+      else endX1(m.w);
+    } break;
   }
 }
 
@@ -4777,6 +4835,8 @@ const Net = {
   canStart(cfg = X1) {
     const n = this.teamSizes(), a = cfg.botsA | 0, b = cfg.botsB | 0;
     if (cfg.sandbox || cfg.map === 'teste') return this.role === 'host';
+    // todos contra todos: os times não importam, basta ter mais alguém (gente ou bot)
+    if (x1Ffa(duelFix(clone(cfg)))) return this.role === 'host' && this.roster.length + a + b >= 2;
     return this.role === 'host' && (this.roster.length >= 2 || a + b > 0) && n[0] + a > 0 && n[1] + b > 0;
   },
   // o anfitrião manda uma mensagem como se fosse um dos bots dele
@@ -7103,17 +7163,18 @@ function renderX1Form(root, online, onChange, cfgObj) {
   const sel = (k, label, opts) => `<div class="row"><label for="x_${k}">${label}</label><select id="x_${k}" data-x="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(c[k]) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><span></span></div>`;
   const rng = (k, label, min, max, step, fmt = v => v) => `<div class="row"><label for="x_${k}">${label}</label><input type="range" id="x_${k}" data-x="${k}" min="${min}" max="${max}" step="${step}" value="${c[k]}"><output>${fmt(c[k])}</output></div>`;
   const chk = (k, label) => `<div class="row"><label for="x_${k}">${label}</label><input type="checkbox" id="x_${k}" data-x="${k}" ${c[k] ? 'checked' : ''}><span></span></div>`;
-  const rounds = c.format === 'rounds';
   const gg = c.duel === 'gungame';
+  const rounds = c.format === 'rounds' && !gg;   // gun game é sempre mata-mata
   let h = `<div class="formh">Modo de duelo</div>` + sel('duel', 'Modo', DUELS) +
     `<p class="note" style="margin:0 0 4px">${{ normal: 'Use as armas liberadas lá embaixo.', knife: 'Todo mundo só com faca. Facada nas costas mata.', awp: 'Todo mundo de sniper (e faca).',
       random: 'Cada round sorteia uma arma (das liberadas) e todos jogam com ela. No mata-mata, a arma muda a cada vida.',
-      gungame: `Cada abate troca sua arma: ${ggLadder(c).map(i => WEAPONS[i].name).join(' → ')} (${ggLadder(c).length} níveis). Quem fizer o último abate, com a faca, vence. Sempre em mata-mata.`,
+      gungame: `Cada abate troca sua arma: ${ggLadder(c).map(i => WEAPONS[i].name).join(' → ')} (${ggLadder(c).length} níveis). Quem fizer o último abate, com a faca, vence. ${+c.ffa ? 'Todos contra todos.' : 'Em dois times (o time sobe junto).'}`,
       roleta: `Cada round sorteia uma regra: ${ROL.map(r => r.name.toLowerCase()).join(', ')}. No mata-mata, a regra muda a cada ${RL_EVERY} s.` }[c.duel || 'normal']}</p>` +
     `<div class="formh">Mapa e regras</div>` +
     sel('map', 'Mapa', MAPS.map(m => [m.id, m.name])) +
     sel('tod', 'Hora do dia', Object.entries(TOD).map(([k, t]) => [k, t.name])) + sel('weather', 'Clima', Object.entries(WEATHER)) +
-    (gg ? '' : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)'], ['endless', 'Infinito (renasce, sem tempo e sem fim)']]) +
+    (gg ? sel('ffa', 'Quem contra quem', [[1, 'Todos contra todos'], [0, 'Dois times']]) : sel('format', 'Formato', [['rounds', 'Rounds (uma vida por round)'], ['dm', 'Mata-mata (renasce)'], ['endless', 'Infinito (renasce, sem tempo e sem fim)']]) +
+    (c.format === 'dm' ? sel('ffa', 'Quem contra quem', [[1, 'Todos contra todos'], [0, 'Dois times']]) : '') +
     (c.format === 'endless' ? '' : rng('target', rounds ? 'Rounds para vencer' : 'Abates para vencer', 1, rounds ? 15 : 50, 1))) +
     (rounds ? rng('roundTime', 'Tempo do round (s)', 30, 300, 15) : c.format === 'endless' && !gg ? '' : rng('time', 'Tempo limite (min)', 1, 30, 1)) +
     rng('hp', 'Vida', 10, 300, 10) + chk('hsOnly', 'Só vale tiro na cabeça') + chk('infinite', 'Munição infinita') +
@@ -7127,8 +7188,9 @@ function renderX1Form(root, online, onChange, cfgObj) {
       chk('botMove', 'Bots se movem') + chk('botShoot', 'Bots atacam') : `<p class="note" style="margin:0 0 4px">Com bots dá para jogar você e seu amigo juntos contra eles, ou completar os times.</p>`);
   }
   if (!online) {
-    h += `<div class="formh">Times e bots</div>` +
-      rng('allies', 'Bots no seu time', 0, 4, 1) + rng('enemies', 'Bots no time inimigo', 1, 5, 1) +
+    const ffaOn = !!+c.ffa && (c.format === 'dm' || gg);
+    h += `<div class="formh">${ffaOn ? 'Bots' : 'Times e bots'}</div>` +
+      (ffaOn ? rng('enemies', 'Bots (todos contra todos)', 1, 9, 1) : rng('allies', 'Bots no seu time', 0, 4, 1) + rng('enemies', 'Bots no time inimigo', 1, 5, 1)) +
       sel('diff', 'Dificuldade dos bots', DIFF_NAMES.map((n, i) => [i, n])) +
       sel('botWeapon', 'Arma dos bots', [[-1, 'Aleatória (das permitidas)']].concat(GUN_IDS().map(i => [i, WEAPONS[i].name]))) +
       chk('botMove', 'Bots se movem') + chk('botShoot', 'Bots atacam');
@@ -7156,7 +7218,7 @@ function renderX1Form(root, online, onChange, cfgObj) {
       saveX1(); onChange && onChange();
       if (k === 'map' && state === 'menu') (MAPS.find(m => m.id === c.map) || MAPS[0]).build();
       if ((k === 'map' || k === 'tod' || k === 'weather') && state === 'menu') Atmos.apply(c.tod, c.weather);
-      if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes' || k === 'botsA' || k === 'botsB') renderX1Form(root, online, onChange, cfgObj);
+      if (k === 'format' || k === 'preset' || k === 'duel' || k === 'classes' || k === 'botsA' || k === 'botsB' || k === 'ffa') renderX1Form(root, online, onChange, cfgObj);
     };
     el.addEventListener(el.type === 'range' ? 'input' : 'change', upd);
   });
