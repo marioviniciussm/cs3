@@ -1157,6 +1157,11 @@ function initAudio() {
   Object.assign(buffers, {
     pistol: shot(0.22, 26, 140, 0.55, 0.9), shotgun: shot(0.45, 11, 70, 0.35, 1), rifle: shot(0.2, 22, 110, 0.5, 0.95), sniper: shot(0.7, 7, 55, 0.3, 1),
     deagle: shot(0.32, 16, 95, 0.42, 1), smg: shot(0.15, 30, 170, 0.62, 0.8), revolver: shot(0.42, 12, 80, 0.38, 1), lmg: shot(0.2, 24, 95, 0.48, 0.95), semi: shot(0.27, 17, 105, 0.45, 1),
+    // arco: corda vibrando (grave, com harmônicos) + estalo; besta: pancada seca de metal com mola; manivela: catracas
+    bowTwang: make(0.45, (t, w, s) => { s.lp += (w - s.lp) * 0.4; const f = 98 * (1 + 0.15 * Math.exp(-t * 30)); return (Math.sin(2 * Math.PI * f * t) * 0.6 + Math.sin(4 * Math.PI * f * t) * 0.3 + Math.sin(6 * Math.PI * f * t) * 0.15) * Math.exp(-t * 9) + (w - s.lp) * 0.6 * Math.exp(-t * 120); }),
+    bowDraw: make(0.7, (t, w, s) => { s.lp += (w - s.lp) * 0.06; return s.lp * (0.6 + 0.6 * Math.sin(2 * Math.PI * 23 * t)) * Math.min(1, t * 4) * Math.exp(-t * 2) * 1.4; }),
+    xbow: make(0.32, (t, w, s) => { s.lp += (w - s.lp) * 0.3; return (w * Math.exp(-t * 90) * 0.9 + s.lp * 2 * Math.exp(-t * 30) + Math.sin(2 * Math.PI * 1750 * t) * 0.35 * Math.exp(-t * 18) + Math.sin(2 * Math.PI * 2630 * t) * 0.2 * Math.exp(-t * 22)) * (t < 0.001 ? t / 0.001 : 1); }),
+    crank: make(1.1, (t, w) => { const k = (t * 9) % 1; return (w * 0.5 + Math.sin(2 * Math.PI * 3200 * t) * 0.5) * Math.exp(-k * 40) * 0.55 * (t < 1 ? 1 : 0); }),
     bow: make(0.3, (t, w, s) => { s.lp += (w - s.lp) * 0.3; return (Math.sin(2 * Math.PI * (220 - 160 * t) * t) * 0.7 * Math.exp(-t * 14) + (w - s.lp) * 0.5 * Math.exp(-t * 40)); }),
     rocket: make(0.7, (t, w, s) => { s.lp += (w - s.lp) * 0.1; return (s.lp * 2.4 * Math.min(1, t * 60) * Math.exp(-t * 4) + (w - s.lp) * 0.4 * Math.exp(-t * 9)); }),
     build: make(0.2, (t, w, s) => { s.lp += (w - s.lp) * 0.25; return (s.lp * 2 + Math.sin(2 * Math.PI * 180 * t) * 0.6) * Math.exp(-t * 25) * 0.9; }),
@@ -2039,8 +2044,10 @@ const WEAPONS = [
   // estilo Krunker (novas armas entram no fim da lista para não mudar as configurações salvas)
   { id: 'revolver', name: 'Revólver', snd: 'revolver', dmg: 62, pellets: 1, interval: 0.42, auto: false, mag: 6, reserve: 30, reload: 2.8, draw: 0.5, range: 250, falloff: 0.95, head: 3,
     base: 0.0015, move: 0.03, air: 0.2, perShot: 0.012, maxShot: 0.03, recover: 0.35, recoilP: 4, recoilY: 0.6, speed: 1 },
-  { id: 'crossbow', name: 'Besta', snd: 'bow', proj: { kind: 'bolt', speed: 75, grav: 5 }, dmg: 105, pellets: 1, interval: 0.5, auto: false, mag: 1, reserve: 24, reload: 1.25, draw: 0.6, range: 300, falloff: 1, head: 2,
-    base: 0.001, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 2, recoilY: 0.3, speed: 0.95 },
+  // besta: dispara no clique, seta curta e muito rápida (quase reta), mata com uma no peito, mas recarregar
+  // (girar a manivela) é lento e andando ela erra
+  { id: 'crossbow', name: 'Besta', snd: 'xbow', proj: { kind: 'bolt', speed: 135, grav: 2.5 }, dmg: 110, pellets: 1, interval: 0.3, auto: false, mag: 1, reserve: 20, reload: 2.3, draw: 0.6, range: 300, falloff: 1, head: 2,
+    base: 0.001, move: 0.06, air: 0.15, perShot: 0, maxShot: 0, recover: 1, recoilP: 3, recoilY: 0.4, speed: 0.92 },
   { id: 'lmg', name: 'Metralhadora pesada', snd: 'lmg', dmg: 24, pellets: 1, interval: 0.08, auto: true, mag: 75, reserve: 150, reload: 4.4, draw: 0.9, range: 220, falloff: 0.95, head: 3,
     base: 0.01, move: 0.08, air: 0.3, perShot: 0.002, maxShot: 0.03, recover: 0.2, recoilP: 0.6, recoilY: 0.45, speed: 0.8 },
   { id: 'rocket', name: 'Lança-foguete', snd: 'rocket', proj: { kind: 'rocket', speed: 32, grav: 0, r: 4.5 }, dmg: 110, pellets: 1, interval: 0.95, auto: false, mag: 3, reserve: 12, reload: 3.2, draw: 0.8, range: 300, falloff: 1, head: 1,
@@ -2053,8 +2060,10 @@ const WEAPONS = [
   // armas das peças do Xadrez FPS (inspiradas no FPS Chess)
   { id: 'musket', name: 'Mosquete', snd: 'sniper', dmg: 72, pellets: 1, interval: 0.6, auto: false, mag: 1, reserve: 40, reload: 1.5, draw: 0.6, range: 200, falloff: 0.86, head: 2,
     base: 0.004, move: 0.05, air: 0.2, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.6, recoilY: 0.5, speed: 1 },
-  { id: 'bow', name: 'Arco', snd: 'bow', proj: { kind: 'bolt', speed: 62, grav: 9 }, dmg: 62, pellets: 1, interval: 0.55, auto: false, mag: 1, reserve: 40, reload: 0.7, draw: 0.5, range: 300, falloff: 1, head: 2.4,
-    base: 0.001, move: 0.02, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 1.4, recoilY: 0.2, speed: 1.02 },
+  // arco: segure para puxar a corda e solte para atirar. Puxada curta = flecha fraca, lenta e torta; puxada cheia
+  // (bowDraw s) = forte e certeira. A flecha faz uma curva grande, mas a próxima já entra na hora e dá para andar rápido
+  { id: 'bow', name: 'Arco', snd: 'bowTwang', proj: { kind: 'arrow', speed: 78, grav: 14 }, bowDraw: 0.75, dmg: 90, pellets: 1, interval: 0.12, auto: false, mag: 1, reserve: 40, reload: 0.3, draw: 0.4, range: 300, falloff: 1, head: 2.4,
+    base: 0.001, move: 0.015, air: 0.05, perShot: 0, maxShot: 0, recover: 1, recoilP: 0.8, recoilY: 0.15, speed: 1.04 },
   { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 24, pellets: 12, interval: 0.55, auto: false, mag: 2, reserve: 40, reload: 1.5, draw: 0.5, range: 70, falloff: 0.8, head: 1.6,
     base: 0.045, move: 0.025, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
   { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 9, pellets: 1, interval: 0.08, spinUp: 0.7, auto: true, mag: 120, reserve: 240, reload: 4.8, draw: 1.0, range: 200, falloff: 0.88, head: 2,
@@ -2983,7 +2992,7 @@ function defaultSlot() {
 function selectWeapon(i, force) {
   if (i == null || i < 0 || i >= pw.slots.length || (i === pw.cur && !force)) return;
   if (i !== pw.cur) pw.prev = pw.cur;
-  pw.cur = i; pw.ads = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
+  pw.cur = i; pw.ads = 0; pw.bowT = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
   vmModels.forEach((m, j) => m.g.visible = j === pw.slots[i].wi);
   if (player) setGunShape(player, pw.slots[i].w);
   play('draw', 0.6);
@@ -3065,7 +3074,7 @@ function updatePlayer(dt) {
   // agachar no ar encolhe as pernas (como no CS): os pés sobem e dá para alcançar lugares mais altos
   if (!p.grounded && p.h !== oldH) { const d = oldH - p.h; p.pos.y += d; if (collides(p.pos, p.h)) p.pos.y -= d; }
   const walking = input && isHeld('walk');
-  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1) * lerp(1, 0.72, pw.ads || 0) * (Ab.on ? Ab.speedMul() : 1);
+  const maxS = RUN * SPEED_MULT * active().w.speed * (p.spd || 1) * (pw.zoom ? 0.8 : 1) * lerp(1, 0.72, pw.ads || 0) * (1 - 0.3 * (pw.bowT || 0)) * (Ab.on ? Ab.speedMul() : 1);
   const wishS = maxS * (p.crouching ? 0.34 : walking ? 0.52 : 1);
   if (input && isDown('jump')) pv.jumpQ = now;
   if (!p.grounded && input && isDown('crouch')) p.slideReady = true; // precisa apertar agachar no ar (segurar desde o chão não vale)
@@ -3188,7 +3197,7 @@ function updateWeapons(dt) {
   if (pw.rezoom && now >= pw.rezoomAt) { if (slot.mag > 0 && !pw.reloadT) { pw.zoom = pw.rezoom; pw.zoomAt = now; } pw.rezoom = 0; }
   pw.spread = computeSpread();
   if (mode && mode.onWheel && wheel && canInput()) mode.onWheel(Math.sign(wheel));
-  if (!player.alive || !canInput() || (mode && mode.noWeapons)) { wheel = 0; return; }
+  if (!player.alive || !canInput() || (mode && mode.noWeapons)) { wheel = 0; pw.bowT = 0; return; }
   const n = pw.slots.length;
   for (let i = 0; i < 7; i++) if (isDown('w' + (i + 1))) selectWeapon(i);
   if (isDown('knife')) { const k = pw.slots.findIndex(s => s.w.melee); if (k >= 0) selectWeapon(k === pw.cur ? pw.prev : k); }
@@ -3205,13 +3214,21 @@ function updateWeapons(dt) {
     pw.ads = clamp((pw.ads || 0) + (want ? 1 : -1) * dt / (want ? 0.16 : 0.12), 0, 1); }
   if (w.scope && isDown('scope') && !pw.reloadT && pw.drawT <= 0) { if (!pw.zoom) pw.zoomAt = now; pw.zoom = (pw.zoom + 1) % 3; pw.rezoom = 0; play('zoom', 0.7); }
   const pressedFire = isDown('fire');
+  if (w.bowDraw) {
+    // arco: segurando o tiro a corda vai sendo puxada; soltar atira com a força da puxada
+    const ready = slot.mag > 0 && !pw.reloadT && pw.drawT <= 0 && now >= pw.nextFire && !(mode && mode.noFire);
+    if (isHeld('fire') && ready) { if (!pw.bowT) { pw.bowT = 0.001; play('bowDraw', 0.7); } pw.bowT = Math.min(1, pw.bowT + dt / w.bowDraw); }
+    else if (pw.bowT > 0) { const c = pw.bowT; pw.bowT = 0; if (ready) tryFire(true, c); }
+    else if (pressedFire && slot.mag <= 0) tryFire(true);
+    return;
+  }
   if (w.auto ? isHeld('fire') : pressedFire) tryFire(pressedFire);
   else if (autoF && slot.mag > 0) tryFire(false);
 }
 function tryReload() {
   const s = active();
   if (s.w.melee || s.w.nade || s.w.build || pw.reloadT || pw.drawT > 0 || s.mag >= s.w.mag || (!pw.infinite && s.reserve <= 0)) return;
-  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; play('magOut', 0.8); startAnim(player, 'reload', s.w.reload);
+  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; play(s.w.id === 'crossbow' ? 'crank' : s.w.bowDraw ? 'draw' : 'magOut', 0.8); startAnim(player, 'reload', s.w.reload);
 }
 function showHit(res) { if (res.hit) { hitT = 0.3; hitHead = res.head; hitKill = res.kill; if (S.audio.hit) play(res.kill ? 'kill' : res.head ? 'head' : 'hit', 0.9); } }
 function tryMelee(alt) {
@@ -3232,7 +3249,7 @@ function spinMul(o, w) {
   o.spinLast = now;
   return 1 + 2 * (1 - clamp((now - o.spinAt) / w.spinUp, 0, 1));
 }
-function tryFire(pressedNow) {
+function tryFire(pressedNow, charge = 1) {
   const s = active(), w = s.w;
   if (mode && mode.noFire) return;
   if (pw.drawT > 0 || now < pw.nextFire || pw.reloadT) return;
@@ -3250,7 +3267,8 @@ function tryFire(pressedNow) {
   if (w.proj) {
     // besta e foguete: o projétil sai um pouco à frente do olho, na direção da mira, e voa de verdade (acerto contado quando chega)
     const from = eye0.clone().addScaledVector(dir, 0.5).addScaledVector(new THREE.Vector3(0, -1, 0), 0.06);
-    pv0 = fireProj(player, w, from, dir, mode && mode.perfect ? 0 : pw.spread); muzzleWorld.copy(from); res = { hit: false };
+    const ch = w.bowDraw ? charge : 1, sp = (mode && mode.perfect ? 0 : pw.spread) + (w.bowDraw ? (1 - ch) * 0.035 : 0);
+    pv0 = fireProj(player, w, from, dir, sp, w.bowDraw ? 0.35 + 0.65 * ch : 1, w.bowDraw ? 0.3 + 0.7 * ch : 1); muzzleWorld.copy(from); res = { hit: false };
     if (Ab.homingNext) { Ab.homingNext = false; ground.proj[ground.proj.length - 1].homing = true; }
   } else res = (mode && mode.aimShot && mode.aimShot(eye0.clone(), dir, muzzleWorld)) || fireWeapon(player, w, eye0.clone(), dir, mode && mode.perfect ? 0 : pw.spread, muzzleWorld);
   if (mode && mode.stats) { mode.stats.shots++; if (res.hit) mode.stats.hits++; }
@@ -3259,7 +3277,7 @@ function tryFire(pressedNow) {
   if (RECOIL[w.id] && !(mode && mode.noRecoil)) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
   if (!(mode && mode.noRecoil)) { pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3; }
   pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0;
-  play(w.snd, 0.9);
+  play(w.snd, w.bowDraw ? 0.5 + 0.4 * charge : 0.9);
   if (w.scope && pw.zoom) { pw.rezoom = pw.zoom; pw.rezoomAt = pw.nextFire - 0.1; pw.zoom = 0; }
   if (w.mag === 1 && s.mag === 0) tryReload();   // besta: recarrega sozinha depois de cada seta
   showHit(res);
@@ -3296,6 +3314,7 @@ function updateViewModel(dt) {
   const bk = blow ? (pv.boltT < 0.5 ? 1 - pv.boltT * 2 : 0) : (pv.boltT < 0.25 ? 0 : Math.sin((pv.boltT - 0.25) / 0.75 * Math.PI));
   m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, bk);
   if (w.proj) m.bolt.visible = active().mag > 0 && !pw.reloadT;
+  if (w.bowDraw && pw.bowT > 0) { const e = Math.sin(pw.bowT * Math.PI / 2) * 0.16; m.mag.position.z += e; m.bolt.position.z += e; } // corda e flecha vêm para trás
   const tilt = (w.id === 'sniper' || w.id === 'shotgun') ? bk * 0.14 : 0;
   // ADS: a arma vai para o centro, com o topo (alça e maça) na linha do olho; balanço e coice diminuem
   const ad = pw.ads || 0, ae = ad * ad * (3 - 2 * ad);
@@ -3430,7 +3449,7 @@ function updateBot(c, dt) {
         if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); startAnim(c, 'reload', w.reload); }
         else {
           c.weapon.magNow--;
-          b.nextFire = now + w.interval * (w.auto ? spinMul(b, w) : rand(1.1, 1.7));
+          b.nextFire = now + (w.interval + (w.bowDraw || 0)) * (w.auto ? spinMul(b, w) : rand(1.1, 1.7));
           if (w.auto) { if (b.burst <= 0) b.burst = 3 + Math.floor(Math.random() * 6); b.burst--; if (b.burst <= 0) b.nextFire += rand(0.25, 0.6); }
           c.group.updateMatrixWorld(true);
           const ms = new THREE.Vector3(); c.muzzle.getWorldPosition(ms);
@@ -6056,7 +6075,11 @@ function updateBuildGhost(w) {
 function projMesh(kind) {
   const g = new THREE.Group();
   if (kind === 'piece') { const pc = chPieceMesh((Math.random() < 0.5 ? 'w' : 'b') + 'PNBR'[Math.floor(Math.random() * 4)]); pc.scale.setScalar(0.42); pc.rotation.x = Math.PI / 2; g.add(pc); return g; }
-  if (kind === 'bolt') {
+  if (kind === 'bolt') { // seta de besta: curta, grossa, ponta de metal e penas pretas
+    const s = mesh(CYL, 0x3a3f47, 0.04, 0.42, 0.04, 0, 0, 0, g); s.rotation.x = Math.PI / 2;
+    const tip = mesh(CONE, 0x9aa1aa, 0.07, 0.12, 0.07, 0, 0, -0.26, g); tip.rotation.x = -Math.PI / 2;
+    for (const r of [0, Math.PI / 2]) { const f = mesh(BOX, 0x1d1f22, 0.006, 0.08, 0.1, 0, 0, 0.17, g); f.rotation.z = r; }
+  } else if (kind === 'arrow') { // flecha de arco: longa, fina, de madeira, penas vermelhas
     const s = mesh(CYL, 0x5a3d22, 0.025, 0.7, 0.025, 0, 0, 0, g); s.rotation.x = Math.PI / 2;
     const tip = mesh(CONE, 0xc8ccd2, 0.05, 0.1, 0.05, 0, 0, -0.38, g); tip.rotation.x = -Math.PI / 2;
     for (const r of [0, Math.PI / 2]) { const f = mesh(BOX, 0xd8402c, 0.005, 0.07, 0.12, 0, 0, 0.3, g); f.rotation.z = r; }
@@ -6071,9 +6094,9 @@ function spawnProj(w, p, v, owner) {
   const m = projMesh(w.proj.kind); m.position.copy(p); m.lookAt(p.clone().sub(v)); world.add(m);
   ground.proj.push({ w, pos: p.clone(), vel: v.clone(), owner, t: 0, mesh: m, puff: 0 });
 }
-function fireProj(shooter, w, origin, dir, spread) {
+function fireProj(shooter, w, origin, dir, spread, spdMul = 1, dmgMul = 1) {
   const d = dir.clone(); if (spread) d.add(new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(spread)).normalize();
-  const v = d.multiplyScalar(w.proj.speed); spawnProj(w, origin, v, shooter); return v;
+  const v = d.multiplyScalar(w.proj.speed * spdMul); spawnProj(w, origin, v, shooter); ground.proj[ground.proj.length - 1].dmgMul = dmgMul; return v;
 }
 function updateProj(dt) {
   for (const p of ground.proj.slice()) {
@@ -6101,7 +6124,7 @@ function updateProj(dt) {
       // seta: acerta quem estiver no caminho ou crava na parede
       if (ud && ud.owner) {
         if (mine) { const mult = ud.zone === 'head' ? p.w.head : ud.zone === 'legs' ? 0.75 : 1;
-          const killed = damage(ud.owner, p.w.dmg * mult * (p.owner.cfg ? p.owner.cfg.dmg : 1), p.owner, p.w.name, ud.zone, dir);
+          const killed = damage(ud.owner, p.w.dmg * mult * (p.dmgMul ?? 1) * (p.owner.cfg ? p.owner.cfg.dmg : 1), p.owner, p.w.name, ud.zone, dir);
           if (p.owner === player) { showHit({ hit: true, head: ud.zone === 'head', kill: killed }); if (mode && mode.stats) mode.stats.hits++; } }
         burst(hp, dir.clone().negate(), 0xbf0d0d, 5); world.remove(p.mesh); ground.proj.splice(ground.proj.indexOf(p), 1);
       } else if (hp) {
@@ -6983,11 +7006,17 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   const extra = !showCh || !+S.ch.dyn ? 0 : Math.round(clamp(+S.ch.dyn === 2 ? shotOpen() : pw.spread * pxPerUnit * 0.6, 0, 60));
   if (hitT > 0) hitT -= dt;
   const hitA = hitT > 0 && player.alive && S.hud.hitmarker ? Math.round(clamp(hitT / 0.3, 0, 1) * 20) : 0;
-  const key = `${showCh}|${extra}|${hitA}|${hitKill}|${hitHead}|${JSON.stringify(S.ch)}`;
+  const bowB = player.alive && active().w.bowDraw && pw.bowT > 0 ? Math.round(pw.bowT * 20) : 0;
+  const key = `${showCh}|${extra}|${hitA}|${bowB}|${hitKill}|${hitHead}|${JSON.stringify(S.ch)}`;
   if (key !== chKey) {
     chKey = key; layoutCh(); chCtx.clearRect(0, 0, chD, chD);
     const cc = chD / 2, k = chK;
     if (showCh) drawCrosshair(chCtx, cc, cc, extra, k);
+    if (bowB) { // força da puxada do arco: barrinha embaixo da mira (fica dourada na puxada cheia)
+      const bw = Math.round(44 * k), bh = Math.max(2, Math.round(4 * k)), bx = cc - bw / 2, by = cc + Math.round(30 * k);
+      chCtx.fillStyle = 'rgba(0,0,0,0.55)'; chCtx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      chCtx.fillStyle = bowB >= 20 ? '#ffd24a' : '#e9edf0'; chCtx.fillRect(bx, by, Math.round(bw * bowB / 20), bh);
+    }
     if (hitA) {
       chCtx.globalAlpha = hitA / 20; chCtx.strokeStyle = hitKill ? '#ff3333' : hitHead ? '#ffd24a' : '#ffffff'; chCtx.lineWidth = 2 * k;
       for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { chCtx.beginPath(); chCtx.moveTo(cc + sx * 8 * k, cc + sy * 8 * k); chCtx.lineTo(cc + sx * 16 * k, cc + sy * 16 * k); chCtx.stroke(); }
@@ -7230,7 +7259,7 @@ const CLASSES = [
   { id: 'metralha', name: 'Metralha', w: ['lmg', 'pistol'], hp: 170, spd: 0.88, desc: 'Metralhadora pesada e muita vida. Lento.' },
   { id: 'brutamontes', name: 'Brutamontes', w: ['shotgun', 'deagle'], hp: 120, spd: 1, desc: 'Shotgun de perto, Deagle de longe.' },
   { id: 'detetive', name: 'Detetive', w: ['revolver', 'deagle'], hp: 100, spd: 1.08, desc: 'Dois canos curtos e certeiros.' },
-  { id: 'besteiro', name: 'Besteiro', w: ['crossbow', 'pistol'], hp: 100, spd: 1.06, desc: 'Besta: a seta cai com a distância. Mata com um no peito.' },
+  { id: 'besteiro', name: 'Besteiro', w: ['crossbow', 'pistol'], hp: 100, spd: 1.06, desc: 'Besta: seta rápida e quase reta, mata com uma no peito. Recarregar é lento.' },
   { id: 'foguete', name: 'Foguete', w: ['rocket', 'pistol'], hp: 130, spd: 0.95, desc: 'Lança-foguete. Atire no chão para pular alto.' },
   { id: 'patrulheiro', name: 'Patrulheiro', w: ['semi', 'pistol'], hp: 100, spd: 1.02, desc: 'Rifle semiautomático: um tiro por clique, preciso de longe.' },
   { id: 'construtor', name: 'Construtor', w: ['build', 'smg'], hp: 110, spd: 1, desc: 'Ergue paredes e caixotes, com submetralhadora para se defender.' },
