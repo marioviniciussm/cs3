@@ -779,15 +779,17 @@ addEventListener('contextmenu', e => { if (state === 'playing') e.preventDefault
 // filtro de saltos: alguns navegadores (Chrome no Windows, principalmente) mandam um movementX/Y gigante
 // quando o mouse é movido muito rápido ou "escapa" da janela; isso jogava a mira longe e parecia que a
 // sensibilidade tinha desconfigurado. Um salto repentino muito maior que o movimento recente é descartado.
-let lockAt = 0, mvAvg = 0, mvDX = 0, mvDY = 0;
-const mouseFilter = { dropped: 0 };
+// O filtro antigo era rígido demais: jogava fora puxadas rápidas de verdade (principalmente a volta de uma
+// puxada e mouses de DPI alto), e a mira parecia travar ou perder sensibilidade. Agora:
+// - com o mouse cru (rawLock) o navegador não tem esse defeito, então nada é descartado;
+// - no modo normal só cai um salto isolado e absurdo (muito maior que tudo o que veio antes), nunca dois seguidos.
+let lockAt = 0, mvAvg = 0, rawLock = false, lastDrop = false;
+const mouseFilter = { dropped: 0, get raw() { return rawLock; } };
 function acceptMove(dx, dy) {
-  if (performance.now() - lockAt < 150) return false;            // primeiros eventos após travar vêm sujos
+  if (performance.now() - lockAt < 40) return false;             // o primeiro evento depois de travar vem sujo
   const m = Math.hypot(dx, dy);
-  const dot = dx * mvDX + dy * mvDY;
-  const jump = m > 180 && (m > mvAvg * 8 + 60 || (dot < 0 && m > mvAvg * 3 + 40) || m > 2500);
-  if (jump) { mouseFilter.dropped++; mvAvg *= 0.5; return false; }
-  mvAvg = mvAvg * 0.7 + m * 0.3; mvDX = mvDX * 0.6 + dx * 0.4; mvDY = mvDY * 0.6 + dy * 0.4;
+  if (!rawLock && !lastDrop && m > 350 && m > mvAvg * 10 + 200) { mouseFilter.dropped++; lastDrop = true; return false; }
+  lastDrop = false; mvAvg = mvAvg * 0.8 + m * 0.2;
   return true;
 }
 addEventListener('mousemove', e => {
@@ -837,14 +839,23 @@ function pcFullscreen(force) {
 function lockPointer() {
   pcFullscreen();
   if (touchOn() || document.pointerLockElement === canvas) return;
-  if (S.controls.rawMouse === false) { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} return; }
+  // rawLock diz se o travamento atual é cru (sem a aceleração do Windows): o filtro de saltos depende disso
+  if (S.controls.rawMouse === false) { rawLock = false; try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} return; }
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
-    if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} });
-  } catch (e) { try { canvas.requestPointerLock(); } catch (e2) {} }
+    // só cai para o modo normal quando o navegador não tem mouse cru; se falhou por outro motivo (clique cedo
+    // demais depois do Esc, janela sem foco), o próximo clique tenta cru de novo. Antes ele caía para o modo
+    // normal, que tem outra sensibilidade (e a aceleração do Windows): parecia que a sensibilidade mudava sozinha
+    if (p && p.then) p.then(() => { rawLock = true; }, err => {
+      rawLock = false;
+      if (err && err.name === 'NotSupportedError') { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} }
+      else updateLockHint();
+    });
+    else rawLock = false;
+  } catch (e) { rawLock = false; try { canvas.requestPointerLock(); } catch (e2) {} }
 }
 document.addEventListener('pointerlockchange', () => {
-  if (document.pointerLockElement === canvas) { lockAt = performance.now(); mvAvg = 0; mvDX = mvDY = 0; }
+  if (document.pointerLockElement === canvas) { lockAt = performance.now(); mvAvg = 0; lastDrop = false; } else rawLock = false;
   look.x = look.y = 0;
   if ((classOpen || adminOpen) && document.pointerLockElement) { document.exitPointerLock(); return; }   // escolhendo classe / menu de admin: o mouse fica livre
   // perdeu o mouse porque outra janela pegou o foco (sobreposição de chamada do WhatsApp/Discord, notificação,
@@ -1268,7 +1279,7 @@ const vmSun = new THREE.DirectionalLight(0xffffff, 0.7); vmSun.position.set(1, 2
 const TOD = {
   dia: { name: 'Dia', sky: 0x9fc4e4, fog: [90, 240], hemi: [0xe3ecf7, 0x5d4c38, 0.72], sun: [0xfff1dc, 0.85], pos: [45, 80, 30], vm: [0.8, 0.7] },
   tarde: { name: 'Pôr do sol', sky: 0xe9a46e, fog: [70, 210], hemi: [0xffd2a8, 0x4d3a30, 0.55], sun: [0xff9a55, 0.95], pos: [90, 22, 15], vm: [0.65, 0.6] },
-  noite: { name: 'Noite', sky: 0x0a1222, fog: [18, 95], hemi: [0x6a7eae, 0x1c1c24, 0.32], sun: [0x9fb4ff, 0.22], pos: [-30, 70, -20], vm: [0.32, 0.3], lamp: true },
+  noite: { name: 'Noite', sky: 0x0a1222, fog: [30, 130], hemi: [0x6a7eae, 0x1c1c24, 0.32], sun: [0x9fb4ff, 0.22], pos: [-30, 70, -20], vm: [0.32, 0.3], lamp: true },
 };
 const WEATHER = { limpo: 'Limpo', chuva: 'Chuva', neve: 'Neve', neblina: 'Neblina' };
 const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
@@ -1278,7 +1289,8 @@ const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
     if (w === 'chuva' || w === 'neblina') sky.lerp(new THREE.Color(tod === 'noite' ? 0x10141a : 0x8a9198), tod === 'noite' ? 0.4 : 0.7);
     if (w === 'neve') sky.lerp(new THREE.Color(tod === 'noite' ? 0x1a2030 : 0xd5dde6), 0.6);
     SKY.copy(sky); scene.background = SKY; scene.fog.color.copy(sky);
-    const fogK = w === 'neblina' ? 0.12 : w === 'chuva' ? 0.6 : w === 'neve' ? 0.55 : 1;
+    // neblina deixa ver ~1/3 do normal (antes era ~1/8 e não dava para ver nada); chuva e neve tiram pouco
+    const fogK = w === 'neblina' ? 0.35 : w === 'chuva' ? 0.8 : w === 'neve' ? 0.75 : 1;
     scene.fog.near = T.fog[0] * fogK; scene.fog.far = T.fog[1] * fogK;
     hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2] * (w === 'limpo' ? 1 : 0.9);
     sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1] * (w === 'limpo' ? 1 : 0.55); sun.position.set(...T.pos);
@@ -4045,6 +4057,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     },
     update(dt) {
       if (net) Net.update(dt);
+      if (this.aloneAt > 0 && !this.over) { if ([...this.remotes.values()].some(x => !x.isNetBot)) this.aloneAt = -1; else if (now - this.aloneAt > ALONE_WAIT) { this.aloneAt = -1; endAlone(); } }
       if (cfg.chess) {
         // como no FPS Chess: quem fica 3 s sem levar dano regenera rápido
         for (const c of combatants) if (c.alive && !c.remote && c.hp < c.maxHp && now - (c.lastHurt ?? -99) > 3) c.hp = Math.min(c.maxHp, c.hp + 28 * dt);
@@ -4649,10 +4662,16 @@ function removeRemote(r) {
   const i = combatants.indexOf(r); if (i >= 0) combatants.splice(i, 1); if (r.group.parent) r.group.parent.remove(r.group);
   const sp = sprays.get('r_' + r.netId); if (sp) { world.remove(sp); sprays.delete('r_' + r.netId); }
   if (!mode.over && !mode.plaza && ![...mode.remotes.values()].some(x => !x.isNetBot) && !(mode.netBots && mode.netBots.size)) {
-    mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
-    $('#endWinner').innerHTML = '<b>Todos os outros jogadores saíram</b>';
-    fillScore($('#endBody')); $('#eAgain').disabled = true; $('#end').hidden = false;
+    // anfitrião ficou sozinho: a partida espera um pouco, para quem caiu conseguir voltar para ela
+    if (mode.host && mode.type === 'x1' && Net.canJoinMatch()) { mode.aloneAt = now; banner('Todos os outros saíram', `A partida espera ${ALONE_WAIT} s alguém voltar`, 3); }
+    else endAlone();
   } else if (mode.host && mode.rounds && mode.live) mode.onDeath(r, null);
+}
+const ALONE_WAIT = 60;
+function endAlone() {
+  mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
+  $('#endWinner').innerHTML = '<b>Todos os outros jogadores saíram</b>';
+  fillScore($('#endBody')); $('#eAgain').disabled = true; $('#end').hidden = false;
 }
 function onRemoteState(r, m) {
   r.net.tp.copy(a2v(m.p)); r.net.tv.copy(a2v(m.v)); r.net.ty = m.y; r.pitch = m.x; r.crouch = m.c; r.net.at = performance.now();
@@ -4705,6 +4724,8 @@ function onNetMsg(m) {
       addChat('Sala', null, `${g.name} saiu.`, true);
       removeRemote(g); break;
     }
+    case 'mjoin': if (inGame && Net.role === 'guest' && m.id !== Net.myId) { const p = Net.byId(String(m.id)); if (p) addMatchRemote(p); } break;
+    case 'xsync': if (inGame && Net.role === 'guest' && mode.type === 'x1') applyMatchSync(m); break;
     case 'leftmatch': if (r) { addChat('Sala', null, `${r.name} voltou para a sala.`, true); removeRemote(r); } break;
     case 'mdl': onModelChunk(m); break;
     case 'chess': case 'chmv': case 'chff': case 'chhold': Chess.onMsg(m); break;
@@ -4809,8 +4830,8 @@ function localGuest(code) {
 // Sala online em estrela: o anfitrião ("h") recebe tudo dos convidados ("g1", "g2"…) e repassa para os outros.
 // Cada mensagem leva f = quem mandou (o anfitrião carimba, então ninguém se passa por outro) e, se for para um só, to = destino.
 const NET_MAX = 8;
-const HOST_ONLY = new Set(['afun', 'hz', 'roll', 'chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy']);
-const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye', 'tblreq', 'pvote', 'pjoinreq']);
+const HOST_ONLY = new Set(['afun', 'hz', 'roll', 'chess', 'nbadd', 'tbl', 'pvotes', 'pgo', 'pjoin', 'bs', 'anote', 'acam', 'ateam', 'acfg', 'aadm', 'kicked', 'welcome', 'roster', 'cfg', 'start', 'round', 'rend', 'score', 'over', 'resend', 'lobby', 'full', 'busy', 'xsync', 'mjoin']);
+const NO_RELAY = new Set(['hello', 'ping', 'pong', 'bye', 'tblreq', 'pvote', 'pjoinreq', 'mjoinreq']);
 const Net = {
   peer: null, hub: null, conns: new Map(), open: false, role: null, code: '', myId: '', myName: 'Jogador', roster: [], seq: 0, inMatch: false,
   ping: 0, hostCfg: null, status: '', versionWarn: false, pingTimer: 0, sendAcc: 0,
@@ -4831,7 +4852,8 @@ const Net = {
   teamSizes() { const n = [0, 0]; for (const p of this.roster) if (!p.spec) n[p.team]++; return n; },
   pushRoster() { this.send({ t: 'roster', ro: this.roster.map(p => ({ id: p.id, name: p.name, team: p.team, spec: p.spec | 0, skin: p.skin, cos: p.cos, fc: p.fc, lv: p.lv })) }); renderNetLobby(); Voice.sync(); },
   hostConn(conn) {
-    conn.on('data', m => this.hostData(conn, m));
+    conn.lastSeen = performance.now();
+    conn.on('data', m => { conn.lastSeen = performance.now(); this.hostData(conn, m); });
     conn.on('close', () => this.dropGuest(conn));
     conn.on('error', () => this.dropGuest(conn));
   },
@@ -4839,6 +4861,10 @@ const Net = {
     if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
     if (m.t === 'hello') {
       if (conn.netId) return;
+      // a mesma pessoa voltando (caiu, fechou a aba, recarregou): a conexão antiga, que pode ter ficado
+      // pendurada sem avisar, sai antes, senão o lugar dela continuava ocupado
+      const fc = cleanFc(m.fc), old = fc && this.roster.find(p => p.id !== 'h' && p.fc === fc);
+      if (old && this.conns.get(old.id)) this.dropGuest(this.conns.get(old.id));
       if (this.roster.length >= NET_MAX) { this.raw(conn, { t: 'full', f: 'h' }); setTimeout(() => { try { conn.close(); } catch (e) {} }, 300); return; }
       const id = 'g' + (++this.seq), n = this.teamSizes();
       conn.netId = id; this.conns.set(id, conn);
@@ -4850,7 +4876,7 @@ const Net = {
       this.send({ t: 'cfg', cfg: resolveMapCfg(clone(X1)) }, id);
       this.send({ t: 'resend' }); sendMySkin('skin', true);   // modelos 3D: cada um manda de novo para quem chegou
       if (Plaza.on() && mode.net) Plaza.admit(id);
-      else if (state === 'playing' && mode && mode.net) addChat('Sala', null, `${this.nameOf(id)} entrou na sala (joga a partir da próxima).`, true);
+      else if (state === 'playing' && mode && mode.net && !this.admitMatch(id)) addChat('Sala', null, `${this.nameOf(id)} entrou na sala (joga a partir da próxima).`, true);
       return;
     }
     const id = conn.netId; if (!id) return;
@@ -4858,6 +4884,7 @@ const Net = {
     if (m.t === 'ping') { this.raw(conn, { t: 'pong', ts: m.ts, f: 'h' }); return; }
     if (m.t === 'pong') { conn.ping = Math.round(performance.now() - m.ts); this.ping = Math.max(0, ...[...this.conns.values()].map(c => c.ping || 0)); return; }
     if (m.t === 'bye') { this.dropGuest(conn); return; }
+    if (m.t === 'mjoinreq') { if (!remoteOf(id)) this.admitMatch(id); return; }
     if (HOST_ONLY.has(m.t)) return;
     if (m.to && mode && mode.netBots && mode.netBots.has(m.to)) {
       const b = mode.netBots.get(m.to), a = remoteOf(id);
@@ -4868,6 +4895,20 @@ const Net = {
     if (!m.to && !NO_RELAY.has(m.t)) for (const [cid, c] of this.conns) if (cid !== id) this.raw(c, m);
     onNetMsg(m);
   },
+  // quem chega (ou volta) com a partida rolando entra nela na hora, com placar, tempo e abates em dia.
+  // Não vale no duelo do Xadrez FPS (é 1 contra 1) nem na Praça (que tem a entrada dela)
+  canJoinMatch() { return !!(state === 'playing' && mode && mode.net && mode.type === 'x1' && !mode.over && !mode.cfg.chess && !mode.plaza); },
+  admitMatch(id) {
+    const p = this.byId(id); if (this.role !== 'host' || !p || p.spec || !this.canJoinMatch() || remoteOf(id)) return false;
+    const ro = this.roster.filter(q => q.id === 'h' || q.id === id || remoteOf(q.id)).map(q => ({ id: q.id, name: q.name, team: q.team }));
+    this.send({ t: 'start', cfg: mode.cfg, ro, late: 1 }, id);
+    this.send({ t: 'xsync', ...matchSync() }, id);
+    this.send({ t: 'mjoin', id });
+    addMatchRemote(p);
+    return true;
+  },
+  // conexão que parou de responder (aba fechada, internet caiu sem avisar): sai sozinha
+  reap() { const t = performance.now(); for (const c of [...this.conns.values()]) if (t - (c.lastSeen || t) > 12000) this.dropGuest(c); },
   dropGuest(conn) {
     const id = conn.netId; if (!id || !this.conns.has(id)) return;
     this.conns.delete(id); try { conn.close(); } catch (e) {}
@@ -4879,13 +4920,14 @@ const Net = {
   },
   // ---- convidado
   guestConn(conn) {
-    this.conns.set('h', conn);
+    this.conns.set('h', conn); conn.lastSeen = performance.now();
     conn.on('open', () => {
-      this.open = true; sendMySkin('hello');
-      clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
+      this.open = true; sendMySkin('hello'); conn.lastSeen = performance.now();
+      clearInterval(this.pingTimer); this.pingTimer = setInterval(() => { this.send({ t: 'ping', ts: performance.now() }); if (performance.now() - conn.lastSeen > 15000) { try { conn.close(); } catch (e) {} this.lost(); } }, 1000);
       this.setStatus('');
     });
     conn.on('data', m => {
+      conn.lastSeen = performance.now();
       if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
       if (HOST_ONLY.has(m.t) && m.f !== 'h') return;
       if (m.t === 'pong') { this.ping = Math.round(performance.now() - m.ts); return; }
@@ -4899,7 +4941,7 @@ const Net = {
   async host(name) {
     this.leave(); this.role = 'host'; this.myName = name; this.myId = 'h'; this.code = this.newCode();
     this.roster = [{ id: 'h', name, team: 0, skin: skinPayload(mySkin()), cos: myCos(), fc: Prof.d.fc, lv: Prof.level().lv }];
-    clearInterval(this.pingTimer); this.pingTimer = setInterval(() => this.send({ t: 'ping', ts: performance.now() }), 1000);
+    clearInterval(this.pingTimer); this.pingTimer = setInterval(() => { this.send({ t: 'ping', ts: performance.now() }); this.reap(); }, 1000);
     if (LOCAL_NET) { this.hub = localHub(this.code, c => this.hostConn(c)); this.setStatus('waiting'); return; }
     this.setStatus('Criando a sala…');
     try { await loadPeerJS(); } catch (e) { this.setStatus(e.message); return; }
@@ -4930,8 +4972,9 @@ const Net = {
     this.open = false; this.conns.clear(); clearInterval(this.pingTimer); this.roster = [];
     if (state === 'playing' && mode && mode.net) {
       mode.over = true; if (document.exitPointerLock && locked()) document.exitPointerLock();
-      $('#endWinner').innerHTML = this.kicked ? '<b>Você foi expulso da sala</b><br>O admin tirou você da partida.' : '<b>Conexão perdida</b><br>O anfitrião saiu ou a internet caiu.';
-      fillScore($('#endBody')); $('#eAgain').disabled = true; $('#eAgain').textContent = 'Jogar novamente'; $('#end').hidden = false;
+      $('#endWinner').innerHTML = this.kicked ? '<b>Você foi expulso da sala</b><br>O admin tirou você da partida.' : '<b>Conexão perdida</b><br>O anfitrião saiu ou a internet caiu. Se a sala ainda existe, dá para voltar.';
+      this.rejoinCode = this.kicked ? '' : this.code;
+      fillScore($('#endBody')); $('#eAgain').disabled = !this.rejoinCode; $('#eAgain').textContent = this.rejoinCode ? 'Reconectar' : 'Jogar novamente'; $('#end').hidden = false;
     }
     this.setStatus(wasOpen ? 'Conexão encerrada.' : this.status);
   },
@@ -7587,7 +7630,7 @@ function renderNetLobby() {
     if (Net.status && Net.status !== 'waiting' && Net.open) html += '<br>' + esc(Net.status);
   } else if (role === 'guest') {
     const h = Net.byId('h');
-    html = Net.open ? `Conectado à sala de <b>${esc(h ? h.name : 'anfitrião')}</b>. ${Net.inMatch ? 'Tem uma partida rolando: você entra na próxima.' : 'Aguardando o anfitrião iniciar.'}` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
+    html = Net.open ? `Conectado à sala de <b>${esc(h ? h.name : 'anfitrião')}</b>. ${Net.inMatch ? 'Tem uma partida rolando: clique em Entrar para jogar nela agora.' : 'Aguardando o anfitrião iniciar.'}` + (Net.hostCfg ? `<br><span class="note">${esc(cfgSummary(Object.assign(clone(X1_DEFAULT), Net.hostCfg)))}</span>` : '') : esc(Net.status);
   } else html = esc(Net.status);
   if (role && S.audio.voice) html += `<br><span class="note">${Voice.micState === 'on' ? '🎤 Voice chat ligado: todo mundo da sala ouve você.' : Voice.micState === 'off' ? 'Sem microfone (não liberado): você ouve os outros, mas eles não te ouvem. <button class="btn small" id="bMicRetry">Ligar microfone</button>' : 'Voice chat: o navegador vai pedir o microfone quando alguém entrar.'}</span>`;
   if (Net.versionWarn) html += '<br><span style="color:var(--danger)">Tem gente com versão diferente do jogo. Recarreguem a página (Ctrl+F5).</span>';
@@ -7624,7 +7667,8 @@ function renderNetLobby() {
   if (hordeG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Começar as hordas (todo mundo no mesmo time)'; }
   if (rjG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Abrir o Rocket jump (foguete sem dano)'; }
   if (testG) { $('#bNetStart').disabled = false; $('#bNetStart').textContent = 'Abrir o mapa de testes (comandos liberados, sem fim)'; }
-  $('#bNetEnter').hidden = !(role === 'guest' && Net.inMatch && Net.plazaOn && state !== 'playing');
+  $('#bNetEnter').hidden = !(role === 'guest' && Net.inMatch && state !== 'playing' && !(Net.me() && Net.me().spec));
+  $('#bNetEnter').textContent = Net.plazaOn ? 'Entrar na Praça' : 'Entrar na partida';
   if (chessG) {
     const n = Net.teamSizes(), ok = Net.open && n[0] === 1 && n[1] === 1;
     $('#bNetStart').disabled = !ok;
@@ -7657,7 +7701,11 @@ $('#pResume').onclick = () => setPaused(false);
 $('#pSet').onclick = () => openSettings();
 $('#pRestart').onclick = () => mode.restart();
 $('#pMenu').onclick = () => goMenu();
-$('#eAgain').onclick = () => mode.restart();
+$('#eAgain').onclick = () => {
+  // caiu da sala: volta para ela (e, com a partida rolando, o anfitrião põe você de volta no jogo)
+  if (Net.rejoinCode && Net.role === 'guest' && !Net.open) { const c = Net.rejoinCode, n = Net.myName; Net.rejoinCode = ''; goMenu(); openNetPanel(); Net.join(n, c); return; }
+  mode.restart();
+};
 $('#eAdmin').onclick = () => openAdmin();
 $('#pAdmin').onclick = () => openAdmin();
 $('#pEdSave').onclick = () => { meSaveMap(); $('#pEdSave').textContent = 'Salvo ✓'; setTimeout(() => { $('#pEdSave').textContent = 'Salvar o mapa'; }, 1500); };
@@ -9057,6 +9105,37 @@ function startPlaza() {
   lockPointer();
 }
 // quem chegou depois (online): cria o boneco dele na praça
+// partida online já rolando: põe mais um jogador nela (anfitrião e quem já estava jogando)
+function addMatchRemote(p) {
+  if (!p || p.id === Net.myId || p.spec || remoteOf(p.id) || !mode || !mode.remotes) return;
+  const cfg = mode.cfg, i = [...mode.remotes.values()].filter(r => r.team === p.team && !r.spec).length + (player.team === p.team ? 1 : 0);
+  const hp = cfg.teamHp ? cfg.teamHp[p.team] : cfg.hp, rw = cfg.teamWeapons ? cfg.teamWeapons[p.team][0] : mode.weapons[0];
+  const r = createCombatant(p.name, mode.ffa ? ffaColor(Net.roster.indexOf(p)) : shade(TEAM_COLORS[p.team], i), pickSpawn({ team: p.team }), false);
+  Object.assign(r, { remote: true, netId: p.id, team: p.team, maxHp: hp, hp, spawnIdx: i, wi: rw });
+  r.net = { tp: r.pos.clone(), tv: new THREE.Vector3(), ty: r.yaw, at: performance.now(), has: false };
+  setGunShape(r, WEAPONS[rw]); applySkin(r, p.skin || null); applyCos(r, p.cos);
+  mode.remotes.set(p.id, r);
+  addChat('Sala', null, `${p.name} entrou na partida.`, true);
+}
+// o que quem entrou atrasado precisa para ficar igual a todo mundo: placar, relógio, round e os abates de cada um
+function matchSync() {
+  const k = [[Net.myId, player]].concat([...mode.remotes].map(([id, r]) => [id, r]), mode.netBots ? [...mode.netBots].map(([id, b]) => [id, b]) : [])
+    .map(([id, c]) => [id, c.kills | 0, c.deaths | 0, c.ggDown | 0]);
+  return { s: mode.score.slice(), tl: +mode.timeLeft.toFixed(1), rd: mode.round | 0, live: mode.live ? 1 : 0, k };
+}
+function applyMatchSync(m) {
+  if (Array.isArray(m.s) && m.s.length === 2) mode.score = m.s.map(v => clamp(v | 0, 0, 999));
+  if (isFinite(+m.tl)) mode.timeLeft = clamp(+m.tl, 0, 36000);
+  mode.round = clamp(m.rd | 0, 0, 999); mode.live = !!m.live || !mode.rounds;
+  if (Array.isArray(m.k)) for (const e of m.k.slice(0, 40)) {
+    if (!Array.isArray(e)) continue;
+    const c = e[0] === Net.myId ? player : remoteOf(String(e[0])); if (!c) continue;
+    c.kills = clamp(e[1] | 0, 0, 9999); c.deaths = clamp(e[2] | 0, 0, 9999); c.ggDown = clamp(e[3] | 0, 0, 9999);
+  }
+  applyDuel(mode);
+  if (!mode.rounds && !player.spec) respawn(player, pickSpawn(player));   // nasce longe de quem já está jogando
+  banner('Você entrou na partida', mode.ffa ? 'Todos contra todos' : `${mode.score[mode.myTeam]} x ${mode.score[1 - mode.myTeam]}`, 2);
+}
 function addPlazaRemote(p) {
   if (!p || p.id === Net.myId || remoteOf(p.id) || !mode || !mode.remotes) return;
   const sp = pickSpawn({}), K = WI('knife');
@@ -9278,7 +9357,7 @@ $('#tblReset').onclick = () => Plaza.act(Plaza.ui, 'reset');
 $('#tblLeave').onclick = () => Plaza.act(Plaza.ui, 'leave');
 $('#tblClose').onclick = () => Plaza.closeTable();
 $('#bPlaza').onclick = () => startPlaza();
-$('#bNetEnter').onclick = () => Net.send({ t: 'pjoinreq' });
+$('#bNetEnter').onclick = () => Net.send({ t: Net.plazaOn ? 'pjoinreq' : 'mjoinreq' });
 $('#chNewW').onclick = () => Chess.newLocal('w');
 $('#chNewB').onclick = () => Chess.newLocal('b');
 $('#chNewOnline').onclick = () => { Chess.st = null; Chess.startOnline(); };
