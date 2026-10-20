@@ -851,13 +851,12 @@ function lockPointer() {
   if (S.controls.rawMouse === false) { rawLock = false; try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} return; }
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
-    // só cai para o modo normal quando o navegador não tem mouse cru; se falhou por outro motivo (clique cedo
-    // demais depois do Esc, janela sem foco), o próximo clique tenta cru de novo. Antes ele caía para o modo
-    // normal, que tem outra sensibilidade (e a aceleração do Windows): parecia que a sensibilidade mudava sozinha
+    // se o mouse cru falhar, trava no modo normal na hora (perder o controle é pior que a sensibilidade mudar um
+    // pouco até o próximo clique, que tenta o cru de novo). InUseAttributeError = já tem um pedido em andamento
     if (p && p.then) p.then(() => { rawLock = true; }, err => {
-      rawLock = false;
-      if (err && err.name === 'NotSupportedError') { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(() => {}); } catch (e) {} }
-      else updateLockHint();
+      const n = err && err.name || ''; rawLock = false; Diag.lastLockErr = n; Diag.add('mouse cru recusado', n);
+      if (n === 'InUseAttributeError' || document.pointerLockElement === canvas) return;
+      try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(e => { Diag.add('mouse normal recusado', e && e.name || ''); updateLockHint(); }); } catch (e) {}
     });
     else rawLock = false;
   } catch (e) { rawLock = false; try { canvas.requestPointerLock(); } catch (e2) {} }
@@ -3027,6 +3026,37 @@ const worldActive = () => state === 'playing' && !(paused && !(mode && mode.net)
 
 function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
 
+// Diagnóstico de "controles travados": guarda os últimos acontecimentos que podem tirar o controle (mouse solto,
+// janela sem foco, tela cheia saindo, quadros travados) e, quando o controle some sem você ter pausado, avisa
+// na tela o motivo. /diag no chat mostra o registro.
+const Diag = {
+  log: [], blockSince: 0, why: '', warned: '', lastLockErr: '',
+  add(k, info = '') { this.log.push({ t: performance.now(), k, info }); if (this.log.length > 80) this.log.shift(); },
+  reason() {
+    if (state !== 'playing') return '';
+    if (paused) return 'pause'; if (devOpen) return 'painel dev'; if (chatOpen) return 'chat aberto'; if (classOpen) return 'escolha de classe';
+    if (adminOpen) return 'menu de admin'; if (tblOpen) return 'mesa de xadrez'; if (mode && mode.over) return 'fim da partida'; if (mode && mode.frozen) return 'congelado pelo admin';
+    if (!locked()) return !document.hasFocus() ? 'a janela do jogo perdeu o foco (outro programa ou aviso do navegador na frente)' : 'o navegador soltou o mouse' + (this.lastLockErr ? ` (${this.lastLockErr})` : '');
+    return '';
+  },
+  tick(realDt) {
+    if (state !== 'playing') { this.why = ''; return; }
+    if (realDt > 0.3) this.add('quadro travado', Math.round(realDt * 1000) + ' ms');
+    if (realDt > 1.2 && this.warned !== 'lag') { this.warned = 'lag'; banner('O jogo ficou parado ' + realDt.toFixed(1) + ' s', 'O navegador travou (computador ocupado ou falta de memória)', 2.5); }
+    const r = this.reason();
+    if (r !== this.why) { if (r) this.add('controle bloqueado', r); else if (this.why) this.add('controle voltou'); this.why = r; this.blockSince = performance.now(); this.warned = ''; }
+    // pausa, chat e menus são de propósito: só avisa quando o controle sumiu sozinho
+    if (r && r.startsWith('a janela') || r.startsWith('o navegador')) {
+      if (performance.now() - this.blockSince > 400 && this.warned !== r) { this.warned = r; banner('Controle perdido', r + '. Clique no jogo para voltar.', 3); }
+    }
+  },
+  text() { const t0 = performance.now(); return this.log.slice(-15).map(e => `${((e.t - t0) / 1000).toFixed(1)} s · ${e.k}${e.info ? ': ' + e.info : ''}`); },
+};
+addEventListener('focus', () => Diag.add('janela ganhou foco')); addEventListener('blur', () => Diag.add('janela perdeu foco'));
+document.addEventListener('visibilitychange', () => Diag.add('aba ' + (document.hidden ? 'escondida' : 'visível')));
+document.addEventListener('pointerlockchange', () => Diag.add(document.pointerLockElement ? 'mouse travado' : 'mouse solto' + (Diag.lastLockErr ? '' : '')));
+document.addEventListener('pointerlockerror', () => Diag.add('erro ao travar o mouse'));
+document.addEventListener('fullscreenchange', () => Diag.add(document.fullscreenElement ? 'entrou na tela cheia' : 'saiu da tela cheia'));
 function startSlide(p, landing) {
   const hs = Math.hypot(p.vel.x, p.vel.z);
   if (hs < 3) return;
@@ -6322,6 +6352,7 @@ const TEAM_WORDS = { laranja: 0, l: 0, '0': 0, orange: 0, azul: 1, a: 1, '1': 1,
 const ONOFF = { on: true, sim: true, liga: true, ligar: true, '1': true, off: false, nao: false, 'não': false, desliga: false, desligar: false, '0': false };
 const isAdmin = () => !mode || !mode.net || Net.role === 'host' || Admin.me;
 const CMD_HELP = [
+  ['diag', '/diag mostra o que aconteceu com o mouse, o foco e os travamentos (mande print se os controles travarem)'],
   ['cam', '/cam costas · /cam frente · /cam 1 (volta)  ·  /cam frente Ana muda a câmera da Ana'],
   ['ver', '/ver Ana [costas|frente] assiste outro jogador  ·  /ver sozinho volta para você'],
   ['time', '/time Ana azul (ou laranja; sem cor troca de lado)'],
@@ -6400,6 +6431,7 @@ function runCommand(txt) {
     watchCombatant(c === player ? null : c, m); if (c === player) setCam(m); return;
   }
   if (cmd === 'menuadm') { openAdmin(); return; }
+  if (cmd === 'diag') { sysChat(`Diagnóstico · mouse ${mouseFilter.raw ? 'cru' : 'normal'} · ${document.fullscreenElement ? 'tela cheia' : 'janela'} · ${Math.round(fpsVal)} FPS`); for (const l of Diag.text()) sysChat(l); if (!Diag.log.length) sysChat('Nada registrado ainda.'); return; }
   if (cmd === 'jogar') {
     const id = JOGAR_WORDS[normTxt(args[0])]; if (!id) { sysChat('Use /jogar praca, hordas, roleta, xadrez, mata, gungame, faca ou rocket.', true); return; }
     if (Net.role === 'guest') { Net.send({ t: 'acmd', c: 'jogar', a: [id] }, 'h'); return; }
@@ -8018,6 +8050,7 @@ function frame(t) {
   requestAnimationFrame(frame);
   const realDt = Math.max(0.0001, (t - last) / 1000);
   let dt = Math.min(0.05, realDt); last = t;
+  Diag.tick(realDt);
   const t0 = performance.now();
   renderer.info.reset();
   Voice.update(dt); for (const c of combatants) updateMouth(c, dt);
