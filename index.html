@@ -751,12 +751,13 @@ addEventListener('keydown', e => {
   }
   if (e.code === 'Escape' && state === 'playing' && !e.repeat) { escDownAt = performance.now(); if (!typing) onEscape(); }
   if (!e.repeat) { held.add(e.code); pressed.add(e.code); }
+  if (state === 'playing') Diag.input(e);
 });
 // Esc em tela cheia (F11): dependendo do navegador, o aperto do Esc é engolido (só solta o mouse ou nem isso)
 // e a página recebe só o "soltar" da tecla. Se o keydown não chegou, o keyup abre a pausa do mesmo jeito.
 let escDownAt = -1e9, fsToggleAt = -1e9;
 addEventListener('keyup', e => {
-  held.delete(e.code);
+  held.delete(e.code); if (state === 'playing') Diag.input(e);
   if (e.code === 'Escape' && state === 'playing' && !paused && performance.now() - escDownAt > 1500 && !(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT'))) onEscape();
 });
 // saiu da tela cheia no meio da partida (segurou Esc, ou o navegador tirou): pausa, como no Esc
@@ -797,6 +798,7 @@ function acceptMove(dx, dy) {
 }
 addEventListener('mousemove', e => {
   if (!locked() || touchOn()) return;
+  Diag.input(e);
   if (!acceptMove(e.movementX, e.movementY)) return;
   look.x += e.movementX; look.y += e.movementY;
 });
@@ -3030,7 +3032,10 @@ function canStand() { const p = player.pos.clone(); return !collides(p, 1.8); }
 // janela sem foco, tela cheia saindo, quadros travados) e, quando o controle some sem você ter pausado, avisa
 // na tela o motivo. /diag no chat mostra o registro.
 const Diag = {
-  log: [], blockSince: 0, why: '', warned: '', lastLockErr: '',
+  log: [], blockSince: 0, why: '', warned: '', lastLockErr: '', lag: 0, lagN: 0, lagWarnAt: -1e9, evN: 0, evRate: 0, evAt: 0,
+  // atraso de entrada: quanto tempo o evento do mouse/teclado ficou na fila do navegador antes de chegar ao jogo.
+  // Se passa de ~150 ms, o boneco segue o último comando e o mouse "pula" atrasado, que é o travamento relatado
+  input(e) { this.evN++; const d = performance.now() - e.timeStamp; if (d > 0 && d < 60000 && d > this.lag) this.lag = d; },
   add(k, info = '') { this.log.push({ t: performance.now(), k, info }); if (this.log.length > 80) this.log.shift(); },
   reason() {
     if (state !== 'playing') return '';
@@ -3042,6 +3047,17 @@ const Diag = {
   tick(realDt) {
     if (state !== 'playing') { this.why = ''; return; }
     if (realDt > 0.3) this.add('quadro travado', Math.round(realDt * 1000) + ' ms');
+    const tn = performance.now();
+    if (tn - this.evAt > 1000) { this.evRate = this.evN * 1000 / (tn - this.evAt || 1); this.evN = 0; this.evAt = tn; }
+    if (this.lag > 150 && tn - (this.lagLogAt || 0) > 500) {
+      this.lagLogAt = tn; this.add('mouse/teclado atrasado', Math.round(this.lag) + ' ms · ' + Math.round(fpsVal) + ' FPS · ' + Math.round(this.evRate) + ' eventos/s · mouse ' + (rawLock ? 'cru' : 'normal'));
+      if (this.lag > 300 && tn - this.lagWarnAt > 20000) {
+        this.lagWarnAt = tn;
+        banner('Mouse e teclado chegando ' + (this.lag / 1000).toFixed(1) + ' s atrasados',
+          rawLock ? 'Tente desligar "Mouse cru" em Configurações > Controles, ou baixar os Hz do mouse para 1000 ou menos' : 'Tente baixar os Hz do mouse para 1000 ou menos, ou a resolução do jogo', 4);
+      }
+    }
+    this.lag = 0;
     if (realDt > 1.2 && this.warned !== 'lag') { this.warned = 'lag'; banner('O jogo ficou parado ' + realDt.toFixed(1) + ' s', 'O navegador travou (computador ocupado ou falta de memória)', 2.5); }
     const r = this.reason();
     if (r !== this.why) { if (r) this.add('controle bloqueado', r); else if (this.why) this.add('controle voltou'); this.why = r; this.blockSince = performance.now(); this.warned = ''; }
