@@ -690,7 +690,7 @@ const ACTIONS = [
 const DEFAULTS = {
   video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
-  controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1 },
+  controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1, autoReload: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
   touch: { mode: 0, sens: 1, assist: 0.5, autoFire: false, size: 1, opacity: 0.85, autoScale: true, stickFixed: false, crouchToggle: false },
   hud: { scale: 1, bg: 0.42, fg: '#e9edf0', accent: '#f2a03a', hitmarker: true, dmgDir: true, killcam: true },
@@ -1152,16 +1152,56 @@ function assistPull(p, dt, active) {
 // =====================================================================================
 // Áudio sintetizado (WebAudio)
 // =====================================================================================
-let actx = null, master = null;
+let actx = null, master = null, reverb = null, reverbIn = null;
 const buffers = {};
 function initAudio() {
   if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
   try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
   master = actx.createGain(); master.connect(actx.destination); applyVolume();
+  // eco do ambiente: todo som manda um pouco para um reverb (resposta gerada: reflexões cedo + cauda que some),
+  // é isso que tira o som "de videogame" e faz o tiro ecoar como num lugar de verdade
+  try {
+    const SRr = actx.sampleRate, L = Math.floor(SRr * 1.5), ir = actx.createBuffer(2, L, SRr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch); let lp = 0;
+      for (let i = 0; i < L; i++) { const t = i / SRr, w = Math.random() * 2 - 1; lp += (w - lp) * (0.5 - 0.3 * Math.min(1, t)); d[i] = lp * Math.exp(-t * 4.2) * (t < 0.012 ? t / 0.012 : 1); }
+      for (const [at, g] of [[0.017, 0.5], [0.031, 0.35], [0.048, 0.3], [0.073, 0.22], [0.11, 0.15]]) { const i = Math.floor((at + ch * 0.004) * SRr); if (i < L) d[i] += g * (Math.random() < 0.5 ? -1 : 1); }
+    }
+    reverb = actx.createConvolver(); reverb.buffer = ir; reverbIn = actx.createGain(); reverbIn.gain.value = 1;
+    const wet = actx.createGain(); wet.gain.value = 0.55; reverbIn.connect(reverb); reverb.connect(wet); wet.connect(master);
+  } catch (e) { reverb = reverbIn = null; }
   if (S.audio.outId && typeof actx.setSinkId === 'function') actx.setSinkId(S.audio.outId).catch(() => {});
   const SR = actx.sampleRate;
   const make = (dur, fn) => { const n = Math.floor(dur * SR), b = actx.createBuffer(1, n, SR), d = b.getChannelData(0); let st = { lp: 0 }; for (let i = 0; i < n; i++) d[i] = clamp(fn(i / SR, Math.random() * 2 - 1, st), -1, 1); return b; };
   const shot = (dur, decay, hz, lp, gain) => make(dur, (t, w, s) => { s.lp += (w - s.lp) * lp; const env = Math.exp(-t * decay); const th = Math.sin(2 * Math.PI * hz * t * (1 - 0.4 * t / dur)) * Math.exp(-t * decay * 0.7); const cr = t < 0.01 ? w * (1 - t / 0.01) : 0; let v = (s.lp * 1.4 + th * 0.8 + cr * 0.6) * env * gain; if (t < 0.002) v *= t / 0.002; return v; });
+  // tiro em camadas, como uma gravação: estalo supersônico (agudo, 2-3 ms) + explosão da boca (ruído largo que cai
+  // rápido) + soco grave + ronco do ar que vai rolando + o clique do mecanismo (ferrolho/cápsula) um instante depois.
+  // Passa por uma saturação leve, que dá o "peso" de tiro gravado
+  const gun = o => make(o.dur, (t, w, s) => {
+    s.a = s.a || 0; s.b = s.b || 0; s.r = s.r || 0;
+    s.a += (w - s.a) * 0.6; s.b += (w - s.b) * o.lp; s.r += (w - s.r) * 0.025;
+    const crack = (w - s.a) * Math.exp(-t * 700) * o.crack;
+    const blast = s.b * Math.exp(-t * o.dec) * o.blast * (t < 0.0006 ? t / 0.0006 : 1);
+    const f = o.hz * (1 + 0.7 * Math.exp(-t * 60));
+    const boom = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * o.dec * 0.55) * o.boom;
+    const rumble = s.r * Math.exp(-t * o.tail) * o.rumble * Math.min(1, t * 80);
+    let mech = 0;
+    if (o.mech && t > o.mech) { const u = t - o.mech; mech = (Math.sin(2 * Math.PI * 2300 * u) * 0.6 + Math.sin(2 * Math.PI * 3700 * u) * 0.3 + w * 0.4) * Math.exp(-u * 260) * 0.35; }
+    const v = (crack + blast + boom + rumble) * o.g + mech;
+    return Math.tanh(v * 1.8) / Math.tanh(1.8);
+  });
+  // passo em chão duro: calcanhar e depois a ponta do pé (dois toques separados por ~45 ms), cada um com estalo
+  // de sola, raspada arenosa e um baque baixinho; 4 variações sorteadas
+  const footstep = (gap, pitch) => make(0.2, (t, w, s) => {
+    s.h = s.h || 0; s.lo = s.lo || 0; s.h += (w - s.h) * 0.35; s.lo += (w - s.lo) * 0.04;
+    let v = 0;
+    for (const [at, g] of [[0, 1], [gap, 0.6]]) {
+      if (t < at) continue; const u = t - at;
+      v += ((w - s.h) * Math.exp(-u * 160) * 0.8 + s.h * Math.exp(-u * 70) * 0.35 + s.lo * Math.exp(-u * 40) * 1.4 + Math.sin(2 * Math.PI * pitch * u) * Math.exp(-u * 55) * 0.18) * g * (u < 0.001 ? u / 0.001 : 1);
+    }
+    if (Math.random() < 0.004 && t < gap + 0.05) v += w * 0.5;   // grãos de areia sob a sola
+    return v * 0.6;
+  });
   const click = (dur, hz, g) => make(dur, (t, w) => (w * 0.5 + Math.sin(2 * Math.PI * hz * t) * 0.6) * Math.exp(-t * 6 / dur) * g);
   const tone = (dur, hz, hz2, dec, g) => make(dur, t => (Math.sin(2 * Math.PI * hz * t) + (hz2 ? 0.5 * Math.sin(2 * Math.PI * hz2 * t) : 0)) * Math.exp(-t * dec) * g);
   const thump = (dur, dec, g) => make(dur, (t, w, s) => { s.lp += (w - s.lp) * 0.08; return (s.lp * 3 + Math.sin(2 * Math.PI * 70 * t) * 0.4) * Math.exp(-t * dec) * g; });
@@ -1173,10 +1213,17 @@ function initAudio() {
     const v = heel + sole + body + Math.sin(2 * Math.PI * hz * t) * Math.exp(-t * 60) * tone;
     return (t < 0.0015 ? v * t / 0.0015 : v) * 0.7;
   });
-  for (let i = 0; i < 4; i++) buffers['step' + i] = step(110 + i * 23, 0.12 + i * 0.03);
+  for (let i = 0; i < 4; i++) buffers['step' + i] = footstep(0.038 + i * 0.006, 95 + i * 17);
   Object.assign(buffers, {
-    pistol: shot(0.22, 26, 140, 0.55, 0.9), shotgun: shot(0.45, 11, 70, 0.35, 1), rifle: shot(0.2, 22, 110, 0.5, 0.95), sniper: shot(0.7, 7, 55, 0.3, 1),
-    deagle: shot(0.32, 16, 95, 0.42, 1), smg: shot(0.15, 30, 170, 0.62, 0.8), revolver: shot(0.42, 12, 80, 0.38, 1), lmg: shot(0.2, 24, 95, 0.48, 0.95), semi: shot(0.27, 17, 105, 0.45, 1),
+    pistol: gun({ dur: 0.45, g: 0.9, crack: 0.7, blast: 1.6, lp: 0.35, dec: 38, hz: 150, boom: 0.5, rumble: 1.2, tail: 9, mech: 0.05 }),
+    deagle: gun({ dur: 0.6, g: 1, crack: 0.9, blast: 2, lp: 0.25, dec: 26, hz: 95, boom: 0.8, rumble: 1.8, tail: 6.5, mech: 0.07 }),
+    revolver: gun({ dur: 0.65, g: 1, crack: 0.8, blast: 2, lp: 0.22, dec: 24, hz: 85, boom: 0.8, rumble: 1.9, tail: 6 }),
+    smg: gun({ dur: 0.3, g: 0.75, crack: 0.6, blast: 1.4, lp: 0.45, dec: 48, hz: 180, boom: 0.35, rumble: 0.8, tail: 13, mech: 0.035 }),
+    rifle: gun({ dur: 0.45, g: 0.9, crack: 1, blast: 1.6, lp: 0.3, dec: 36, hz: 120, boom: 0.55, rumble: 1.3, tail: 9, mech: 0.045 }),
+    semi: gun({ dur: 0.55, g: 0.95, crack: 1, blast: 1.8, lp: 0.27, dec: 30, hz: 110, boom: 0.6, rumble: 1.5, tail: 7.5, mech: 0.06 }),
+    lmg: gun({ dur: 0.45, g: 0.95, crack: 0.9, blast: 1.8, lp: 0.26, dec: 34, hz: 100, boom: 0.65, rumble: 1.4, tail: 9, mech: 0.04 }),
+    shotgun: gun({ dur: 0.8, g: 1, crack: 0.5, blast: 2.4, lp: 0.18, dec: 18, hz: 70, boom: 1, rumble: 2.2, tail: 4.5 }),
+    sniper: gun({ dur: 1.1, g: 1, crack: 1.2, blast: 2.2, lp: 0.2, dec: 20, hz: 60, boom: 1, rumble: 2.4, tail: 3.2 }),
     // arco: corda vibrando (grave, com harmônicos) + estalo; besta: pancada seca de metal com mola; manivela: catracas
     bowTwang: make(0.45, (t, w, s) => { s.lp += (w - s.lp) * 0.4; const f = 98 * (1 + 0.15 * Math.exp(-t * 30)); return (Math.sin(2 * Math.PI * f * t) * 0.6 + Math.sin(4 * Math.PI * f * t) * 0.3 + Math.sin(6 * Math.PI * f * t) * 0.15) * Math.exp(-t * 9) + (w - s.lp) * 0.6 * Math.exp(-t * 120); }),
     bowDraw: make(0.7, (t, w, s) => { s.lp += (w - s.lp) * 0.06; return s.lp * (0.6 + 0.6 * Math.sin(2 * Math.PI * 23 * t)) * Math.min(1, t * 4) * Math.exp(-t * 2) * 1.4; }),
@@ -1192,10 +1239,24 @@ function initAudio() {
     round: tone(0.6, 660, 990, 4, 0.35),
     spray: make(0.5, (t, w, s) => { s.lp += (w - s.lp) * 0.35; return (w - s.lp) * 0.6 * Math.min(1, t * 25) * Math.exp(-t * 4) * (1 + 0.3 * Math.sin(2 * Math.PI * 18 * t)); }),
     boom: make(1.4, (t, w, s) => { s.lp += (w - s.lp) * (0.12 - Math.min(0.1, t * 0.1)); return (s.lp * 3.2 + Math.sin(2 * Math.PI * (60 - 25 * t) * t) * 0.7) * Math.exp(-t * 3.2) * Math.min(1, t * 400); }),
-    magOut: click(0.09, 900, 0.6), magIn: click(0.12, 650, 0.8), empty: click(0.05, 2200, 0.5), draw: click(0.1, 1300, 0.35), zoom: click(0.05, 3000, 0.3),
+    magOut: make(0.25, (t, w) => { const sl = t < 0.12 ? w * 0.18 * Math.sin(Math.PI * t / 0.12) : 0, c = t > 0.12 ? (Math.sin(2 * Math.PI * 1900 * (t - 0.12)) * 0.6 + w * 0.4) * Math.exp(-(t - 0.12) * 120) : 0; return (sl + c) * 0.7; }),
+    magIn: make(0.3, (t, w) => { let v = 0; for (const [at, hz, g] of [[0, 1500, 0.6], [0.16, 2400, 0.9]]) if (t > at) { const u = t - at; v += (Math.sin(2 * Math.PI * hz * u) * 0.6 + w * 0.5) * Math.exp(-u * 140) * g; } return v * 0.7; }), empty: click(0.05, 2200, 0.5), draw: click(0.1, 1300, 0.35), zoom: click(0.05, 3000, 0.3),
     hit: tone(0.07, 1500, 0, 60, 0.5), head: tone(0.35, 1900, 2850, 10, 0.55), kill: tone(0.4, 1200, 1800, 7, 0.5),
     land: thump(0.2, 22, 0.7), hurt: make(0.25, (t, w, s) => { s.lp += (w - s.lp) * 0.15; return (s.lp * 1.5 + Math.sin(2 * Math.PI * (180 - 240 * t) * t) * 0.6) * Math.exp(-t * 12) * 0.7; }),
   });
+  loadSoundPack();
+}
+// sons gravados (opcional): se o site tiver a pasta sounds/ com um sons.json, cada arquivo listado ali troca o som
+// sintetizado de mesmo nome (ex.: { "pistol": "pistol.ogg", "step0": "passo1.ogg" }). Use só sons de licença
+// livre (CC0 / domínio público). Sem a pasta, fica tudo sintetizado como antes. Ver sounds/LEIAME.md
+async function loadSoundPack() {
+  if (!/^https?:/.test(location.protocol)) return;
+  let list; try { const r = await fetch('sounds/sons.json', { cache: 'no-cache' }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
+  if (!list || typeof list !== 'object') return;
+  for (const [name, file] of Object.entries(list)) {
+    if (!/^[a-zA-Z0-9]+$/.test(name) || typeof file !== 'string' || !/^[\w.\-\/]+$/.test(file) || file.includes('..')) continue;
+    try { const r = await fetch('sounds/' + file); if (!r.ok) continue; buffers[name] = await actx.decodeAudioData(await r.arrayBuffer()); } catch (e) {}
+  }
 }
 function applyVolume() { if (master) master.gain.value = S.audio.master; }
 // som 3D: cada som de outro jogador sai de onde ele está (frente/trás/lados, com fones fica bem claro),
@@ -1253,8 +1314,14 @@ function play(name, vol = 1, pos = null) {
     }
     src.playbackRate.value = rand(0.95, 1.05);
   }
-  g.gain.value = v; src.connect(g); node.connect(master); src.start();
+  g.gain.value = v; src.connect(g); node.connect(master);
+  // quanto vai para o eco: tiros e explosões bastante, passos pouco, sons de interface (acerto, abate) nada;
+  // de longe o som chega mais "eco" que direto
+  const wet = NO_VERB[name] ? 0 : stepLike ? 0.12 : 0.4;
+  if (wet && reverbIn) { const sg = actx.createGain(); const d = pos && player ? Math.hypot(pos.x - camera.position.x, pos.z - camera.position.z) : 0; sg.gain.value = wet * Math.min(2.2, 1 + d / 30); node.connect(sg); sg.connect(reverbIn); }
+  src.start();
 }
+const NO_VERB = { hit: 1, head: 1, kill: 1, round: 1, empty: 1, zoom: 1, draw: 1, hurt: 1 };
 
 // =====================================================================================
 // Three.js: cena, câmeras, luz
@@ -3276,6 +3343,8 @@ function updateWeapons(dt) {
   if (w.build) { if (isHeld('fire')) tryBuild(false); else if (isHeld('scope')) tryBuild(true); return; }
   if (w.melee) { if (isHeld('scope')) tryMelee(true); else if (isHeld('fire') || (autoF && assist.dist < w.range)) tryMelee(false); return; }
   if (isDown('reload')) tryReload();
+  // recarga automática: pente vazio (e munição sobrando) já começa a recarregar, sem precisar apertar nada
+  else if (S.controls.autoReload !== false && slot.mag <= 0 && !pw.reloadT && pw.drawT <= 0 && w.mag > 0 && (pw.infinite || slot.reserve > 0) && !(mode && mode.noFire)) tryReload();
   { const want = adsOk(w) && isHeld('scope') && !pw.reloadT && pw.drawT <= 0 && !(player.slideT > 0) ? 1 : 0;
     pw.ads = clamp((pw.ads || 0) + (want ? 1 : -1) * dt / (want ? 0.16 : 0.12), 0, 1); }
   if (w.scope && isDown('scope') && !pw.reloadT && pw.drawT <= 0) { if (!pw.zoom) pw.zoomAt = now; pw.zoom = (pw.zoom + 1) % 3; pw.rezoom = 0; play('zoom', 0.7); }
@@ -7848,7 +7917,7 @@ function renderSettings() {
       `<p class="note">Com o som 3D, passos, tiros e quedas do adversário saem do lugar onde ele está: dá para saber se vem pela frente, por trás ou de lado, e o som fica abafado quando tem parede no meio. Fica muito melhor com fones. Correr faz barulho de passo; andar com Shift ou agachado é silencioso.</p>` +
       `<div class="row"><span></span><button class="btn small" id="sTest">Testar som</button><span></span></div>`;
   } else if (setTab === 2) {
-    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador; F11 na partida faz o mesmo). Com alguma tecla no Ctrl ela é usada sempre, para o Ctrl+W não tentar fechar a aba') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') +
+    h = R_('controls', 'sens', 'Sensibilidade (escala do CS)', 0.1, 8, 0.05, 2) + R_('controls', 'zoomSens', 'Sensibilidade com zoom', 0.1, 2, 0.05, 2) + T_('controls', 'invertY', 'Inverter eixo Y') + T_('controls', 'rawMouse', 'Mouse cru (sem aceleração do sistema)') + T_('controls', 'fullscreen', 'Tela cheia ao jogar (bloqueia todos os atalhos do navegador; F11 na partida faz o mesmo). Com alguma tecla no Ctrl ela é usada sempre, para o Ctrl+W não tentar fechar a aba') + T_('controls', 'leaveGuard', 'Confirmar antes de fechar a aba no meio da partida') + T_('controls', 'autoReload', 'Recarregar sozinho quando a munição do pente acabar') +
       `<p class="note">Recoil estilo CS: o primeiro tiro vai exatamente na mira. Segurando o tiro, cada arma sobe sempre no mesmo desenho (a metralhadora sobe reto e depois puxa para a esquerda e para a direita); puxe o mouse para baixo e para o lado contrário para compensar. Correndo, pulando ou logo depois de cair a mira abre muito: pare ou ande com Shift para acertar.</p>` +
       `<h3 style="margin-top:10px">Teclas</h3><p class="note">Clique no botão e aperte a nova tecla, um botão do mouse ou role a rodinha (para cima ou para baixo: ótimo para pular no bunny hop). Esc cancela.</p>` +
       ACTIONS.map(([id, label]) => `<div class="row"><label>${label}</label><button class="keybtn ${capturing === id ? 'wait' : ''}" data-key="${id}">${capturing === id ? 'Aperte uma tecla, botão ou role a rodinha…' : keyLabel(S.keys[id])}</button><span></span></div>`).join('');
