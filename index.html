@@ -1190,17 +1190,19 @@ function initAudio() {
     const v = (crack + blast + boom + rumble) * o.g + mech;
     return Math.tanh(v * 1.8) / Math.tanh(1.8);
   });
-  // passo em chão duro: calcanhar e depois a ponta do pé (dois toques separados por ~45 ms), cada um com estalo
-  // de sola, raspada arenosa e um baque baixinho; 4 variações sorteadas
-  const footstep = (gap, pitch) => make(0.2, (t, w, s) => {
-    s.h = s.h || 0; s.lo = s.lo || 0; s.h += (w - s.h) * 0.35; s.lo += (w - s.lo) * 0.04;
+  // passo: baque redondo e grave (tom que cai rápido, ataque macio) + um toque leve de sola, bem filtrado para não
+  // chiar; calcanhar e depois a ponta do pé (~45 ms), 4 variações de tom e de tempo sorteadas
+  const footstep = (gap, pitch) => make(0.18, (t, w, s) => {
+    s.lo = s.lo || 0; s.lo += (w - s.lo) * 0.12;
     let v = 0;
-    for (const [at, g] of [[0, 1], [gap, 0.6]]) {
-      if (t < at) continue; const u = t - at;
-      v += ((w - s.h) * Math.exp(-u * 160) * 0.8 + s.h * Math.exp(-u * 70) * 0.35 + s.lo * Math.exp(-u * 40) * 1.4 + Math.sin(2 * Math.PI * pitch * u) * Math.exp(-u * 55) * 0.18) * g * (u < 0.001 ? u / 0.001 : 1);
+    for (const [at, g] of [[0, 1], [gap, 0.55]]) {
+      if (t < at) continue; const u = t - at, att = 1 - Math.exp(-u * 700);
+      const body = Math.sin(2 * Math.PI * pitch * (1 + 0.45 * Math.exp(-u * 70)) * u) * Math.exp(-u * 42);
+      const sub = Math.sin(2 * Math.PI * 58 * u) * Math.exp(-u * 30) * 0.35;
+      const tap = s.lo * Math.exp(-u * 110) * 0.5;
+      v += (body * 0.75 + sub + tap) * att * g;
     }
-    if (Math.random() < 0.004 && t < gap + 0.05) v += w * 0.5;   // grãos de areia sob a sola
-    return v * 0.6;
+    return v * 0.7;
   });
   const click = (dur, hz, g) => make(dur, (t, w) => (w * 0.5 + Math.sin(2 * Math.PI * hz * t) * 0.6) * Math.exp(-t * 6 / dur) * g);
   const tone = (dur, hz, hz2, dec, g) => make(dur, t => (Math.sin(2 * Math.PI * hz * t) + (hz2 ? 0.5 * Math.sin(2 * Math.PI * hz2 * t) : 0)) * Math.exp(-t * dec) * g);
@@ -1213,7 +1215,7 @@ function initAudio() {
     const v = heel + sole + body + Math.sin(2 * Math.PI * hz * t) * Math.exp(-t * 60) * tone;
     return (t < 0.0015 ? v * t / 0.0015 : v) * 0.7;
   });
-  for (let i = 0; i < 4; i++) buffers['step' + i] = footstep(0.038 + i * 0.006, 95 + i * 17);
+  for (let i = 0; i < 4; i++) buffers['step' + i] = footstep(0.04 + i * 0.005, 120 + i * 15);
   Object.assign(buffers, {
     pistol: gun({ dur: 0.45, g: 0.9, crack: 0.7, blast: 1.6, lp: 0.35, dec: 38, hz: 150, boom: 0.5, rumble: 1.2, tail: 9, mech: 0.05 }),
     deagle: gun({ dur: 0.6, g: 1, crack: 0.9, blast: 2, lp: 0.25, dec: 26, hz: 95, boom: 0.8, rumble: 1.8, tail: 6.5, mech: 0.07 }),
@@ -1317,7 +1319,7 @@ function play(name, vol = 1, pos = null) {
   g.gain.value = v; src.connect(g); node.connect(master);
   // quanto vai para o eco: tiros e explosões bastante, passos pouco, sons de interface (acerto, abate) nada;
   // de longe o som chega mais "eco" que direto
-  const wet = NO_VERB[name] ? 0 : stepLike ? 0.12 : 0.4;
+  const wet = NO_VERB[name] ? 0 : stepLike ? 0.05 : 0.4;
   if (wet && reverbIn) { const sg = actx.createGain(); const d = pos && player ? Math.hypot(pos.x - camera.position.x, pos.z - camera.position.z) : 0; sg.gain.value = wet * Math.min(2.2, 1 + d / 30); node.connect(sg); sg.connect(reverbIn); }
   src.start();
 }
