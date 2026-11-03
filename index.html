@@ -2758,7 +2758,7 @@ function fireWeapon(shooter, w, origin, forward, spread, tracerStart, dmgScale =
     const h = trace(origin, dir, w.range, shooter);
     const end = h ? h.point : origin.clone().addScaledVector(dir, w.range);
     if (i === 0) res.end = end;
-    if (w.pellets === 1 || i % 3 === 0) { tracer(tracerStart, end); kcShot(shooter, tracerStart, end); }
+    if (w.pellets === 1 || i % 3 === 0) { tracer(tracerStart, end); kcShot(shooter, tracerStart, end, w); }
     if (!h) continue;
     const ud = h.object.userData;
     if (ud && ud.owner) {
@@ -3578,7 +3578,7 @@ function tryFire(pressedNow, charge = 1) {
   if (RECOIL[w.id] && !(mode && mode.noRecoil)) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
   if (!(mode && mode.noRecoil)) { pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3; }
   pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0;
-  play(w.snd, w.bowDraw ? 0.5 + 0.4 * charge : 0.9);
+  play(w.snd, w.bowDraw ? 0.5 + 0.4 * charge : 0.9); kcFire(player, w);
   if (w.scope && pw.zoom) { pw.rezoom = pw.zoom; pw.rezoomAt = pw.nextFire - 0.1; pw.zoom = 0; }
   if (w.mag === 1 && s.mag === 0) tryReload();   // besta: recarrega sozinha depois de cada seta
   showHit(res);
@@ -3744,7 +3744,7 @@ function updateBot(c, dt) {
           b.nextFire = now + (alt ? w.altInterval : w.interval) * rand(1, 1.5);
           const r = meleeAttack(c, w, eye, to.clone().normalize(), alt); startAnim(c, 'melee', alt ? 0.45 : 0.3, alt);
           if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), al: alt ? 1 : 0 });
-          c.recoilAnim = 1; play(r.hit ? 'knifeHit' : 'knife', 1, c.pos);
+          c.recoilAnim = 1; play(r.hit ? 'knifeHit' : 'knife', 1, c.pos); kcFire(c, w, r.hit ? 'knifeHit' : 'knife');
         }
       } else if (aim.angleTo(to) < 6 * DEG) {
         if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); startAnim(c, 'reload', w.reload); }
@@ -3757,7 +3757,7 @@ function updateBot(c, dt) {
           if (w.proj) { const tg = to.clone(), tt = tg.length() / w.proj.speed; tg.y += 0.5 * (w.proj.grav || 0) * tt * tt; const pv0 = fireProj(c, w, ms, tg.normalize(), w.base + (1 - cfg.acc) * 0.03); if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), pp: v3a(ms), pv: v3a(pv0) }); }
           else { fireWeapon(c, w, eye, aim, (w.scope ? w.scoped : w.base + b.shotSpread) + (1 - cfg.acc) * 0.03, ms, cfg.dmg); if (c.netBot) Net.sendAs(c.netId, { t: 'shot', w: WEAPONS.indexOf(w), a: v3a(ms), b: v3a(ms.clone().addScaledVector(aim, 40)) }); }
           b.shotSpread = Math.min(b.shotSpread + w.perShot, w.maxShot);
-          c.recoilAnim = 1; play(w.snd, 1, c.pos);
+          c.recoilAnim = 1; play(w.snd, 1, c.pos); kcFire(c, w);
         }
       }
     }
@@ -5047,7 +5047,7 @@ function onNetMsg(m) {
     case 'bs': if (inGame && Array.isArray(m.l)) for (const e of m.l) { const b = Array.isArray(e) && remoteOf(String(e[0])); if (b && b.isNetBot) onRemoteState(b, { p: e[1], v: e[2], y: e[3], x: e[4], c: e[5], w: e[6], a: e[7], h: e[8], r: e[9] }); } break;
     case 'shot': if (r) {
       const w = WEAPONS[m.w]; if (!w) break;
-      r.recoilAnim = 1; play(w.melee ? 'knife' : w.snd, 1, r.pos);
+      r.recoilAnim = 1; play(w.melee ? 'knife' : w.snd, 1, r.pos); kcFire(r, w, w.melee ? 'knife' : w.snd);
       if (w.melee) startAnim(r, 'melee', m.al ? 0.45 : 0.3, !!m.al);
       if (m.a && m.b) tracer(a2v(m.a), a2v(m.b));
       if (w.proj && m.pp && m.pv) { const pp = a2v(m.pp), vv = a2v(m.pv); if (isFinite(pp.x + pp.y + pp.z + vv.x + vv.y + vv.z) && vv.length() < 200) spawnProj(w, pp, vv, r); }
@@ -7332,7 +7332,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   if (state !== 'playing' || !player) return;
   const slot = active();
   // mira (só redesenha quando muda)
-  const showCh = player.alive && !pw.zoom;
+  const showCh = (player.alive && !pw.zoom) || kc.active;   // no replay a mira aparece no meio, como a de quem te matou
   const pxPerUnit = (innerHeight * 0.5) / Math.tan(camera.fov * 0.5 * DEG);
   // mira dinâmica: 1 = abre ao mover, pular e atirar; 2 = só o coice dos tiros (movimento não conta)
   // (no modo 2 cada tiro dá um pulo rápido na mira e a rajada vai abrindo conforme o coice acumula)
@@ -8176,12 +8176,33 @@ const kc = { frames: [], shots: [], active: false, rt: 0, end: 0, killer: null, 
 function kcRecord() {
   if (now - kc.lastRec < 1 / 60) return; kc.lastRec = now;
   const d = new Map();
-  for (const c of combatants) if (c.alive) d.set(c, [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.pitch, c.crouch, c.vel.x, c.vel.z]);
+  for (const c of combatants) if (c.alive) d.set(c, [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.pitch, c.crouch, c.vel.x, c.vel.z, cWi(c)]);
   kc.frames.push({ t: now, d });
   while (kc.frames.length && kc.frames[0].t < now - KC_BACK - 1.2) kc.frames.shift();
   while (kc.shots.length && kc.shots[0].t < now - KC_BACK - 1.2) kc.shots.shift();
 }
-function kcShot(shooter, a, b) { if (a && b) kc.shots.push({ t: now, c: shooter, a: a.clone(), b: b.clone() }); }
+function kcShot(shooter, a, b, w) { if (a && b) kc.shots.push({ t: now, c: shooter, a: a.clone(), b: b.clone(), w }); }
+// disparo (som, coice e clarão no replay): vale para tiro, projétil e faca
+function kcFire(c, w, snd) { if (c && w) kc.shots.push({ t: now, c, w, snd: snd || w.snd, p: c.pos.clone() }); }
+// arma na mão de cada um (índice em WEAPONS), gravada em cada quadro para o replay mostrar a arma certa
+function cWi(c) { if (c.isPlayer) return active().wi; if (c.weapon && c.weapon.w) return WEAPONS.indexOf(c.weapon.w); return c.wi ?? -1; }
+// braços e arma de quem te matou no replay (um jogo de modelos à parte, montado uma vez)
+const kcVm = { root: new THREE.Group(), models: [], built: false, kick: 0, flash: 0 };
+kcVm.root.scale.setScalar(0.85); kcVm.root.visible = false; vmScene.add(kcVm.root);
+function kcVmShow(wi, dt) {
+  if (!kcVm.built) { buildViewModels(0x4a5560, kcVm.root, kcVm.models); kcVm.built = true; }
+  const m = kcVm.models[wi]; if (!m) return false;
+  kcVm.models.forEach(x => { if (x) x.g.visible = x === m; });
+  kcVm.kick = kcVm.kick > 0 ? Math.max(0, kcVm.kick - dt * 10) : Math.min(0, kcVm.kick + dt * 8); kcVm.flash -= dt;   // negativo = estocada da faca
+  kcVm.root.position.copy(m.offset).add(new THREE.Vector3(0, 0, 0.05 * kcVm.kick));
+  kcVm.root.rotation.set(kcVm.kick * 0.09, 0, 0);
+  m.bolt.position.copy(m.boltBase); m.mag.position.copy(m.magBase); m.mag.visible = true;
+  vmRoot.visible = false; kcVm.root.visible = true;
+  flashMesh.visible = kcVm.flash > 0;
+  if (flashMesh.visible) { kcVm.root.updateMatrixWorld(true); flashMesh.position.copy(m.muzzle).applyMatrix4(m.g.matrixWorld); flashMesh.scale.setScalar(rand(0.07, 0.12)); }
+  return true;
+}
+function kcVmHide() { kcVm.root.visible = false; flashMesh.visible = false; }
 function kcStart(killer, weapon, zone) {
   if (!S.hud.killcam || !killer || killer === player || !mode || mode.type === 'dev' || kc.frames.length < 10) return;
   kc.active = true; kc.killer = killer; kc.end = now; kc.rt = now - KC_BACK; kc.realT = 0;
@@ -8202,6 +8223,7 @@ function kcSample(c, t) {
   const A = a.d.get(c), B = b.d.get(c); if (!A && !B) return null; if (!A || !B) return A || B;
   const k = clamp((t - a.t) / Math.max(1e-6, b.t - a.t), 0, 1), out = A.map((v, j) => lerp(v, B[j], k));
   let dy = B[3] - A[3]; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); out[3] = A[3] + dy * k;
+  out[8] = k < 0.5 ? A[8] : B[8];
   return out;
 }
 const KC_FIELDS = c => ({ x: c.pos.x, y: c.pos.y, z: c.pos.z, yaw: c.yaw, pitch: c.pitch, crouch: c.crouch, vx: c.vel.x, vz: c.vel.z, vy: c.vel.y, alive: c.alive, vis: c.group.visible });
@@ -8229,12 +8251,17 @@ function kcApply(dt) {
   // tiros do lance aparecem de novo na hora certa
   const shots = kc.frozenShots;
   while (kc.lastShotIdx < shots.length && shots[kc.lastShotIdx].t <= kc.rt) {
-    const s = shots[kc.lastShotIdx++]; if (s.t > prev && (s.c === K || s.c === player)) tracer(s.a, s.b);
+    const s = shots[kc.lastShotIdx++]; if (s.t > prev && (s.c === K || s.c === player)) {
+      if (s.a) tracer(s.a, s.b);
+      // som do disparo de novo (o de quem te matou sai "na sua orelha", como se você fosse ele)
+      if (s.snd) { play(s.snd, s.c === K ? 0.9 : 0.6, s.c === K ? null : s.p); if (s.c === K) { kcVm.kick = s.w.melee ? -2.5 : 1; kcVm.flash = s.w.melee ? 0 : 0.05; } }
+    }
   }
   camera.position.set(sk[0], 0, sk[2]);
   camera.position.y = sk[1] + (K.isPlayer ? lerp(1.62, 1.08, sk[5]) : 1.62 * (1 - sk[5] * 0.3));
   camera.rotation.set(sk[4], sk[3], 0);
   camera.fov = S.video.fov; camera.updateProjectionMatrix();
+  kc.wi = sk[8]; kc.pd = pd;
   $('#killcam').classList.toggle('slow', kc.rt > kc.end - KC_SLOW_AT);
   return true;
 }
@@ -8329,7 +8356,7 @@ function frame(t) {
     updateListener();
     const kcOn = kcApply(dt);
     renderer.clear(); renderer.render(scene, camera);
-    if (kcOn) kcRestore();
+    if (kcOn) { kcRestore(); if (kc.active && kcVmShow(kc.wi, kc.pd || dt)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); kcVmHide(); } }
     else if (player.alive && !thirdOn() && !(mode && mode.noWeapons)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
