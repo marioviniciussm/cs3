@@ -1453,13 +1453,14 @@ let world = null, worldMeshes = [], colliders = [], mapInfo = null;
 // ---- texturas feitas no próprio jogo (canvas): areia, concreto, blocos de pedra, caixotes de madeira, metal
 // Tudo em tons de cinza claro: a cor de cada caixa do mapa continua valendo (a textura só dá o desenho).
 function srand(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
-const TEX_TILE = { ground: 4, concrete: 3, block: 3, crate: 1.2, metal: 2, plain: 3, grass: 3, tile: 2 };
+const TEX_TILE = { paving: 3, ground: 4, concrete: 3, block: 3, crate: 1.2, metal: 2, plain: 3, grass: 3, tile: 2 };
 function texKind(hexv) {
   if (hexv === C.sand || hexv === 0xd8c49a || hexv === 0xcdb88f) return 'ground';
   if (hexv === C.wall || hexv === C.wallDark || hexv === 0xc9b48a) return 'block';
   if (hexv === C.crate || hexv === C.crateDark || hexv === C.wood || hexv === 0x7a5636 || hexv === 0x5a4632) return 'crate';
   if (hexv === C.concrete || hexv === C.floorDev) return 'concrete';
   if (hexv === C.metal || hexv === C.metal2) return 'metal';
+  if (hexv === 0xcfc6b4) return 'paving';   // calçada (caminhos da Praça)
   if (typeof POOL_C !== 'undefined' && (hexv === POOL_C.pool || hexv === POOL_C.poolDeep || hexv === POOL_C.porcelain)) return 'tile';   // piscina de azulejo
   const c = new THREE.Color(hexv), hsl = {}; c.getHSL(hsl);
   if (hsl.h > 0.2 && hsl.h < 0.45 && hsl.s > 0.25) return 'grass';
@@ -1530,10 +1531,10 @@ function makeTex(kind) {
 // A cor vem quase sem saturação e com média clara, então a cor de cada caixa do mapa continua mandando no tom.
 // Enquanto não carregam (ou se faltarem, ou no file://, onde o WebGL recusa imagem local) fica a textura de canvas.
 const RealTex = {
-  kinds: ['ground', 'grass', 'concrete', 'block', 'crate', 'metal', 'plain', 'tile'],
+  kinds: ['ground', 'grass', 'concrete', 'block', 'crate', 'metal', 'plain', 'tile', 'paving'],
   col: new Map(), nrm: new Map(), started: false,
   // relevo por material: madeira e pedra pedem mais, gesso e azulejo quase liso
-  bump: { ground: 0.9, grass: 0.6, concrete: 0.8, block: 1.1, crate: 1, metal: 0.9, plain: 0.6, tile: 0.8 },
+  bump: { paving: 1.1, ground: 0.9, grass: 0.6, concrete: 0.8, block: 1.1, crate: 1, metal: 0.9, plain: 0.6, tile: 0.8 },
   shine: { metal: [0x3a3a3a, 40], tile: [0x2a2a2a, 30], concrete: [0x101010, 10] },
   on() { return S.video.tex !== false && location.protocol !== 'file:'; },
   ready(kind) { return this.col.has(kind) && this.nrm.has(kind); },
@@ -1848,6 +1849,10 @@ const lampMat = new THREE.MeshBasicMaterial({ color: 0xfffbe8 }), ceilMat = new 
   poolWallMat = new THREE.MeshPhongMaterial({ color: POOL_C.wall, specular: 0x000000, shininess: 1 }), poolLowMat = new THREE.MeshPhongMaterial({ color: POOL_C.low, specular: 0x000000, shininess: 1 }),
   poolDoorMat = new THREE.MeshPhongMaterial({ color: 0x8e9aa6, specular: 0x222222, shininess: 20 });
 // paredes da piscina de azulejo (a foto tem 6 x 6 peças: 2,4 m dá azulejo de 40 cm)
+const poolSideMat = {};
+for (const [k, c] of [['red', 0xc28a86], ['redLow', 0xae7470], ['blue', 0x8b9bd0], ['blueLow', 0x7383bc]]) {
+  poolSideMat[k] = new THREE.MeshPhongMaterial({ color: c, specular: 0x000000, shininess: 1 }); poolSideMat[k].userData.texKind = 'tile'; poolSideMat[k].userData.texTile = 2.4;
+}
 poolWallMat.userData.texKind = poolLowMat.userData.texKind = 'tile'; ceilMat.userData.texKind = 'plain'; poolWallMat.userData.texTile = poolLowMat.userData.texTile = 2.4;
 let shadeTex = null;
 // sombra suave no chão (mancha escura com borda em degradê), para os cantos sem luz
@@ -1983,6 +1988,14 @@ function buildPoolDay() {
   [gunsL, gunsR].forEach(list => list.forEach(([x, y], i) => items.push({ w: kinds[i % kinds.length], p: new THREE.Vector3(pxX(x), 0, pxZ(y)) })));
   for (const [x, y] of [[452, 312], [515, 323], [456, 366], [518, 376], [487, 408], [535, 448]]) items.push({ w: 'he', p: new THREE.Vector3(pxX(x), -2.6, pxZ(y)) });
   const inPoolXZ = p => p.x > px0 - 0.6 && p.x < px1 + 0.6 && p.z > pz0 - 0.6 && p.z < pz1 + 0.6;
+  // como no mapa original: parede do lado vermelho com azulejo vermelho, do lado azul com azulejo azul (o meio fica claro)
+  const xr = pxX(383), xb = pxX(640);
+  for (const m of world.children) {
+    if (!m.isMesh || (m.material !== poolWallMat && m.material !== poolLowMat)) continue;
+    const low = m.material === poolLowMat;
+    if (m.position.x < xr) m.material = low ? poolSideMat.redLow : poolSideMat.red;
+    else if (m.position.x > xb) m.material = low ? poolSideMat.blueLow : poolSideMat.blue;
+  }
   mapInfo = { name: 'fy_pool_day', spawns: ta.concat(tb), teamSpawns: [ta, tb], playerSpawn: ta[0], targets: [],
     waypoints: gridWaypoints(pxX(185), pxX(840), pxZ(150), pxZ(650), 2.5).concat(gridWaypoints(pxX(410), pxX(615), pxZ(70), pxZ(135), 2.5)).filter(p => !inPoolXZ(p)),
     pool: { x: (px0 + px1) / 2, z: (pz0 + pz1) / 2, hx: (px1 - px0) / 2, hz: (pz1 - pz0) / 2, y: -0.35, exits }, items, doors };
@@ -9329,6 +9342,26 @@ $('#bRoleta').onclick = () => startX1(Object.assign(clone(X1), { duel: 'roleta',
 // Tem armas no chão, spray, voice por proximidade, mesas de xadrez (contra amigo ou bot) e
 // placas para votar o próximo modo. No online o anfitrião manda nas mesas e nos votos.
 // =====================================================================================
+// árvore: tronco afinando com dois galhos e copa feita de vários tufos irregulares em tons de verde
+const TREE_LEAF = [0x4f7f3c, 0x5c8f45, 0x6a9c4c, 0x46733a].map(c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }));
+const TREE_BARK = new THREE.MeshLambertMaterial({ color: 0x5e4630, flatShading: true });
+function tree(x, z, seed) {
+  const R = srand(Math.abs(seed * 9973 | 0) + 7), g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = R() * 6.3; world.add(g);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.34, 3.2, 8), TREE_BARK); trunk.position.y = 1.6; g.add(trunk);
+  for (const s of [-1, 1]) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.13, 1.5, 6), TREE_BARK); br.position.set(s * 0.45, 2.8, 0); br.rotation.z = -s * 0.7; g.add(br); }
+  const blobs = [[0, 4.6, 0, 1.9], [1.2, 4.1, 0.3, 1.3], [-1.2, 4.2, -0.2, 1.35], [0.3, 4.0, 1.1, 1.25], [-0.2, 4.1, -1.1, 1.25], [0.2, 5.5, 0.1, 1.2]];
+  for (const [bx, by, bz, r] of blobs) {
+    const geo = new THREE.IcosahedronGeometry(r * (0.9 + R() * 0.25), 1), P = geo.attributes.position;
+    // amassa cada vértice um pouco (mesma posição = mesmo deslocamento, para não abrir buraco)
+    const off = new Map();
+    for (let i = 0; i < P.count; i++) { const key = P.getX(i).toFixed(3) + P.getY(i).toFixed(3) + P.getZ(i).toFixed(3); if (!off.has(key)) off.set(key, 0.82 + R() * 0.3); const k = off.get(key); P.setXYZ(i, P.getX(i) * k, P.getY(i) * k * 0.85, P.getZ(i) * k); }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, TREE_LEAF[(R() * TREE_LEAF.length) | 0]); m.position.set(bx, by, bz); m.castShadow = true; g.add(m);
+  }
+  g.traverse(o => { if (o.isMesh) { o.receiveShadow = true; if (o.material === TREE_BARK) o.castShadow = true; } });
+  trunk.userData = {}; worldMeshes.push(trunk);
+  colliders.push({ min: new THREE.Vector3(x - 0.35, 0, z - 0.35), max: new THREE.Vector3(x + 0.35, 3.2, z + 0.35) });
+}
 // chafariz: mureta de pedra com capa arredondada, fundo de azulejo, água com brilho e taça torneada no meio
 function buildFountain() {
   const stone = 0xb9b2a4, tex = S.video.tex !== false;
@@ -9350,7 +9383,7 @@ function buildFountain() {
 function buildPlaza() {
   newWorld();
   const H = 34;
-  box(0, 0, H * 2, 1, H * 2, 0xb8b1a3, -1);
+  box(0, 0, H * 2, 1, H * 2, 0x5f8a45, -1);   // gramado
   // limites e prédios em volta (paredes boas para spray, cobertura alta)
   box(0, H + 0.5, H * 2 + 2, 14, 1, C.wall); box(0, -H - 0.5, H * 2 + 2, 14, 1, C.wall);
   box(H + 0.5, 0, 1, 14, H * 2, C.wall); box(-H - 0.5, 0, 1, 14, H * 2, C.wall);
@@ -9361,13 +9394,14 @@ function buildPlaza() {
   for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) box(x * (H - 3), z * (H - 4.5), 6, 6, 9, bc[k++ % 6]);
   // piso da praça: círculo claro e caminhos
   const disc = mesh(CYL, 0xd9d2c3, 26, 0.02, 26, 0, 0.01, 0, world); disc.receiveShadow = true;
+  if (S.video.tex !== false) disc.material = texMatRep(0xaaa396, 'paving', 9, 9);   // largo de pedra portuguesa em leque
   decal(0, 0, 4, 60, 0xcfc6b4); decal(0, 0, 60, 4, 0xcfc6b4);
   // chafariz
   buildFountain();
   colliders.push({ min: new THREE.Vector3(-3.3, 0, -3.3), max: new THREE.Vector3(3.3, 0.7, 3.3) }, { min: new THREE.Vector3(-0.5, 0, -0.5), max: new THREE.Vector3(0.5, 2.6, 0.5) });
   // árvores, bancos
   for (const [x, z] of [[16, 6], [-16, -6], [6, -16], [-6, 16], [16, -18], [-16, 18]]) {
-    pillar(x, z, 3, 0x6b4a2f); const cr = mesh(SPHERE, 0x5c8f4a, 4, 3.4, 4, x, 4.4, z, world); cr.castShadow = true;
+    tree(x, z, x * 7 + z);
   }
   for (const [x, z, r] of [[0, 7.5, 0], [0, -7.5, 0], [7.5, 0, 1], [-7.5, 0, 1]]) box(x, z, r ? 0.7 : 2.6, 0.45, r ? 2.6 : 0.7, 0x7a5636);
   // mesas de xadrez (o tampo mostra a partida que está rolando)
