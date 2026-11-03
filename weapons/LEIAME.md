@@ -34,3 +34,10 @@ Pacotes CC0 de https://quaternius.com (Survival Pack, Ultimate House Interior Pa
 | Katana.glb | Katana |
 
 Facas e pinturas das armas ficam em Skins > Armas e facas, e as trancadas abrem com conquistas.
+
+## Metralhadora pesada e bacamarte (2026-11-03)
+
+| Arquivo | No jogo | Origem |
+|---|---|---|
+| Rifle_Battle_East.glb | Metralhadora pesada (carregador curvo, estilo AK) | Flat Guns East, PCL (CC0), espelho petroulacl/fps-asset-kit |
+| Shotgun_SawedOff.glb | Bacamarte | Quaternius Survival Pack (CC0) |
