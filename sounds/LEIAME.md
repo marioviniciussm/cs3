@@ -1,6 +1,6 @@
-# Sons gravados (opcional)
+# Sons gravados
 
-O jogo sintetiza todos os sons. Para trocar algum por uma gravação de verdade:
+Os tiros e os passos já vêm com gravações reais CC0 (lista em `CREDITOS.md`, mapa em `sons.json`). O resto continua sintetizado. Para trocar mais algum:
 
 1. Baixe sons com licença **CC0 / domínio público** (por exemplo, no Freesound filtrando por "Creative Commons 0", ou no OpenGameArt filtrando por CC0). Não use sons extraídos de outros jogos (CS 1.6 etc.): eles têm dono.
 2. Coloque os arquivos (`.ogg`, `.mp3` ou `.wav`) nesta pasta.
