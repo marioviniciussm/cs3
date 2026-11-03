@@ -1159,7 +1159,9 @@ const buffers = {};
 function initAudio() {
   if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
   try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-  master = actx.createGain(); master.connect(actx.destination); applyVolume();
+  master = actx.createGain(); applyVolume();
+  // limitador: deixa os tiros grandes (sniper, revólver) mais fortes sem estourar quando vários soam juntos
+  try { const lim = actx.createDynamicsCompressor(); lim.threshold.value = -9; lim.knee.value = 8; lim.ratio.value = 9; lim.attack.value = 0.002; lim.release.value = 0.12; master.connect(lim); lim.connect(actx.destination); } catch (e) { master.connect(actx.destination); }
   // eco do ambiente: todo som manda um pouco para um reverb (resposta gerada: reflexões cedo + cauda que some),
   // é isso que tira o som "de videogame" e faz o tiro ecoar como num lugar de verdade
   try {
@@ -1304,8 +1306,11 @@ function playStep(c, vol, pos, land) {
 }
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
+// volume de cada tiro: arma grande soa maior que arma pequena (o arquivo vem todo no mesmo nível)
+const GUN_VOL = { pistol: 0.85, deagle: 1.05, revolver: 1.3, smg: 0.75, rifle: 0.95, lmg: 1.15, semi: 1.05, sniper: 1.6, shotgun: 1.3, musket: 1.3, blunder: 1.3, minigun: 0.8 };
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
+  if (GUN_VOL[name]) vol *= GUN_VOL[name];
   const stepLike = name.startsWith('step') || /^st[A-Z]/.test(name) || STEPPY[name];
   if (!actx || !buffers[name]) return;
   const src = actx.createBufferSource(); src.buffer = buffers[name];
@@ -2239,7 +2244,7 @@ const WEAPONS = [
   { id: 'pistol', name: 'Pistola', snd: 'pistol', dmg: 35, pellets: 1, interval: 0.17, auto: false, mag: 12, reserve: 48, reload: 2.2, draw: 0.45, range: 250, falloff: 0.91, head: 4,
     base: 0.004, move: 0.035, air: 0.15, perShot: 0.004, maxShot: 0.025, recover: 0.12, recoilP: 1.6, recoilY: 0.4, speed: 1 },
   { id: 'deagle', name: 'Deagle', snd: 'deagle', dmg: 54, pellets: 1, interval: 0.27, auto: false, mag: 7, reserve: 35, reload: 2.2, draw: 0.55, range: 250, falloff: 0.93, head: 4,
-    base: 0.003, move: 0.08, air: 0.3, perShot: 0.01, maxShot: 0.04, recover: 0.25, recoilP: 3.2, recoilY: 0.6, speed: 0.98 },
+    base: 0.003, move: 0.08, air: 0.3, perShot: 0.01, maxShot: 0.04, recover: 0.25, recoilP: 4.2, recoilY: 0.7, speed: 0.98 },
   { id: 'smg', name: 'Submetralhadora', snd: 'smg', dmg: 26, pellets: 1, interval: 0.075, auto: true, mag: 30, reserve: 120, reload: 2.3, draw: 0.5, range: 200, falloff: 0.86, head: 4,
     base: 0.006, move: 0.03, air: 0.18, perShot: 0.003, maxShot: 0.025, recover: 0.25, recoilP: 0.55, recoilY: 0.3, speed: 1 },
   { id: 'shotgun', name: 'Shotgun', snd: 'shotgun', dmg: 26, pellets: 9, interval: 0.88, auto: false, mag: 8, reserve: 32, reload: 2.6, draw: 0.7, range: 60, falloff: 0.7, head: 2,
@@ -2247,12 +2252,12 @@ const WEAPONS = [
   { id: 'rifle', name: 'Metralhadora', snd: 'rifle', dmg: 36, pellets: 1, interval: 0.1, auto: true, mag: 30, reserve: 90, reload: 2.5, draw: 0.7, range: 250, falloff: 0.98, head: 4,
     base: 0.002, move: 0.1, air: 0.35, perShot: 0.003, maxShot: 0.025, recover: 0.2, recoilP: 0.9, recoilY: 0.35, speed: 0.86 },
   { id: 'sniper', name: 'Sniper', snd: 'sniper', dmg: 115, pellets: 1, interval: 1.45, auto: false, mag: 5, reserve: 30, reload: 3.6, draw: 0.9, range: 300, falloff: 0.99, head: 4,
-    base: 0.002, move: 0.2, air: 0.5, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.5, recoilY: 0.5, speed: 0.8, scope: [0.45, 0.16], scoped: 0.0015, unscoped: 0.09 },
+    base: 0.002, move: 0.2, air: 0.5, perShot: 0, maxShot: 0, recover: 1, recoilP: 5.5, recoilY: 0.6, speed: 0.8, scope: [0.45, 0.16], scoped: 0.0015, unscoped: 0.09 },
   { id: 'he', name: 'Granada HE', snd: 'knife', nade: true, dmg: 0, pellets: 1, interval: 1, auto: false, mag: 1, reserve: 0, reload: 0, draw: 0.4, range: 0, falloff: 1, head: 1,
     base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1 },
   // estilo Krunker (novas armas entram no fim da lista para não mudar as configurações salvas)
   { id: 'revolver', name: 'Revólver', snd: 'revolver', dmg: 62, pellets: 1, interval: 0.42, auto: false, mag: 6, reserve: 30, reload: 2.8, draw: 0.5, range: 250, falloff: 0.95, head: 3,
-    base: 0.0015, move: 0.03, air: 0.2, perShot: 0.012, maxShot: 0.03, recover: 0.35, recoilP: 4, recoilY: 0.6, speed: 1 },
+    base: 0.0015, move: 0.03, air: 0.2, perShot: 0.012, maxShot: 0.03, recover: 0.35, recoilP: 6.5, recoilY: 0.9, speed: 1 },
   // besta: dispara no clique, seta curta e muito rápida (quase reta), mata com uma no peito, mas recarregar
   // (girar a manivela) é lento e andando ela erra
   { id: 'crossbow', name: 'Besta', snd: 'xbow', proj: { kind: 'bolt', speed: 135, grav: 2.5 }, dmg: 110, pellets: 1, interval: 0.3, auto: false, mag: 1, reserve: 20, reload: 2.3, draw: 0.6, range: 300, falloff: 1, head: 2,
@@ -3990,7 +3995,7 @@ function updateCamera(dt) {
   } else {
     const eye = lerp(1.62, 1.08, p.crouch) * SZ(p) - pv.landDip + by;
     camera.position.set(p.pos.x + Math.cos(p.yaw) * bx, p.pos.y + eye, p.pos.z - Math.sin(p.yaw) * bx);
-    camera.rotation.set(p.pitch + (pv.recoil.x + pw.punch.x * 0.5) * DEG, p.yaw + (pv.recoil.y - pw.punch.y * 0.5) * DEG, pv.roll);
+    camera.rotation.set(p.pitch + (pv.recoil.x + pw.punch.x * 0.5 + (pv.shake || 0) * 0.9) * DEG, p.yaw + (pv.recoil.y - pw.punch.y * 0.5) * DEG, pv.roll + (pv.shake || 0) * 0.004 * Math.sin(now * 90));
   }
   const target = S.video.fov * zoomMult() * (1 + clamp((Math.hypot(p.vel.x, p.vel.z) - RUN * 1.2) / 40, 0, 0.12));
   camera.fov = Math.abs(camera.fov - target) < 0.5 ? target : lerp(camera.fov, target, Math.min(1, dt * 25));
@@ -4096,6 +4101,8 @@ function spinMul(o, w) {
   o.spinLast = now;
   return 1 + 2 * (1 - clamp((now - o.spinAt) / w.spinUp, 0, 1));
 }
+// tranco da câmera a cada tiro: pancada que sobe e volta rápido (arma pesada = mais forte)
+const SHAKE = { pistol: 0.5, deagle: 1.1, revolver: 1.8, smg: 0.35, rifle: 0.5, lmg: 0.7, semi: 1.0, sniper: 2.0, shotgun: 1.6, musket: 1.8, blunder: 1.8 };
 function tryFire(pressedNow, charge = 1) {
   const s = active(), w = s.w;
   if (mode && mode.noFire) return;
@@ -4123,7 +4130,7 @@ function tryFire(pressedNow, charge = 1) {
   pw.shotSpread = Math.min(pw.shotSpread + w.perShot, w.maxShot);
   if (RECOIL[w.id] && !(mode && mode.noRecoil)) { const K = RECOIL[w.id].keys; pw.spray = Math.min(pw.spray + 1, K[K.length - 1][0]); patternAt(w, pw.spray, pw.punch); }
   if (!(mode && mode.noRecoil)) { pv.recoil.x += w.recoilP * 0.3; pv.recoil.y += rand(-w.recoilY, w.recoilY) * 0.3; }
-  pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0;
+  pv.kick = 1; pv.flashT = 0.05; pv.boltT = 0; pv.shake = SHAKE[w.id] || 0.3;
   play(w.snd, w.bowDraw ? 0.5 + 0.4 * charge : 0.9); kcFire(player, w);
   if (w.scope && pw.zoom) { pw.rezoom = pw.zoom; pw.rezoomAt = pw.nextFire - 0.1; pw.zoom = 0; }
   if (w.mag === 1 && s.mag === 0) tryReload();   // besta: recarrega sozinha depois de cada seta
@@ -4201,8 +4208,8 @@ function updateViewModel(dt) {
   const amp = clamp(sp / RUN, 0, 1) * (player.grounded && !(player.slideT > 0) ? 1 : 0.2);
   pv.vbob += dt * sp * 1.5;
   const bob = new THREE.Vector3(Math.cos(pv.vbob) * 0.011 * amp, -Math.abs(Math.sin(pv.vbob)) * 0.012 * amp, 0);
-  pv.kick = lerp(pv.kick, 0, Math.min(1, dt * 13));
-  const ks = { rifle: 0.5, smg: 0.4, pistol: 0.8, deagle: 1.2 }[w.id] || 1.3;
+  pv.kick = lerp(pv.kick, 0, Math.min(1, dt * 13)); pv.shake = lerp(pv.shake || 0, 0, Math.min(1, dt * 10));
+  const ks = { rifle: 0.5, smg: 0.4, pistol: 0.8, deagle: 1.6, lmg: 0.9, semi: 1.5, revolver: 2.5, sniper: 2.3, shotgun: 1.9 }[w.id] || 1.3;
   const dfrac = pw.drawT > 0 ? 1 - pw.drawT / w.draw : 1; const de = 1 - (1 - dfrac) * (1 - dfrac);
   let rx = 0, ry = 0, rz = 0; const rpos = new THREE.Vector3();
   m.mag.position.copy(m.magBase); m.mag.visible = true;
@@ -10400,7 +10407,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { tryFire, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };

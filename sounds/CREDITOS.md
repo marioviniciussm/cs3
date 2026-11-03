@@ -5,15 +5,15 @@ Todos **CC0 (domínio público)**: pode usar, mudar e vender sem pedir nem dar c
 
 | Arquivo | Gravação original | Fonte |
 |---|---|---|
-| pistol.ogg | Walther PPQ 9 mm (X_39P) | The Free Firearm Sound Library, https://opengameart.org/content/the-free-firearm-sound-library |
-| deagle.ogg | Colt 1911 .45 (A_42P) | idem |
-| revolver.ogg | Smith & Wesson 642 .38 (V_27P) | idem |
-| smg.ogg | Carl Gustav M45 9 mm (G_31P) | idem |
-| rifle.ogg | AK-47 7.62x39 (C_28P) | idem |
-| semi.ogg | Norinco SKS (U_14P) | idem |
-| lmg.ogg | AR-15 5.56 (D_32P) | idem |
-| shotgun.ogg | Benelli Nova calibre 12 (O_21P) | idem |
-| sniper.ogg | Tikka T3 .30-06 (W_29P) | idem |
+| pistol.ogg | Walther PPQ 9 mm (X_38, gravação atrás do atirador) | The Free Firearm Sound Library, https://opengameart.org/content/the-free-firearm-sound-library |
+| deagle.ogg | Colt 1911 .45 (A_35, atrás do atirador), mais grave | idem |
+| revolver.ogg | Smith & Wesson 642 .38 (V_24), tom abaixado | idem |
+| smg.ogg | Carl Gustav M45 9 mm (G_26) | idem |
+| rifle.ogg | AR-15 5.56 (D_27) | idem |
+| semi.ogg | Savage Model 10 .300 (T_24) | idem |
+| lmg.ogg | AK-47 7.62x39 (C_39), tom abaixado | idem |
+| shotgun.ogg | Benelli Nova calibre 12 (O_18) | idem |
+| sniper.ogg | Tikka T3 .30-06 (W_26), tom abaixado | idem |
 | musket.ogg | Mosin Nagant 7.62x54 (M_21P) | idem |
 | blunder.ogg | Winchester Model 12 calibre 12 (K_22P) | idem |
 | minigun.ogg | PPSh 7.62x25 (P_30P) | idem |
@@ -26,3 +26,5 @@ Todos **CC0 (domínio público)**: pode usar, mudar e vender sem pedir nem dar c
 | rl_rack2 | SpringySpringo, Gun Reload Sounds | https://opengameart.org/content/gun-reload-sounds |
 
 Baixados dos espelhos em https://github.com/petroulacl/fps-asset-kit, https://github.com/Boyquotes/kenney-impact-sounds-for-godot, https://github.com/VtCasagrande/warcats-web e https://github.com/DeathByDenim/openspades-free-pak (só os arquivos marcados CC0 lá).
+
+**Tiros com peso (2026-11-03):** os tiros de arma de fogo foram refeitos a partir das faixas brutas da mesma biblioteca (CC0, em https://github.com/buddingmonkey/FreeFirearmsSFXLibrary): corte do primeiro disparo gravado atrás do atirador, tom ajustado por arma, camada grave sintetizada por baixo (o soco), estalo do gatilho/martelo logo antes do tiro e uma saturação leve. A camada grave e o estalo são gerados por código, sem amostra de terceiros.
