@@ -1,5 +1,18 @@
 {
-  "pistol": "pistol.ogg", "deagle": "deagle.ogg", "revolver": "revolver.ogg", "smg": "smg.ogg",
-  "rifle": "rifle.ogg", "semi": "semi.ogg", "lmg": "lmg.ogg", "shotgun": "shotgun.ogg", "sniper": "sniper.ogg",
-  "step0": "step0.ogg", "step1": "step1.ogg", "step2": "step2.ogg", "step3": "step3.ogg"
+ "pistol": "pistol.ogg",
+ "deagle": "deagle.ogg",
+ "revolver": "revolver.ogg",
+ "smg": "smg.ogg",
+ "rifle": "rifle.ogg",
+ "semi": "semi.ogg",
+ "lmg": "lmg.ogg",
+ "shotgun": "shotgun.ogg",
+ "sniper": "sniper.ogg",
+ "step0": "step0.ogg",
+ "step1": "step1.ogg",
+ "step2": "step2.ogg",
+ "step3": "step3.ogg",
+ "musket": "musket.ogg",
+ "blunder": "blunder.ogg",
+ "minigun": "minigun.ogg"
 }

@@ -14,6 +14,9 @@ Todos **CC0 (domínio público)**: pode usar, mudar e vender sem pedir nem dar c
 | lmg.ogg | AR-15 5.56 (D_32P) | idem |
 | shotgun.ogg | Benelli Nova calibre 12 (O_21P) | idem |
 | sniper.ogg | Tikka T3 .30-06 (W_29P) | idem |
+| musket.ogg | Mosin Nagant 7.62x54 (M_21P) | idem |
+| blunder.ogg | Winchester Model 12 calibre 12 (K_22P) | idem |
+| minigun.ogg | PPSh 7.62x25 (P_30P) | idem |
 | step0..step3.ogg | Fantozzi's Footsteps (pedra) | https://opengameart.org/content/fantozzis-footsteps-grasssand-stone |
 
 Baixados do espelho CC0 em https://github.com/petroulacl/fps-asset-kit.

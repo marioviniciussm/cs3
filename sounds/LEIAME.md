@@ -10,6 +10,6 @@ Os tiros e os passos já vêm com gravações reais CC0 (lista em `CREDITOS.md`,
 { "pistol": "pistola.ogg", "rifle": "fuzil.ogg", "step0": "passo1.ogg", "step1": "passo2.ogg", "step2": "passo3.ogg", "step3": "passo4.ogg" }
 ```
 
-Nomes que dá para trocar: pistol, deagle, revolver, smg, rifle, semi, lmg, shotgun, sniper, rocket, xbow, bowTwang, bowDraw, crank, knife, knifeHit, knifeWall, boom, magOut, magIn, empty, draw, zoom, step0..step3 (passos, sorteados), land, slide, hurt, hit, head, kill, round, spray, build.
+Nomes que dá para trocar: pistol, deagle, revolver, smg, rifle, semi, lmg, shotgun, sniper, musket, blunder, minigun, rocket, xbow, bowTwang, bowDraw, crank, knife, knifeHit, knifeWall, boom, magOut, magIn, rack (ferrolho/telha), shellIn (cartucho entrando), empty, draw, zoom, step0..step3 (passos, sorteados), land, slide, hurt, hit, head, kill, round, spray, build.
 
 Quem não estiver na lista continua sintetizado. Anote de onde veio cada som (autor e link) em `CREDITOS.md` nesta pasta.

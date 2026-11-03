@@ -688,7 +688,7 @@ const ACTIONS = [
   ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
-  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true },
+  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1, autoReload: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
@@ -1226,6 +1226,12 @@ function initAudio() {
     lmg: gun({ dur: 0.45, g: 0.95, crack: 0.9, blast: 1.8, lp: 0.26, dec: 34, hz: 100, boom: 0.65, rumble: 1.4, tail: 9, mech: 0.04 }),
     shotgun: gun({ dur: 0.8, g: 1, crack: 0.5, blast: 2.4, lp: 0.18, dec: 18, hz: 70, boom: 1, rumble: 2.2, tail: 4.5 }),
     sniper: gun({ dur: 1.1, g: 1, crack: 1.2, blast: 2.2, lp: 0.2, dec: 20, hz: 60, boom: 1, rumble: 2.4, tail: 3.2 }),
+    musket: gun({ dur: 1.2, g: 1, crack: 0.7, blast: 2.6, lp: 0.16, dec: 16, hz: 55, boom: 1.1, rumble: 2.6, tail: 2.8 }),
+    blunder: gun({ dur: 0.9, g: 1, crack: 0.4, blast: 2.8, lp: 0.15, dec: 15, hz: 60, boom: 1.1, rumble: 2.4, tail: 4 }),
+    minigun: gun({ dur: 0.25, g: 0.8, crack: 0.8, blast: 1.3, lp: 0.4, dec: 55, hz: 170, boom: 0.3, rumble: 0.7, tail: 15, mech: 0.03 }),
+    // recarga: ferrolho/telha puxado e solto (dois estalos de metal) e cartucho entrando (clique curto e baque)
+    rack: make(0.32, (t, w) => { let v = 0; for (const [at, hz, g] of [[0, 1250, 0.7], [0.17, 1700, 1]]) if (t > at) { const u = t - at; v += (Math.sin(2 * Math.PI * hz * u) * 0.5 + Math.sin(2 * Math.PI * hz * 2.7 * u) * 0.25 + w * 0.6) * Math.exp(-u * 90) * g; } const sl = t > 0.03 && t < 0.15 ? w * 0.12 : 0; return (v + sl) * 0.8; }),
+    shellIn: make(0.16, (t, w, s) => { s.lp += (w - s.lp) * 0.2; return ((Math.sin(2 * Math.PI * 2100 * t) * 0.4 + w * 0.5) * Math.exp(-t * 160) + s.lp * 1.6 * Math.exp(-Math.max(0, t - 0.03) * 60) * (t > 0.03 ? 1 : 0)) * 0.8; }),
     // arco: corda vibrando (grave, com harmônicos) + estalo; besta: pancada seca de metal com mola; manivela: catracas
     bowTwang: make(0.45, (t, w, s) => { s.lp += (w - s.lp) * 0.4; const f = 98 * (1 + 0.15 * Math.exp(-t * 30)); return (Math.sin(2 * Math.PI * f * t) * 0.6 + Math.sin(4 * Math.PI * f * t) * 0.3 + Math.sin(6 * Math.PI * f * t) * 0.15) * Math.exp(-t * 9) + (w - s.lp) * 0.6 * Math.exp(-t * 120); }),
     bowDraw: make(0.7, (t, w, s) => { s.lp += (w - s.lp) * 0.06; return s.lp * (0.6 + 0.6 * Math.sin(2 * Math.PI * 23 * t)) * Math.min(1, t * 4) * Math.exp(-t * 2) * 1.4; }),
@@ -1280,7 +1286,7 @@ function updateListener() {
 // quem anda perto: inimigo bem audível, aliado mais baixo (dá para saber de quem é o passo)
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
-function play(name, vol = 1, pos = null) {
+function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
   const stepLike = name.startsWith('step') || STEPPY[name];
   if (!actx || !buffers[name]) return;
@@ -1316,6 +1322,7 @@ function play(name, vol = 1, pos = null) {
     }
     src.playbackRate.value = rand(0.95, 1.05);
   }
+  if (rate) src.playbackRate.value = rate * (pos ? rand(0.97, 1.03) : 1);
   g.gain.value = v; src.connect(g); node.connect(master);
   // quanto vai para o eco: tiros e explosões bastante, passos pouco, sons de interface (acerto, abate) nada;
   // de longe o som chega mais "eco" que direto
@@ -2242,15 +2249,15 @@ const WEAPONS = [
   { id: 'semi', name: 'Rifle semiautomático', snd: 'semi', dmg: 52, pellets: 1, interval: 0.2, auto: false, mag: 20, reserve: 60, reload: 2.6, draw: 0.65, range: 280, falloff: 0.985, head: 2.6,
     base: 0.001, move: 0.07, air: 0.3, perShot: 0.005, maxShot: 0.018, recover: 0.4, recoilP: 1.9, recoilY: 0.3, speed: 0.9 },
   // armas das peças do Xadrez FPS (inspiradas no FPS Chess)
-  { id: 'musket', name: 'Mosquete', snd: 'sniper', dmg: 72, pellets: 1, interval: 0.6, auto: false, mag: 1, reserve: 40, reload: 1.5, draw: 0.6, range: 200, falloff: 0.86, head: 2,
+  { id: 'musket', name: 'Mosquete', snd: 'musket', dmg: 72, pellets: 1, interval: 0.6, auto: false, mag: 1, reserve: 40, reload: 1.5, draw: 0.6, range: 200, falloff: 0.86, head: 2,
     base: 0.004, move: 0.05, air: 0.2, perShot: 0, maxShot: 0, recover: 1, recoilP: 3.6, recoilY: 0.5, speed: 1 },
   // arco: segure para puxar a corda e solte para atirar. Puxada curta = flecha fraca, lenta e torta; puxada cheia
   // (bowDraw s) = forte e certeira. A flecha faz uma curva grande, mas a próxima já entra na hora e dá para andar rápido
   { id: 'bow', name: 'Arco', snd: 'bowTwang', proj: { kind: 'arrow', speed: 78, grav: 14 }, bowDraw: 0.75, dmg: 90, pellets: 1, interval: 0.12, auto: false, mag: 1, reserve: 40, reload: 0.3, draw: 0.4, range: 300, falloff: 1, head: 2.4,
     base: 0.001, move: 0.015, air: 0.05, perShot: 0, maxShot: 0, recover: 1, recoilP: 0.8, recoilY: 0.15, speed: 1.04 },
-  { id: 'blunder', name: 'Bacamarte', snd: 'shotgun', dmg: 24, pellets: 12, interval: 0.55, auto: false, mag: 2, reserve: 40, reload: 1.5, draw: 0.5, range: 70, falloff: 0.8, head: 1.6,
+  { id: 'blunder', name: 'Bacamarte', snd: 'blunder', dmg: 24, pellets: 12, interval: 0.55, auto: false, mag: 2, reserve: 40, reload: 1.5, draw: 0.5, range: 70, falloff: 0.8, head: 1.6,
     base: 0.045, move: 0.025, air: 0.08, perShot: 0, maxShot: 0, recover: 1, recoilP: 5, recoilY: 0.9, speed: 0.95 },
-  { id: 'minigun', name: 'Minigun', snd: 'lmg', dmg: 9, pellets: 1, interval: 0.08, spinUp: 0.7, auto: true, mag: 120, reserve: 240, reload: 4.8, draw: 1.0, range: 200, falloff: 0.88, head: 2,
+  { id: 'minigun', name: 'Minigun', snd: 'minigun', dmg: 9, pellets: 1, interval: 0.08, spinUp: 0.7, auto: true, mag: 120, reserve: 240, reload: 4.8, draw: 1.0, range: 200, falloff: 0.88, head: 2,
     base: 0.016, move: 0.07, air: 0.2, perShot: 0.0025, maxShot: 0.045, recover: 0.3, recoilP: 0.35, recoilY: 0.3, speed: 0.78 },
   { id: 'sword', name: 'Espadão', snd: 'knife', melee: true, dmg: 70, alt: 115, altInterval: 1.15, pellets: 1, interval: 0.7, auto: true, mag: 0, reserve: 0, reload: 0, draw: 0.4,
     range: 3.3, falloff: 1, head: 1.3, base: 0, move: 0, air: 0, perShot: 0, maxShot: 0, recover: 1, recoilP: 0, recoilY: 0, speed: 1.05 },
@@ -2630,10 +2637,42 @@ function placeArm(c, A, side, handLocal) {
   setArm(A, _sh, _el, _hand);
 }
 // animações do corpo em 3ª pessoa (você em 3ª pessoa, bots e o inimigo no online): faca, recarga, construir e granada
-function startAnim(c, kind, dur, alt) { if (c) c.anim = { kind, t: 0, dur: Math.max(0.1, dur || 0.3), alt: !!alt }; }
+function startAnim(c, kind, dur, alt) {
+  if (!c) return; c.anim = { kind, t: 0, dur: Math.max(0.1, dur || 0.3), alt: !!alt };
+  if (kind === 'reload') { const w = c === player ? active().w : (c.weapon && c.weapon.w) || WEAPONS[c.wi]; c.rlSfx = w && RELOAD_SFX(w) ? { w, t0: now, dur: c.anim.dur, i: 0 } : null; }
+}
+// sons da recarga em etapas (tirar o pente, pôr o pente, puxar o ferrolho...), com o tom de cada arma.
+// Valem para você e para os inimigos: o do inimigo sai da posição dele, então dá para ouvir quem está recarregando.
+// [fração da recarga, som, volume, tom]
+function RELOAD_SFX(w) {
+  const mag = (r, out = 0.08, inn = 0.55, rk = 0.82) => [[out, 'magOut', 0.9, r], [inn, 'magIn', 1, r], [rk, 'rack', 0.9, r]];
+  switch (w.id) {
+    case 'pistol': return mag(1.15, 0.06, 0.55, 0.84);
+    case 'deagle': return mag(0.95, 0.06, 0.55, 0.84);
+    case 'smg': return mag(1.2);
+    case 'rifle': return mag(0.92);
+    case 'semi': return mag(1.02);
+    case 'lmg': case 'minigun': return [[0.06, 'rack', 0.8, 0.8], [0.25, 'magOut', 1, 0.75], [0.6, 'magIn', 1, 0.75], [0.88, 'rack', 1, 0.8]];
+    case 'sniper': return [[0.06, 'rack', 0.9, 0.85], [0.22, 'magOut', 0.9, 0.95], [0.6, 'magIn', 1, 0.95], [0.86, 'rack', 1, 0.85]];
+    case 'shotgun': case 'blunder': return [[0.15, 'shellIn', 1, 1], [0.33, 'shellIn', 1, 1.05], [0.51, 'shellIn', 1, 0.97], [0.69, 'shellIn', 1, 1.02], [0.88, 'rack', 1.1, 0.72]];
+    case 'revolver': return [[0.08, 'magOut', 0.8, 1.4], [0.3, 'shellIn', 0.8, 1.35], [0.45, 'shellIn', 0.8, 1.4], [0.6, 'shellIn', 0.8, 1.3], [0.85, 'magIn', 0.9, 1.3]];
+    case 'musket': return [[0.2, 'shellIn', 0.8, 0.8], [0.5, 'slide', 0.5, 1.6], [0.85, 'rack', 0.8, 0.7]];
+    case 'crossbow': return [[0.02, 'crank', 0.8, 1], [0.9, 'xbow', 0.25, 1.6]];
+    case 'rocket': case 'rj': return [[0.2, 'slide', 0.7, 0.8], [0.75, 'magIn', 1, 0.6]];
+    default: return w.bowDraw || w.melee || w.nade || w.build ? null : mag(1);
+  }
+}
+function tickReloadSfx(c) {
+  const R = c.rlSfx; if (!R) return;
+  const going = c.alive && (c === player ? pw.reloadT > 0 : c.bot ? c.bot.reloadT > 0 : now - R.t0 < R.dur);
+  const list = RELOAD_SFX(R.w), fr = (now - R.t0) / R.dur;
+  while (R.i < list.length && list[R.i][0] <= fr) { const [, n, v, r] = list[R.i++]; if (going) play(n, v * (c === player ? 0.8 : 1.1), c === player ? null : c.pos, r); }
+  if (!going || R.i >= list.length) c.rlSfx = null;
+}
 const ease = k => 1 - (1 - k) * (1 - k), env = (k, a, b) => clamp(Math.min(k / a, (1 - k) / b), 0, 1);
 const _fore = new THREE.Vector3(), _ih = new THREE.Vector3();
 function animateModel(c, dt) {
+  tickReloadSfx(c);
   c.group.position.copy(c.pos);
   c.group.rotation.y = c.yaw;
   if (c.flash > 0) { c.flash = Math.max(0, c.flash - dt * 8); for (const m of c.mats) m.emissive.setScalar(c.flash * 0.6); }
@@ -2981,12 +3020,12 @@ function gunKind(hexv, sleeve) {
 function polishVM(sleeve, root = vmRoot, models = vmModels) {
   if (S.video.tex === false) return;
   root.traverse(m => {
-    if (!m.isMesh || !m.material || m.material.map || !m.material.color || m.material.transparent) return;
+    if (!m.isMesh || m.userData.glb || !m.material || m.material.map || !m.material.color || m.material.transparent) return;
     const hexv = m.material.color.getHex();
     if (m.geometry === BOX) { m.geometry = roundedBox(Math.abs(m.scale.x), Math.abs(m.scale.y), Math.abs(m.scale.z)); m.scale.set(1, 1, 1); }
     m.material = gunMat(hexv, gunKind(hexv, sleeve));
   });
-  models.forEach((vm, i) => { const f = vm && VM_DETAIL[WEAPONS[i].id]; if (f) f(vm.g, vm); });
+  models.forEach((vm, i) => { const f = vm && !vm.glb && VM_DETAIL[WEAPONS[i].id]; if (f) f(vm.g, vm); });
 }
 // modelo de terceira pessoa (bots, outros jogadores, takes do menu) = cópia do modelo em primeira pessoa, sem as mãos
 const WG_SLEEVE = 0x010203, worldVM = [], worldRoot = new THREE.Group();
@@ -3070,17 +3109,135 @@ const VM_DETAIL = {
     vmD(g, 0x8d939c, 0.0095, 0.008, 0.14, 0, 0.022, -0.13);
   },
 };
+
+// ---- modelos de armas de verdade: Flat Guns West/East (CC0, OpenGameArt), arquivos em weapons/.
+// Chegam depois do jogo abrir; até lá (ou sem internet) ficam as armas montadas com caixas. Cada GLB vem com
+// esqueleto: as peças presas ao ferrolho, ao carregador ou à telha da shotgun viram grupos próprios para as animações.
+const GUN_GLB = {
+  pistol: { f: 'Pistol_Full_West', bolt: 'Slide', k: 1.25 },
+  deagle: { f: 'Pistol_Full_East', bolt: 'Slide', chrome: true, k: 1.3 },
+  smg: { f: 'SMG_Full_West', bolt: 'Bolt' },
+  shotgun: { f: 'Shotgun_Pump_East', bolt: 'Pump', mag: 'Shell' },
+  rifle: { f: 'Rifle_Assault_East', bolt: 'Bolt' },
+  semi: { f: 'Rifle_Battle_West', bolt: 'Bolt' },
+  sniper: { f: 'Sniper_Rifle_West', bolt: 'Bolt', scope: true },
+};
+const GunGLB = {
+  tpl: {}, state: 'idle', mats: new Map(),
+  on() { return S.video.gunModels !== false; },
+  load() {
+    if (this.state !== 'idle' || !this.on()) return; this.state = 'loading';
+    loadT3('loaders/GLTFLoader.js').then(() => {
+      const L = new THREE.GLTFLoader();
+      return Promise.all(Object.entries(GUN_GLB).map(([id, d]) => new Promise(ok => L.load('weapons/' + d.f + '.glb',
+        g => { try { this.tpl[id] = this.extract(g.scene, d); } catch (e) { console.warn('arma', id, e); } ok(); }, undefined, () => ok()))));
+    }).then(() => { this.state = 'ready'; if (Object.keys(this.tpl).length) this.refresh(); }).catch(() => { this.state = 'fail'; });
+  },
+  mat(m, d) {
+    const key = m.name + (d.chrome ? ':c' : ''); if (this.mats.has(key)) return this.mats.get(key);
+    const c = m.color.clone().convertLinearToSRGB(), hsl = {}; c.getHSL(hsl);
+    if (hsl.l < 0.16) c.setHSL(hsl.h, hsl.s, 0.13 + hsl.l * 0.4);
+    let spec = 0x3a3d44, shin = 38;
+    if (/Brown|Rosewood|Wood/i.test(m.name)) { spec = 0x1c150e; shin = 14; }
+    else if (/Brass|Yellow/i.test(m.name)) { spec = 0xaa8844; shin = 70; }
+    else if (d.chrome && hsl.s < 0.15) { c.setHSL(0.6, 0.04, 0.4 + hsl.l * 1.2); spec = 0xc0c6d0; shin = 90; }
+    const r = new THREE.MeshPhongMaterial({ color: c, specular: spec, shininess: shin }); this.mats.set(key, r); return r;
+  },
+  // separa os triângulos pela peça (osso) que os move e guarda tudo como malhas comuns, sem esqueleto
+  extract(scene, d) {
+    scene.updateMatrixWorld(true);
+    const marks = {}; scene.traverse(o => { if (o.isBone || /^Attach_|^Trigger$/.test(o.name)) marks[o.name] = o.getWorldPosition(new THREE.Vector3()); });
+    const want = { bolt: d.bolt, mag: d.mag || 'Magazine' }, parts = { body: new Map(), bolt: new Map(), mag: new Map() };
+    const v = new THREE.Vector3(), n = new THREE.Vector3();
+    scene.traverse(o => {
+      if (!o.isMesh) return;
+      const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+      const bones = o.isSkinnedMesh ? o.skeleton.bones : null, idx = g.index ? g.index.array : null, cnt = idx ? idx.length : P.count;
+      const mat = this.mat(o.material, d), nm = new THREE.Matrix3().getNormalMatrix(o.matrixWorld);
+      for (let t = 0; t < cnt; t += 3) {
+        const i0 = idx ? idx[t] : t; let key = 'body';
+        if (bones && SI) { let bi = 0, bw = -1; const ws = [SW.getX(i0), SW.getY(i0), SW.getZ(i0), SW.getW(i0)], is = [SI.getX(i0), SI.getY(i0), SI.getZ(i0), SI.getW(i0)]; for (let k = 0; k < 4; k++) if (ws[k] > bw) { bw = ws[k]; bi = is[k]; }
+          const bn = bones[bi] && bones[bi].name; if (bn === want.bolt) key = 'bolt'; else if (bn === want.mag) key = 'mag'; }
+        let a = parts[key].get(mat); if (!a) parts[key].set(mat, a = { p: [], n: [] });
+        for (let k = 0; k < 3; k++) {
+          const i = idx ? idx[t + k] : t + k; v.fromBufferAttribute(P, i); if (bones) o.boneTransform(i, v); v.applyMatrix4(o.matrixWorld); a.p.push(v.x, v.y, v.z);
+          if (N) { n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); a.n.push(n.x, n.y, n.z); }
+        }
+      }
+    });
+    const root = new THREE.Group();
+    for (const key of ['body', 'bolt', 'mag']) {
+      const G = new THREE.Group(); G.name = 'glb_' + key; root.add(G);
+      parts[key].forEach((a, mat) => {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(a.p, 3));
+        if (a.n.length) geo.setAttribute('normal', new THREE.Float32BufferAttribute(a.n, 3)); else geo.computeVertexNormals();
+        const m = new THREE.Mesh(geo, mat); m.userData.glb = true; G.add(m);
+      });
+    }
+    const box = new THREE.Box3().setFromObject(root), sz = box.getSize(new THREE.Vector3());
+    const muzzle = marks.Attach_Muzzle || new THREE.Vector3(0, box.getCenter(v).y, box.min.z);
+    return { root, box, len: sz.z, muzzle, trigger: marks.Trigger || null, scope: marks.Attach_Scope || null };
+  },
+  // troca as caixas da arma pelo modelo; mãos continuam (a de baixo vai para o cabo do modelo)
+  attach(vm, id) {
+    const T = this.on() && this.tpl[id], d = GUN_GLB[id]; if (!T) return;
+    const g = vm.g, pb = new THREE.Box3(), b = new THREE.Box3();
+    const proc = new THREE.Group(); proc.name = 'proc'; proc.visible = false;
+    [...g.children].forEach(ch => {
+      if (ch.userData.hand) return;
+      if (ch.isMesh) { ch.updateMatrix(); if (!ch.geometry.boundingBox) ch.geometry.computeBoundingBox(); pb.union(b.copy(ch.geometry.boundingBox).applyMatrix4(ch.matrix)); }
+      proc.add(ch);
+    });
+    g.add(proc);
+    const s = (pb.max.z - pb.min.z) / T.len * (d.k || 1);
+    const r = T.root.clone(true); r.scale.setScalar(s);
+    r.position.set(-T.muzzle.x * s, vm.muzzle.y - T.muzzle.y * s, vm.muzzle.z - T.muzzle.z * s);
+    g.add(r);
+    if (d.scope) {   // luneta (o modelo vem só com o trilho)
+      const sc = T.scope || new THREE.Vector3(0, T.box.max.y, (T.box.min.z + T.box.max.z) / 2), top = sc.y * s + r.position.y + 0.01, zc = sc.z * s + r.position.z;
+      vmC(g, C.metal, 0.034, 0.27, 0, top + 0.034, zc).userData.glb = true; vmC(g, C.metal, 0.045, 0.06, 0, top + 0.034, zc - 0.15).userData.glb = true;
+      vmC(g, C.metal, 0.04, 0.05, 0, top + 0.034, zc + 0.13).userData.glb = true;
+      vmC(g, 0, 0.04, 0.004, 0, top + 0.034, zc - 0.181, VM_GLASS).userData.glb = true; vmC(g, 0, 0.034, 0.004, 0, top + 0.034, zc + 0.156, VM_GLASS2).userData.glb = true;
+      vmD(g, C.metal2, 0.02, 0.03, 0.02, 0, top + 0.004, zc - 0.07).userData.glb = true; vmD(g, C.metal2, 0.02, 0.03, 0.02, 0, top + 0.004, zc + 0.07).userData.glb = true;
+    }
+    vm.glb = { r, s, bolt: r.getObjectByName('glb_bolt'), mag: r.getObjectByName('glb_mag') };
+    vm.adsY = T.box.max.y * s + r.position.y;
+    if (T.trigger && vm.grip) {
+      const pistol = id === 'pistol' || id === 'deagle';
+      const tg = T.trigger.clone().multiplyScalar(s).add(r.position);
+      const ng = [0, tg.y - (pistol ? 0.045 : 0.05), tg.z + (pistol ? 0.035 : 0.05)], dg = ng.map((x, i) => x - vm.grip[i]);
+      g.children.forEach(ch => { if (ch.userData.hand === 'grip' || (pistol && ch.userData.hand === 'sup')) ch.position.add(new THREE.Vector3(...dg)); });
+      vm.grip = ng; if (pistol) vm.sup = vm.sup.map((x, i) => x + dg[i]);
+    }
+  },
+  sync(m) {
+    const G = m.glb; if (!G) return;
+    G.bolt.position.copy(m.bolt.position).sub(m.boltBase).divideScalar(G.s);
+    G.mag.position.copy(m.mag.position).sub(m.magBase).divideScalar(G.s); G.mag.visible = m.mag.visible;
+  },
+  // modelos chegaram (ou a opção mudou): refaz as armas da mão, dos bots e do replay
+  refresh() {
+    if (typeof player !== 'undefined' && player) { buildViewModels(sleeveColor(player.color)); polishVM(sleeveColor(player.color)); }
+    worldTex = null; kcVm.built = false;
+    combatants.forEach(c => { if (c.weapon && c.weapon.w) setGunShape(c, c.weapon.w); });
+  },
+};
 const vmModels = [];
 const flashMesh = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.9 }));
 flashMesh.visible = false; vmScene.add(flashMesh);
 function buildViewModels(sleeve, vmRoot_ = vmRoot, vmModels_ = vmModels) {
+  buildViewModels0(sleeve, vmRoot_, vmModels_);
+  vmModels_.forEach((vm, i) => vm && GunGLB.attach(vm, WEAPONS[i].id));
+}
+function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   const vmRoot = vmRoot_, vmModels = vmModels_;
   vmRoot.clear(); vmModels.length = 0; let gripAt = null, supAt = null;
   const X = (g, c, sx, sy, sz, x, y, z, rx = 0) => { const m = mesh(BOX, c, sx, sy, sz, x, y, z, g); m.rotation.x = rx; return m; };
   const Cy = (g, c, r, len, x, y, z) => { const m = mesh(CYL, c, r, len, r, x, y, z, g); m.rotation.x = Math.PI / 2; return m; };
   const hands = (g, grip, sup) => { gripAt = grip; supAt = sup;
-    X(g, C.glove, 0.06, 0.08, 0.09, ...grip); const ar = X(g, sleeve, 0.07, 0.07, 0.18, grip[0] + 0.02, grip[1] - 0.06, grip[2] + 0.11); ar.rotation.set(0.45, 0.1, 0);
-    X(g, C.glove, 0.06, 0.06, 0.09, ...sup); const al = X(g, sleeve, 0.07, 0.07, 0.3, sup[0] - 0.07, sup[1] - 0.08, sup[2] + 0.16); al.rotation.set(0.35, -0.45, 0);
+    const hg = X(g, C.glove, 0.06, 0.08, 0.09, ...grip); const ar = X(g, sleeve, 0.07, 0.07, 0.18, grip[0] + 0.02, grip[1] - 0.06, grip[2] + 0.11); ar.rotation.set(0.45, 0.1, 0);
+    const hs = X(g, C.glove, 0.06, 0.06, 0.09, ...sup); const al = X(g, sleeve, 0.07, 0.07, 0.3, sup[0] - 0.07, sup[1] - 0.08, sup[2] + 0.16); al.rotation.set(0.35, -0.45, 0);
+    hg.userData.hand = ar.userData.hand = 'grip'; hs.userData.hand = al.userData.hand = 'sup';
   };
   const mk = (id, offset, build) => { const g = new THREE.Group(); gripAt = supAt = null; const parts = build(g); vmRoot.add(g); g.visible = false;
     vmModels[WI(id)] = { g, offset, grip: gripAt, sup: supAt, ...parts, magBase: parts.mag.position.clone(), boltBase: parts.bolt.position.clone() }; };
@@ -3499,7 +3656,7 @@ function updateWeapons(dt) {
   updateBuildGhost(w);
   if (pw.reloadT > 0) {
     pw.reloadT -= dt;
-    if (pw.reloadT <= 0) { pw.reloadT = 0; const need = w.mag - slot.mag, take = pw.infinite ? need : Math.min(need, slot.reserve); slot.mag += take; if (!pw.infinite) slot.reserve -= take; play('magIn', 0.8); }
+    if (pw.reloadT <= 0) { pw.reloadT = 0; const need = w.mag - slot.mag, take = pw.infinite ? need : Math.min(need, slot.reserve); slot.mag += take; if (!pw.infinite) slot.reserve -= take; }
   }
   pw.shotSpread = Math.max(0, pw.shotSpread - w.recover * dt);
   pw.landT = Math.max(0, pw.landT - dt);
@@ -3545,7 +3702,7 @@ function updateWeapons(dt) {
 function tryReload() {
   const s = active();
   if (s.w.melee || s.w.nade || s.w.build || pw.reloadT || pw.drawT > 0 || s.mag >= s.w.mag || (!pw.infinite && s.reserve <= 0)) return;
-  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; play(s.w.id === 'crossbow' ? 'crank' : s.w.bowDraw ? 'draw' : 'magOut', 0.8); startAnim(player, 'reload', s.w.reload);
+  pw.reloadT = s.w.reload; pw.zoom = 0; pw.rezoom = 0; if (s.w.bowDraw) play('draw', 0.8); startAnim(player, 'reload', s.w.reload);
 }
 function showHit(res) { if (res.hit) { hitT = 0.3; hitHead = res.head; hitKill = res.kill; if (S.audio.hit) play(res.kill ? 'kill' : res.head ? 'head' : 'hit', 0.9); } }
 function tryMelee(alt) {
@@ -3643,7 +3800,7 @@ function updateViewModel(dt) {
   pv.boltT = Math.min(1, pv.boltT + dt / Math.max(0.08, w.interval * 0.8));
   const blow = ['pistol', 'rifle', 'deagle', 'smg'].includes(w.id);
   const bk = blow ? (pv.boltT < 0.5 ? 1 - pv.boltT * 2 : 0) : (pv.boltT < 0.25 ? 0 : Math.sin((pv.boltT - 0.25) / 0.75 * Math.PI));
-  m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, bk);
+  m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, bk); GunGLB.sync(m);
   if (w.proj) m.bolt.visible = active().mag > 0 && !pw.reloadT;
   if (w.bowDraw && pw.bowT > 0) { const e = Math.sin(pw.bowT * Math.PI / 2) * 0.16; m.mag.position.z += e; m.bolt.position.z += e; } // corda e flecha vêm para trás
   const tilt = (w.id === 'sniper' || w.id === 'shotgun') ? bk * 0.14 : 0;
@@ -3777,7 +3934,7 @@ function updateBot(c, dt) {
           c.recoilAnim = 1; play(r.hit ? 'knifeHit' : 'knife', 1, c.pos); kcFire(c, w, r.hit ? 'knifeHit' : 'knife');
         }
       } else if (aim.angleTo(to) < 6 * DEG) {
-        if (c.weapon.magNow <= 0) { b.reloadT = w.reload; play('magOut', 0.6, c.pos); startAnim(c, 'reload', w.reload); }
+        if (c.weapon.magNow <= 0) { b.reloadT = w.reload; startAnim(c, 'reload', w.reload); }
         else {
           c.weapon.magNow--;
           b.nextFire = now + (w.interval + (w.bowDraw || 0)) * (w.auto ? spinMul(b, w) : rand(1.1, 1.7));
@@ -5761,9 +5918,18 @@ function readSkinFile(file) {
 const MODEL_MAX = 30 * 1024 * 1024, MODEL_NET_MAX = 8 * 1024 * 1024;
 const T3 = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/';
 let modelLibs = null;
+const t3Scripts = new Map();
+function loadT3(src) {
+  if (!t3Scripts.has(src)) {
+    const p = new Promise((ok, fail) => { const s = document.createElement('script'); s.src = T3 + src; s.onload = ok; s.onerror = () => fail(new Error('Não deu para carregar o leitor de modelos 3D. Confira a internet.')); document.head.appendChild(s); });
+    p.catch(() => t3Scripts.delete(src)); t3Scripts.set(src, p);
+  }
+  return t3Scripts.get(src);
+}
+GunGLB.load();
 function loadModelLibs() {
   if (modelLibs) return modelLibs;
-  const one = src => new Promise((ok, fail) => { const s = document.createElement('script'); s.src = T3 + src; s.onload = ok; s.onerror = () => fail(new Error('Não deu para carregar o leitor de modelos 3D. Confira a internet.')); document.head.appendChild(s); });
+  const one = loadT3;
   modelLibs = Promise.all([one('loaders/GLTFLoader.js'), one('loaders/OBJLoader.js'), one('utils/SkeletonUtils.js')]);
   modelLibs.catch(() => { modelLibs = null; });
   return modelLibs;
@@ -8100,7 +8266,7 @@ function renderSettings() {
   let h = '';
   if (setTab === 0) {
     h = R_('video', 'fov', 'Campo de visão (vertical)', 60, 100, 1) + `<p class="note" id="hfov"></p>` + Sel('video', 'res', 'Resolução interna', ['Baixa (70%)', 'Normal (100%)', 'Alta (tela retina)']) +
-      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
+      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'gunModels', 'Armas detalhadas (modelos 3D; desligue se o celular pesar)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
 ''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
@@ -8163,6 +8329,7 @@ function renderSettings() {
       if (el.type === 'range') el.nextElementSibling.textContent = (+el.value).toFixed(el.step < 1 ? (el.step < 0.1 ? 2 : 1) : 0);
       saveSettings(); applySettingsLight(g); drawPreview(); hfov();
       if (g === 'hud' || g === 'touch') { applyLayout(); updateTouchUI(); }
+      if (k === 'gunModels') { if (GunGLB.state === 'idle') GunGLB.load(); else if (GunGLB.state === 'ready') GunGLB.refresh(); }
     };
     el.addEventListener('input', upd); el.addEventListener('change', upd);
   });
@@ -8226,7 +8393,7 @@ function kcVmShow(wi, dt) {
   kcVm.kick = kcVm.kick > 0 ? Math.max(0, kcVm.kick - dt * 10) : Math.min(0, kcVm.kick + dt * 8); kcVm.flash -= dt;   // negativo = estocada da faca
   kcVm.root.position.copy(m.offset).add(new THREE.Vector3(0, 0, 0.05 * kcVm.kick));
   kcVm.root.rotation.set(kcVm.kick * 0.09, 0, 0);
-  m.bolt.position.copy(m.boltBase); m.mag.position.copy(m.magBase); m.mag.visible = true;
+  m.bolt.position.copy(m.boltBase); m.mag.position.copy(m.magBase); m.mag.visible = true; GunGLB.sync(m);
   vmRoot.visible = false; kcVm.root.visible = true;
   flashMesh.visible = kcVm.flash > 0;
   if (flashMesh.visible) { kcVm.root.updateMatrixWorld(true); flashMesh.position.copy(m.muzzle).applyMatrix4(m.g.matrixWorld); flashMesh.scale.setScalar(rand(0.07, 0.12)); }
@@ -9752,7 +9919,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { RealTex, texMatCache, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { RealTex, texMatCache, GunGLB, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
