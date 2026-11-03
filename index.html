@@ -3367,6 +3367,12 @@ const CHAR_GLB = [{ f: 'Swat', outfit: ['Swat'] }, { f: 'Soldier', outfit: ['Swa
 const CHAR_INVIS = new THREE.MeshBasicMaterial({ visible: false });
 const _cq = new THREE.Quaternion(), _cq2 = new THREE.Quaternion(), _cqB = new THREE.Quaternion(), _cqH = new THREE.Quaternion(), _cm = new THREE.Matrix4(), _cm2 = new THREE.Matrix4();
 const _cv = new THREE.Vector3(), _cv2 = new THREE.Vector3(), _cv3 = new THREE.Vector3(), _cs = new THREE.Vector3(), _cRy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+// fecha a mão do boneco 3D (segurando a arma): no modelo o eixo X local de cada falange é a dobradiça, e o
+// sentido negativo leva a ponta do dedo para a palma; o polegar dobra por baixo, de frente para os dedos
+function curlHand(bones, s, k) {
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const j of [2, 3, 4]) { const b = bones[f + j + s]; if (b) b.rotateX(1 * k * (j === 2 ? 1.15 : j === 3 ? 1.2 : 0.8)); }
+  const t2 = bones['Thumb2' + s], t3 = bones['Thumb3' + s]; if (t2) t2.rotateX(1 * 0.55 * k); if (t3) t3.rotateX(1 * 0.6 * k);
+}
 const CharGLB = {
   tpl: [], state: 'idle', all: new Set(),
   live() { for (const c of this.all) if (!c.group || !c.group.parent) this.all.delete(c); return [...this.all]; },
@@ -3385,7 +3391,7 @@ const CharGLB = {
     scene.updateMatrixWorld(true);
     const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; });
     const rest = {}; for (const n in bones) { const b = bones[n]; rest[n] = { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()) }; }
-    const head = rest.Head.p.y, s = 1.64 / head;   // altura da cabeça do boneco de peças ~1.64 (nuca)
+    const head = rest.Head.p.y, s = 1.64 / head * 1.12;   // altura da cabeça do boneco de peças ~1.64 (nuca)
     const mats = {}; scene.traverse(o => { if (o.isMesh) { const m = o.material; if (!mats[m.name]) { const c = m.color.clone().convertLinearToSRGB(), hsl = {}; c.getHSL(hsl); if (hsl.l < 0.1) c.setHSL(hsl.h, hsl.s, 0.08 + hsl.l * 0.6); mats[m.name] = c; } } });
     return { scene, d, rest, s, mats };
   },
@@ -3405,8 +3411,7 @@ const CharGLB = {
       if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.castShadow = cs; o.frustumCulled = false; }
     });
     // dedos fechados (segurando a arma)
-    for (const s of ['L', 'R']) for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const k of [2, 3, 4]) { const b = bones[f + k + s]; if (b) b.rotateX(k === 2 ? 1.1 : 0.9); }
-    for (const s of ['L', 'R']) { const b = bones['Thumb2' + s]; if (b) b.rotateY((s === 'L' ? -1 : 1) * 0.5); }
+    for (const s of ['L', 'R']) curlHand(bones, s, 1);
     c.glbChar = { T, root, bones, mats, order: [] };
     root.traverse(o => { if (o.isBone) c.glbChar.order.push(o); });
     // peças antigas ficam como hitbox, sem aparecer (a arma e os acessórios continuam)
@@ -3474,14 +3479,29 @@ const CharGLB = {
     for (const n of ['Hips', 'Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'FootL', 'FootR']) rel(n, _cqB);
     rel('Neck', _cq.copy(_cqB).slerp(_cqH, 0.5)); rel('Head', _cqH);
     for (const s of ['L', 'R']) {
-      aim('UpperArm' + s, P['sh' + s], P['el' + s], _cqB); aim('LowerArm' + s, P['el' + s], P['ha' + s], _cqB);
-      if (want['LowerArm' + s]) want['Hand' + s] = want['LowerArm' + s].clone().multiply(R['LowerArm' + s].q.clone().invert()).multiply(R['Hand' + s].q);
-      aim('UpperLeg' + s, P['hip' + s], P['kn' + s], _cqB); aim('LowerLeg' + s, P['kn' + s], P['ft' + s], _cqB);
+      if (!R['UpperArm' + s]) continue;
     }
     // de cima para baixo: rotação local = (rotação do pai no mundo)^-1 * desejada
     const wq = new Map();
     for (const b of G.order) {
       const pq = wq.get(b.parent) || b.parent.getWorldQuaternion(new THREE.Quaternion());
+      const m = /^UpperArm([LR])$/.exec(b.name);
+      if (m) {   // braço: o ombro do modelo fica onde está; o cotovelo é achado pelo comprimento dos ossos do modelo, e a mão cai no ponto do boneco simples
+        const s = m[1], k = T.s * sz, a = R['UpperArm' + s].p.distanceTo(R['LowerArm' + s].p) * k, bb = R['LowerArm' + s].p.distanceTo(R['Hand' + s].p) * k;
+        b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperArm' + s].q); b.updateMatrixWorld(true);
+        const sh = b.getWorldPosition(new THREE.Vector3()), hand = P['ha' + s].clone(), pole = P['el' + s].clone().sub(P['sh' + s].clone().add(P['ha' + s]).multiplyScalar(0.5));
+        const el = elbowPos(new THREE.Vector3(), sh, hand, a, bb, pole);
+        aim('UpperArm' + s, sh, el, _cqB); aim('LowerArm' + s, el, hand, _cqB);
+        want['Hand' + s] = want['LowerArm' + s].clone().multiply(R['LowerArm' + s].q.clone().invert()).multiply(R['Hand' + s].q);
+      }
+      const ml = /^UpperLeg([LR])$/.exec(b.name);
+      if (ml && R['LowerLeg' + ml[1]] && R['Foot' + ml[1]]) {   // perna: mesma ideia, o pé cai no chão onde o boneco simples pisa
+        const s = ml[1], k = T.s * sz, a = R['UpperLeg' + s].p.distanceTo(R['LowerLeg' + s].p) * k, bb = R['LowerLeg' + s].p.distanceTo(R['Foot' + s].p) * k;
+        b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperLeg' + s].q); b.updateMatrixWorld(true);
+        const hp = b.getWorldPosition(new THREE.Vector3()), ft = P['ft' + s].clone(), pole = P['kn' + s].clone().sub(P['hip' + s].clone().add(P['ft' + s]).multiplyScalar(0.5));
+        const kn = elbowPos(new THREE.Vector3(), hp, ft, a, bb, pole);
+        aim('UpperLeg' + s, hp, kn, _cqB); aim('LowerLeg' + s, kn, ft, _cqB);
+      }
       const w = want[b.name];
       if (w) { b.quaternion.copy(pq).invert().multiply(w); wq.set(b, w); } else wq.set(b, pq.clone().multiply(b.quaternion));
     }
@@ -3504,7 +3524,7 @@ const VMArms = {
       if (o.isBone) { bones[o.name] = o; order.push(o); }
       if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.frustumCulled = false; }
     });
-    for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const k of [2, 3, 4]) { const b = bones[f + k + side]; if (b) b.rotateX(k === 2 ? 1.25 : 1.05); }
+    curlHand(bones, side, 1.1);
     // só o braço deste lado aparece (o resto do corpo some)
     const other = side === 'R' ? 'L' : 'R';
     const R = T.rest, k = 0.12 / R['Hand' + side].p.distanceTo(R['Middle4' + side].p);
