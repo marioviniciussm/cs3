@@ -1453,7 +1453,7 @@ let world = null, worldMeshes = [], colliders = [], mapInfo = null;
 // ---- texturas feitas no próprio jogo (canvas): areia, concreto, blocos de pedra, caixotes de madeira, metal
 // Tudo em tons de cinza claro: a cor de cada caixa do mapa continua valendo (a textura só dá o desenho).
 function srand(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; }
-const TEX_TILE = { ground: 3, concrete: 2, block: 3, crate: 1.2, metal: 1, plain: 2, grass: 3, tile: 2 };
+const TEX_TILE = { ground: 4, concrete: 3, block: 3, crate: 1.2, metal: 2, plain: 3, grass: 3, tile: 2 };
 function texKind(hexv) {
   if (hexv === C.sand || hexv === 0xd8c49a || hexv === 0xcdb88f) return 'ground';
   if (hexv === C.wall || hexv === C.wallDark || hexv === 0xc9b48a) return 'block';
@@ -1525,16 +1525,50 @@ function makeTex(kind) {
   t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   procTex.set(kind, t); return t;
 }
+// ---- texturas reais: fotos CC0 da ambientCG em textures/ (cor + relevo em normal map; fontes em textures/LEIAME.md).
+// A cor vem quase sem saturação e com média clara, então a cor de cada caixa do mapa continua mandando no tom.
+// Enquanto não carregam (ou se faltarem, ou no file://, onde o WebGL recusa imagem local) fica a textura de canvas.
+const RealTex = {
+  kinds: ['ground', 'grass', 'concrete', 'block', 'crate', 'metal', 'plain', 'tile'],
+  col: new Map(), nrm: new Map(), started: false,
+  // relevo por material: madeira e pedra pedem mais, gesso e azulejo quase liso
+  bump: { ground: 0.9, grass: 0.6, concrete: 0.8, block: 1.1, crate: 1, metal: 0.9, plain: 0.6, tile: 0.8 },
+  shine: { metal: [0x3a3a3a, 40], tile: [0x2a2a2a, 30], concrete: [0x101010, 10] },
+  on() { return S.video.tex !== false && location.protocol !== 'file:'; },
+  ready(kind) { return this.col.has(kind) && this.nrm.has(kind); },
+  load() {
+    if (this.started || !this.on()) return; this.started = true;
+    const L = new THREE.TextureLoader(), an = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const get = (kind, suf, map) => L.load(`textures/${kind}${suf}.jpg`, t => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = an; map.set(kind, t);
+      if (this.ready(kind)) this.upgrade(kind);
+    }, undefined, () => {});
+    for (const k of this.kinds) { get(k, '', this.col); get(k, '_n', this.nrm); }
+  },
+  // põe a foto nos materiais que já existem (mapa montado antes de terminar de baixar)
+  upgrade(kind) {
+    for (const [key, m] of texMatCache) if (key.endsWith(':' + kind)) this.apply(m, kind);
+    renderer.shadowMap.needsUpdate = true;
+  },
+  apply(m, kind) {
+    m.map = this.col.get(kind); m.normalMap = this.nrm.get(kind);
+    const b = this.bump[kind] || 1; m.normalScale.set(b, b); m.needsUpdate = true;
+  },
+};
 const texMatCache = new Map();
 function texMat(hexv, kind) {
   const key = hexv + ':' + kind;
   if (!texMatCache.has(key)) {
     // a textura escurece um pouco a média: compensa clareando a cor
-    const col = new THREE.Color(hexv).multiplyScalar(1.1);
-    texMatCache.set(key, new THREE.MeshLambertMaterial({ color: col, map: makeTex(kind) }));
+    const col = new THREE.Color(hexv).multiplyScalar(1.1), sh = RealTex.shine[kind] || [0x000000, 4];
+    // Phong (e não Lambert) porque o relevo das fotos precisa de luz por pixel
+    const m = new THREE.MeshPhongMaterial({ color: col, map: makeTex(kind), specular: sh[0], shininess: sh[1] });
+    if (RealTex.ready(kind)) RealTex.apply(m, kind);
+    texMatCache.set(key, m);
   }
   return texMatCache.get(key);
 }
+RealTex.load();
 // junta caixas numa geometria só; a textura repete um número inteiro de vezes em cada face (casa com as quinas)
 function mergeBoxes(list, tile) {
   const P = BOX.attributes.position, Nn = BOX.attributes.normal, U = BOX.attributes.uv, I = BOX.index;
@@ -1564,6 +1598,7 @@ function mergeBoxes(list, tile) {
 // As caixas originais ficam invisíveis só para colisão de tiro (o raycast não liga para visibilidade).
 function bakeWorld() {
   world.userData.baked = true;
+  RealTex.load();
   world.updateMatrixWorld(true);
   const groups = new Map();
   for (const m of world.children) {
@@ -1758,9 +1793,13 @@ function tileFloor(px1, py1, px2, py2, color, y = 0.006) {
     g.fillStyle = '#fff'; g.fillRect(0, 0, 64, 64); g.strokeStyle = 'rgba(0,0,0,0.16)'; g.lineWidth = 2; g.strokeRect(0, 0, 64, 64);
     tileTex = new THREE.CanvasTexture(c); tileTex.wrapS = tileTex.wrapT = THREE.RepeatWrapping;
   }
-  const w = (px2 - px1) * PX, d = (py2 - py1) * PX, t = tileTex.clone(); t.needsUpdate = true; t.repeat.set(w / 0.9, d / 0.9);
+  const w = (px2 - px1) * PX, d = (py2 - py1) * PX, real = RealTex.ready('tile');
+  // a foto tem 6 x 6 azulejos: repete a cada 5,4 m para cada azulejo continuar com 0,9 m
+  const rep = real ? 5.4 : 0.9, t = (real ? RealTex.col.get('tile') : tileTex).clone(); t.needsUpdate = true; t.repeat.set(w / rep, d / rep);
   // Phong: no Lambert a sombra do sol apaga também a luz das lâmpadas (o teto faz sombra na sala toda)
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshPhongMaterial({ color, map: t, specular: 0x181818, shininess: 12 }));
+  const fm = new THREE.MeshPhongMaterial({ color, map: t, specular: real ? 0x2a2a2a : 0x181818, shininess: real ? 30 : 12 });
+  if (real) { const n = RealTex.nrm.get('tile').clone(); n.needsUpdate = true; n.repeat.copy(t.repeat); fm.normalMap = n; fm.normalScale.set(0.8, 0.8); }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), fm);
   m.rotation.x = -Math.PI / 2; m.position.set(pxX((px1 + px2) / 2), y, pxZ((py1 + py2) / 2)); m.receiveShadow = true; world.add(m);
 }
 // caixa a partir de um retângulo em pixels do desenho
@@ -9495,7 +9534,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { RealTex, texMatCache, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
