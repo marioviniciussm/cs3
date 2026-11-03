@@ -680,7 +680,7 @@ const KB_LOCK = !!(navigator.keyboard && navigator.keyboard.lock);
 const ACTIONS = [
   ['forward', 'Andar para frente', 'KeyW'], ['back', 'Andar para trás', 'KeyS'], ['left', 'Andar para a esquerda', 'KeyA'], ['right', 'Andar para a direita', 'KeyD'],
   ['jump', 'Pular', 'Space'], ['crouch', 'Agachar', KB_LOCK ? 'ControlLeft' : 'KeyC'], ['walk', 'Andar devagar (silencioso)', 'ShiftLeft'],
-  ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Mirar pela arma / zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'],
+  ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Mirar pela arma / zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'], ['inspect', 'Inspecionar a arma', 'KeyH'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
   ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
@@ -3259,7 +3259,7 @@ function defaultSlot() {
 function selectWeapon(i, force) {
   if (i == null || i < 0 || i >= pw.slots.length || (i === pw.cur && !force)) return;
   if (i !== pw.cur) pw.prev = pw.cur;
-  pw.cur = i; pw.ads = 0; pw.bowT = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0;
+  pw.cur = i; pw.ads = 0; pw.bowT = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0; pv.inspT = 0;
   vmModels.forEach((m, j) => m.g.visible = j === pw.slots[i].wi);
   if (player) setGunShape(player, pw.slots[i].w);
   play('draw', 0.6);
@@ -3518,6 +3518,9 @@ function updateWeapons(dt) {
   if (wheel > 0) selectWeapon((pw.cur + 1) % n); else if (wheel < 0) selectWeapon((pw.cur + n - 1) % n);
   wheel = 0;
   const autoF = S.touch.autoFire && touchOn() && assist.onTarget;
+  // inspecionar: gira a arma na mão para olhar os dois lados (apertar de novo, atirar, mirar ou recarregar cancela)
+  if (isDown('inspect') && !w.nade && !w.build && pw.drawT <= 0 && !pw.reloadT && !pw.zoom) pv.inspT = pv.inspT > 0 ? 0 : (w.melee ? 2.2 : 2.8);
+  if (pv.inspT > 0 && (isHeld('fire') || isHeld('scope') || pw.reloadT > 0)) pv.inspT = 0;
   if (w.nade) { if (isDown('fire')) throwNade(); return; }
   if (w.build) { if (isHeld('fire')) tryBuild(false); else if (isHeld('scope')) tryBuild(true); return; }
   if (w.melee) { if (isHeld('scope')) tryMelee(true); else if (isHeld('fire') || (autoF && assist.dist < w.range)) tryMelee(false); return; }
@@ -3622,6 +3625,20 @@ function updateViewModel(dt) {
     const e = Math.sin((1 - pv.swing) * Math.PI);
     if (pv.swingAlt) { rpos.z -= 0.18 * e; rpos.y += 0.04 * e; rx -= 0.5 * e; }
     else { rpos.x -= 0.14 * e * pv.swingSide; ry += 0.7 * e * pv.swingSide; rz += 0.8 * e * pv.swingSide; rx -= 0.3 * e; }
+  }
+  // inspeção: levanta e vira a arma para mostrar o lado esquerdo, depois o direito/de cima, e volta (faca dá um giro no ar)
+  if (pv.inspT > 0) {
+    const L = w.melee ? 2.2 : 2.8; pv.inspT = Math.max(0, pv.inspT - dt); const t = 1 - pv.inspT / L;
+    const sm = k => k * k * (3 - 2 * k), ph = (a, b) => sm(clamp((t - a) / (b - a), 0, 1));
+    const up = ph(0, 0.15) * (1 - ph(0.85, 1));
+    if (w.melee) {
+      const spin = ph(0.35, 0.6);
+      rpos.x -= 0.1 * up; rpos.y += 0.05 * up + 0.12 * Math.sin(spin * Math.PI); rx += 0.35 * up; ry += 0.6 * up; rz += 0.9 * up + spin * Math.PI * 2;
+    } else {
+      const a = ph(0.1, 0.3) * (1 - ph(0.45, 0.6)), b = ph(0.45, 0.6) * (1 - ph(0.8, 0.95));
+      rpos.x -= 0.13 * up; rpos.y += 0.06 * up + 0.03 * b; rpos.z += 0.05 * up;
+      ry += 1.0 * a - 0.3 * b; rz += 0.85 * a - 0.35 * b; rx += 0.15 * up - 0.2 * b;
+    }
   }
   pv.boltT = Math.min(1, pv.boltT + dt / Math.max(0.08, w.interval * 0.8));
   const blow = ['pistol', 'rifle', 'deagle', 'smg'].includes(w.id);
