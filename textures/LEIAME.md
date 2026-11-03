@@ -12,7 +12,8 @@ Vieram do espelho CC0 em https://github.com/Papyszoo/CC0-Public-Domain-Textures 
 | crate.jpg | Planks003 (+ moldura e travessa desenhadas por cima) | caixotes de madeira |
 | metal.jpg | MetalPlates001 | metal |
 | plain.jpg | Plaster001 | paredes lisas (reboco) |
-| tile.jpg | Tiles036 | azulejo do fy_pool_day |
+| tile.jpg | Tiles036 | azulejo do fy_pool_day e do chafariz |
+| paving.jpg | PavingStones051 | calçada de pedra da Praça |
 
 Cada uma tem a versão `_n.jpg`, o mapa de relevo (normal map, padrão OpenGL).
 A cor foi tirada quase toda e a média clareada de propósito: o jogo pinta cada caixa com a cor do mapa por cima.
