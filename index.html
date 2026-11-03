@@ -690,7 +690,7 @@ const ACTIONS = [
   ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
-  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true },
+  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true, charModels: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1, autoReload: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
@@ -2436,7 +2436,7 @@ function buildModel(c) {
   const gun = new THREE.Group(); upper.add(gun);
   const muzzle = new THREE.Object3D(); gun.add(muzzle);
   Object.assign(c, { group: g, vis, upper, legs, armL, armR, gun, gunParts: null, muzzle, torso, head, grip: new THREE.Vector3(0, -0.05, 0), fore: new THREE.Vector3(-0.02, -0.04, -0.3), gunCs: cs, rag: null, ragGroup: null });
-  world.add(g);
+  world.add(g); CharGLB.all.add(c); CharGLB.sync(c);
 }
 function setGunShape(c, w) {
   if (c.gunParts) c.gun.remove(c.gunParts);
@@ -2694,6 +2694,10 @@ function tickReloadSfx(c) {
 const ease = k => 1 - (1 - k) * (1 - k), env = (k, a, b) => clamp(Math.min(k / a, (1 - k) / b), 0, 1);
 const _fore = new THREE.Vector3(), _ih = new THREE.Vector3();
 function animateModel(c, dt) {
+  animateModel0(c, dt);
+  if (c.glbChar) { if (c.mdl) CharGLB.detach(c); else CharGLB.update(c); }
+}
+function animateModel0(c, dt) {
   tickReloadSfx(c);
   c.group.position.copy(c.pos);
   c.group.rotation.y = c.yaw;
@@ -3356,6 +3360,217 @@ const GunGLB = {
     combatants.forEach(c => { if (c.weapon && c.weapon.w) setGunShape(c, c.weapon.w); });
   },
 };
+// ---- boneco 3D (Quaternius, CC0): segue os pontos do boneco de peças (que continua invisível servindo de hitbox)
+// Swat para o time 0, Soldier para o time 1. Os ossos apontam para ombro, cotovelo, mão, quadril, joelho e pé;
+// o mesmo vale para o ragdoll, que usa os pontos da física.
+const CHAR_GLB = [{ f: 'Swat', outfit: ['Swat'] }, { f: 'Soldier', outfit: ['Swat'] }];
+const CHAR_INVIS = new THREE.MeshBasicMaterial({ visible: false });
+const _cq = new THREE.Quaternion(), _cq2 = new THREE.Quaternion(), _cqB = new THREE.Quaternion(), _cqH = new THREE.Quaternion(), _cm = new THREE.Matrix4(), _cm2 = new THREE.Matrix4();
+const _cv = new THREE.Vector3(), _cv2 = new THREE.Vector3(), _cv3 = new THREE.Vector3(), _cs = new THREE.Vector3(), _cRy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const CharGLB = {
+  tpl: [], state: 'idle', all: new Set(),
+  live() { for (const c of this.all) if (!c.group || !c.group.parent) this.all.delete(c); return [...this.all]; },
+  on() { return S.video.charModels !== false; },
+  load() {
+    if (this.state !== 'idle' || !this.on()) return; this.state = 'loading';
+    loadT3('loaders/GLTFLoader.js').then(() => {
+      const L = new THREE.GLTFLoader();
+      const get = f => fetch('models/' + f + '.glb').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+        .catch(() => fetch('models/' + f + '.glb.txt').then(r => { if (!r.ok) throw 0; return r.text(); }).then(t => Uint8Array.from(atob(t.trim()), c => c.charCodeAt(0)).buffer));
+      return Promise.all(CHAR_GLB.map((d, i) => get(d.f).then(buf => new Promise(ok => L.parse(buf, '', g => { try { this.tpl[i] = this.prep(g.scene, d); } catch (e) { console.warn('boneco', d.f, e); } ok(); }, () => ok()))).catch(() => {})));
+    }).then(() => { this.state = 'ready'; if (this.tpl.some(Boolean)) this.live().forEach(c => this.sync(c)); }).catch(() => { this.state = 'fail'; });
+  },
+  // guarda, para cada osso, a rotação no mundo e a direção até o filho na pose de descanso (em T)
+  prep(scene, d) {
+    scene.updateMatrixWorld(true);
+    const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; });
+    const rest = {}; for (const n in bones) { const b = bones[n]; rest[n] = { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()) }; }
+    const head = rest.Head.p.y, s = 1.64 / head;   // altura da cabeça do boneco de peças ~1.64 (nuca)
+    const mats = {}; scene.traverse(o => { if (o.isMesh) { const m = o.material; if (!mats[m.name]) { const c = m.color.clone().convertLinearToSRGB(), hsl = {}; c.getHSL(hsl); if (hsl.l < 0.1) c.setHSL(hsl.h, hsl.s, 0.08 + hsl.l * 0.6); mats[m.name] = c; } } });
+    return { scene, d, rest, s, mats };
+  },
+  clone(T) {   // cópia com esqueleto próprio
+    const src = T.scene, c = src.clone(true), a = [], b = []; src.traverse(o => a.push(o)); c.traverse(o => b.push(o));
+    const map = new Map(a.map((o, i) => [o, b[i]]));
+    b.forEach((o, i) => { if (o.isSkinnedMesh) { const sk = a[i].skeleton; o.skeleton = new THREE.Skeleton(sk.bones.map(x => map.get(x)), sk.boneInverses); o.bind(o.skeleton, a[i].bindMatrix); } });
+    return c;
+  },
+  attach(c) {
+    this.detach(c);
+    if (!this.on() || c.mdl || !c.kit) return;
+    const T = this.tpl[(c.team | 0) % 2] || this.tpl.find(Boolean); if (!T) return;
+    const root = this.clone(T), bones = {}, mats = {}, cs = c.gunCs;
+    root.traverse(o => {
+      if (o.isBone) bones[o.name] = o;
+      if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.castShadow = cs; o.frustumCulled = false; }
+    });
+    // dedos fechados (segurando a arma)
+    for (const s of ['L', 'R']) for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const k of [2, 3, 4]) { const b = bones[f + k + s]; if (b) b.rotateX(k === 2 ? 1.1 : 0.9); }
+    for (const s of ['L', 'R']) { const b = bones['Thumb2' + s]; if (b) b.rotateY((s === 'L' ? -1 : 1) * 0.5); }
+    c.glbChar = { T, root, bones, mats, order: [] };
+    root.traverse(o => { if (o.isBone) c.glbChar.order.push(o); });
+    // peças antigas ficam como hitbox, sem aparecer (a arma e os acessórios continuam)
+    c.vis.traverse(m => { if (m.isMesh && !this.keep(c, m)) { m.userData.mat0 = m.material; m.material = CHAR_INVIS; } });
+    this.tint(c);
+    c.group.add(root);
+  },
+  keep(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun || (o.parent && o.parent.userData.cos === o)) return true; if (o === c.vis) return false; } return false; },
+  detach(c) {
+    const G = c.glbChar; if (!G) return;
+    if (G.root.parent) G.root.parent.remove(G.root);
+    c.vis.traverse(m => { if (m.isMesh && m.userData.mat0) { m.material = m.userData.mat0; delete m.userData.mat0; } });
+    if (c.ragMeshes) for (const k in c.ragMeshes) c.ragMeshes[k].traverse(m => { if (m.isMesh && m.userData.mat0) { m.material = m.userData.mat0; delete m.userData.mat0; } });
+    c.glbChar = null;
+  },
+  // cor do uniforme: a do time (ou a da skin escolhida)
+  tint(c) {
+    const G = c.glbChar; if (!G) return;
+    const sk = c.skin, base = sk && !sk.model ? new THREE.Color(sk.img ? sk.avg : sk.cols[0]) : new THREE.Color(c.color);
+    for (const n of G.T.d.outfit) if (G.mats[n]) G.mats[n].color.copy(base).multiplyScalar(0.55);
+    c.mats = c.mats.filter(m => !m.userData.glbc).concat(Object.values(G.mats).map(m => { m.userData.glbc = true; return m; }));
+  },
+  // pontos do corpo agora (no mundo): os mesmos do ragdoll
+  livePts(c) {
+    c.group.updateMatrixWorld(true);
+    const U = (v) => c.upper.localToWorld(v.clone()), W = o => o.getWorldPosition(new THREE.Vector3());
+    const P = { head: W(c.head), neck: U(_cv.set(0, 1.53, 0)), shL: U(c.armL.sh.position), shR: U(c.armR.sh.position), elL: U(c.armL.el.position), elR: U(c.armR.el.position),
+      haL: U(c.armL.hand.position), haR: U(c.armR.hand.position), hipL: W(c.legs[0].hip), hipR: W(c.legs[1].hip), knL: W(c.legs[0].knee), knR: W(c.legs[1].knee),
+      ftL: c.legs[0].knee.localToWorld(new THREE.Vector3(0, -LEG_B, 0)), ftR: c.legs[1].knee.localToWorld(new THREE.Vector3(0, -LEG_B, 0)) };
+    P.pelvis = P.hipL.clone().add(P.hipR).multiplyScalar(0.5);
+    return P;
+  },
+  update(c) {
+    const G = c.glbChar; if (!G) return;
+    const rag = !c.alive && c.rag && c.ragGroup;
+    const parent = rag ? c.ragGroup : c.group;
+    if (G.root.parent !== parent) parent.add(G.root);
+    if (rag) { for (const k in c.ragMeshes) c.ragMeshes[k].traverse(m => { if (m.isMesh && !m.userData.mat0 && k !== 'gun') { m.userData.mat0 = m.material; m.material = CHAR_INVIS; } }); }
+    G.root.visible = rag ? true : c.vis.visible;
+    if (!G.root.visible || !parent.visible) return;
+    let P;
+    if (rag) { P = {}; for (const n of RAG_PTS) P[n] = c.ragGroup.localToWorld(c.rag.pts[RI[n]].x.clone()); }
+    else P = this.livePts(c);
+    this.pose(c, G, P, rag ? null : c.head);
+  },
+  pose(c, G, P, headObj) {
+    const T = G.T, R = T.rest, B = G.bones, sz = SZ(c);
+    // corpo: direita = ombro esq -> dir, cima = bacia -> pescoço
+    const up = _cv.subVectors(P.neck, P.pelvis).normalize(), right = _cv2.subVectors(P.shR, P.shL); right.addScaledVector(up, -right.dot(up)).normalize();
+    const back = _cv3.crossVectors(right, up).normalize();
+    _cqB.setFromRotationMatrix(_cm.makeBasis(right, up, back)).multiply(_cRy);   // o modelo olha para +z
+    if (headObj) { headObj.getWorldQuaternion(_cqH); _cqH.multiply(_cRy); }
+    else { const hu = new THREE.Vector3().subVectors(P.head, P.neck).normalize(), hr = right.clone().addScaledVector(hu, -right.dot(hu)).normalize();
+      _cqH.setFromRotationMatrix(_cm.makeBasis(hr, hu, new THREE.Vector3().crossVectors(hr, hu))).multiply(_cRy); }
+    // raiz: no mundo sem rotação, na escala certa
+    const par = G.root.parent; par.updateMatrixWorld(true);
+    _cm.compose(_cs.set(0, 0, 0).add(P.pelvis).sub(_cv.copy(R.Hips.p).multiplyScalar(T.s * sz)), _cq.identity(), _cv2.setScalar(T.s * sz));
+    _cm2.copy(par.matrixWorld).invert().multiply(_cm); _cm2.decompose(G.root.position, G.root.quaternion, G.root.scale);
+    G.root.updateMatrixWorld(true);
+    const want = {}, aim = (n, from, to, base) => {   // rotação que leva o osso (na pose base) a apontar de from para to
+      const r = R[n]; if (!r) return; const ch = this.child(n); if (!ch || !R[ch]) return;
+      const d0 = _cv.subVectors(R[ch].p, r.p).normalize().applyQuaternion(base), d1 = _cv2.subVectors(to, from).normalize();
+      want[n] = _cq2.setFromUnitVectors(d0, d1).multiply(base.clone()).multiply(r.q).clone();
+    }, rel = (n, q) => { if (R[n]) want[n] = q.clone().multiply(R[n].q); };
+    for (const n of ['Hips', 'Abdomen', 'Torso', 'Chest', 'ShoulderL', 'ShoulderR', 'FootL', 'FootR']) rel(n, _cqB);
+    rel('Neck', _cq.copy(_cqB).slerp(_cqH, 0.5)); rel('Head', _cqH);
+    for (const s of ['L', 'R']) {
+      aim('UpperArm' + s, P['sh' + s], P['el' + s], _cqB); aim('LowerArm' + s, P['el' + s], P['ha' + s], _cqB);
+      if (want['LowerArm' + s]) want['Hand' + s] = want['LowerArm' + s].clone().multiply(R['LowerArm' + s].q.clone().invert()).multiply(R['Hand' + s].q);
+      aim('UpperLeg' + s, P['hip' + s], P['kn' + s], _cqB); aim('LowerLeg' + s, P['kn' + s], P['ft' + s], _cqB);
+    }
+    // de cima para baixo: rotação local = (rotação do pai no mundo)^-1 * desejada
+    const wq = new Map();
+    for (const b of G.order) {
+      const pq = wq.get(b.parent) || b.parent.getWorldQuaternion(new THREE.Quaternion());
+      const w = want[b.name];
+      if (w) { b.quaternion.copy(pq).invert().multiply(w); wq.set(b, w); } else wq.set(b, pq.clone().multiply(b.quaternion));
+    }
+    // quadril no ponto da bacia
+    const H = B.Hips; if (H && H.parent) { H.parent.updateMatrixWorld(true); H.position.copy(P.pelvis).applyMatrix4(_cm.copy(H.parent.matrixWorld).invert()); }
+  },
+  child(n) { return { UpperArmL: 'LowerArmL', LowerArmL: 'HandL', UpperArmR: 'LowerArmR', LowerArmR: 'HandR', UpperLegL: 'LowerLegL', LowerLegL: 'FootL', UpperLegR: 'LowerLegR', LowerLegR: 'FootR' }[n]; },
+  refresh() { this.live().forEach(c => this.on() ? this.attach(c) : this.detach(c)); },
+  // time ou skin mudou: troca de modelo se precisar, senão só a cor
+  sync(c) { if (this.state !== 'ready' || !c.kit) return; const T = this.tpl[(c.team | 0) % 2] || this.tpl.find(Boolean); if (!c.glbChar || c.glbChar.T !== T) this.attach(c); else this.tint(c); },
+};
+// ---- braços em primeira pessoa: os mesmos do boneco 3D (manga, luva e dedos). Um braço por cópia do modelo,
+// cada um com o ombro posto atrás da mão, e a mão virada para segurar o cabo (direita) ou o guarda-mão (esquerda)
+const VMArms = {
+  rigs: null, team: -1,
+  build(side) {
+    const T = CharGLB.tpl[(player.team | 0) % 2] || CharGLB.tpl.find(Boolean); if (!T) return null;
+    const root = CharGLB.clone(T), bones = {}, mats = {}, order = [];
+    root.traverse(o => {
+      if (o.isBone) { bones[o.name] = o; order.push(o); }
+      if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.frustumCulled = false; }
+    });
+    for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const k of [2, 3, 4]) { const b = bones[f + k + side]; if (b) b.rotateX(k === 2 ? 1.25 : 1.05); }
+    // só o braço deste lado aparece (o resto do corpo some)
+    const other = side === 'R' ? 'L' : 'R';
+    const R = T.rest, k = 0.12 / R['Hand' + side].p.distanceTo(R['Middle4' + side].p);
+    root.updateMatrixWorld(true); const s0 = bones['Shoulder' + side].parent.getWorldScale(new THREE.Vector3()).x;
+    for (const n of ['Head', 'Neck', 'UpperLegL', 'UpperLegR', 'UpperArm' + other, 'Abdomen']) if (bones[n]) bones[n].scale.setScalar(0.0001);
+    // o tronco encolhe até sumir, mas o ombro deste lado volta ao tamanho normal
+    root.updateMatrixWorld(true); const s1 = bones['Shoulder' + side].parent.getWorldScale(new THREE.Vector3()).x;
+    bones['Shoulder' + side].scale.multiplyScalar(s0 / s1); root.scale.setScalar(k);
+    vmScene.add(root);
+    const outfit = CHAR_GLB[CharGLB.tpl.indexOf(T)].outfit;
+    for (const n in mats) if (outfit.includes(n)) mats[n].color.copy(new THREE.Color(sleeveColor(player.color))).multiplyScalar(0.55);
+    return { T, root, bones, order, k, side, a: R['UpperArm' + side].p.distanceTo(R['LowerArm' + side].p) * k, b: R['LowerArm' + side].p.distanceTo(R['Hand' + side].p) * k };
+  },
+  hideOld(m, on) {
+    if (!m || !m.g) return;
+    m.g.traverse(o => { if (!o.isMesh || !o.userData.hand) return;
+      if (on && !o.userData.mat0) { o.userData.mat0 = o.material; o.material = CHAR_INVIS; } else if (!on && o.userData.mat0) { o.material = o.userData.mat0; delete o.userData.mat0; } });
+  },
+  update(m, show) {
+    const ok = show && m && CharGLB.on() && CharGLB.state === 'ready' && player;
+    if (!ok) { if (this.rigs) this.rigs.forEach(r => r.root.visible = false); vmModels.forEach(v => this.hideOld(v, false)); return; }
+    if (!this.rigs || this.team !== (player.team | 0)) {
+      if (this.rigs) this.rigs.forEach(r => vmScene.remove(r.root));
+      this.rigs = [this.build('R'), this.build('L')]; this.team = player.team | 0; if (!this.rigs[0]) { this.rigs = null; return; }
+    }
+    vmModels.forEach(v => this.hideOld(v, v === m));
+    if (!m.gloves) { m.gloves = {}; m.g.traverse(o => { if (o.isMesh && o.userData.glove) m.gloves[o.userData.glove] = o; }); }
+    vmRoot.updateMatrixWorld(true);
+    for (const G of this.rigs) {
+      const gl = m.gloves[G.side];
+      G.root.visible = vmRoot.visible && !!gl; if (!G.root.visible) continue;
+      this.arm(G, gl);
+    }
+  },
+  arm(G, gl) {
+    const R = G.T.rest, s = G.side, B = G.bones, Qb = _cRy;
+    const hand = gl.getWorldPosition(new THREE.Vector3()), gq = gl.getWorldQuaternion(new THREE.Quaternion());
+    // ombro: atrás e para fora da mão, a ~92% do comprimento do braço
+    const L = (G.a + G.b) * 0.93, back = new THREE.Vector3(s === 'R' ? 0.45 : -0.55, -0.75, 0.75).normalize();
+    const sh = hand.clone().addScaledVector(back, L);
+    // raiz posta para o ombro do modelo cair em "sh"
+    G.root.quaternion.identity(); G.root.position.set(0, 0, 0);
+    const el = new THREE.Vector3(); elbowPos(el, sh, hand.clone(), G.a, G.b, new THREE.Vector3(s === 'R' ? 1 : -1, -1, 0.2));
+    const want = {}, rel = n => { if (R[n]) want[n] = Qb.clone().multiply(R[n].q); };
+    ['Hips', 'Abdomen', 'Torso', 'Chest', 'Shoulder' + s].forEach(rel);
+    const aim = (n, c, from, to) => { const d0 = _cv.subVectors(R[c].p, R[n].p).normalize().applyQuaternion(Qb), d1 = _cv2.subVectors(to, from).normalize(); want[n] = new THREE.Quaternion().setFromUnitVectors(d0, d1).multiply(Qb).multiply(R[n].q); };
+    aim('UpperArm' + s, 'LowerArm' + s, sh, el); aim('LowerArm' + s, 'Hand' + s, el, hand);
+    // mão: dedos para a frente da arma, palma virada para o cabo (direita) ou para cima, no guarda-mão (esquerda)
+    const d0 = R['Middle2' + s].p.clone().sub(R['Hand' + s].p).normalize().applyQuaternion(Qb), p0 = new THREE.Vector3(0, -1, 0);
+    p0.addScaledVector(d0, -p0.dot(d0)).normalize();
+    const d1 = (s === 'R' ? new THREE.Vector3(-0.1, 0.25, -1) : new THREE.Vector3(0.25, 0.1, -1)).normalize().applyQuaternion(gq);
+    const p1 = (s === 'R' ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(0.45, 1, 0)).normalize().applyQuaternion(gq); p1.addScaledVector(d1, -p1.dot(d1)).normalize();
+    const M0 = new THREE.Matrix4().makeBasis(d0, p0, new THREE.Vector3().crossVectors(d0, p0)), M1 = new THREE.Matrix4().makeBasis(d1, p1, new THREE.Vector3().crossVectors(d1, p1));
+    const qh = new THREE.Quaternion().setFromRotationMatrix(M1).multiply(new THREE.Quaternion().setFromRotationMatrix(M0).invert());
+    want['Hand' + s] = qh.multiply(Qb).multiply(R['Hand' + s].q);
+    const wq = new Map();
+    for (const b of G.order) {
+      const pq = wq.get(b.parent) || b.parent.getWorldQuaternion(new THREE.Quaternion());
+      const w = want[b.name];
+      if (w) { b.quaternion.copy(pq).invert().multiply(w); wq.set(b, w); } else wq.set(b, pq.clone().multiply(b.quaternion));
+    }
+    // por último, move o modelo inteiro para o ombro cair em "sh" (girar não depende de onde ele está)
+    G.root.updateMatrixWorld(true);
+    const ua0 = G.bones['UpperArm' + s].getWorldPosition(_cv3); G.root.position.subVectors(sh, ua0);
+  },
+};
 const vmModels = [];
 const flashMesh = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.9 }));
 flashMesh.visible = false; vmScene.add(flashMesh);
@@ -3375,14 +3590,14 @@ function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   const hands = (g, grip, sup) => { gripAt = grip; supAt = sup;
     const hg = X(g, C.glove, 0.06, 0.08, 0.09, ...grip); const ar = X(g, sleeve, 0.07, 0.07, 0.18, grip[0] + 0.02, grip[1] - 0.06, grip[2] + 0.11); ar.rotation.set(0.45, 0.1, 0);
     const hs = X(g, C.glove, 0.06, 0.06, 0.09, ...sup); const al = X(g, sleeve, 0.07, 0.07, 0.3, sup[0] - 0.07, sup[1] - 0.08, sup[2] + 0.16); al.rotation.set(0.35, -0.45, 0);
-    hg.userData.hand = ar.userData.hand = 'grip'; hs.userData.hand = al.userData.hand = 'sup';
+    hg.userData.hand = ar.userData.hand = 'grip'; hs.userData.hand = al.userData.hand = 'sup'; hg.userData.glove = 'R'; hs.userData.glove = 'L';
   };
   const mk = (id, offset, build) => { const g = new THREE.Group(); gripAt = supAt = null; const parts = build(g); vmRoot.add(g); g.visible = false;
     vmModels[WI(id)] = { g, offset, grip: gripAt, sup: supAt, ...parts, magBase: parts.mag.position.clone(), boltBase: parts.bolt.position.clone() }; };
   mk('knife', new THREE.Vector3(0.2, -0.21, -0.4), g => {
     const mag = X(g, C.black, 0.035, 0.045, 0.13, 0, 0, 0.03); X(g, C.metal2, 0.06, 0.05, 0.015, 0, 0.005, -0.04);
     const bolt = X(g, 0xc8ccd2, 0.008, 0.045, 0.2, 0, 0.012, -0.145); X(g, 0xe6e9ee, 0.009, 0.012, 0.2, 0, -0.008, -0.145);
-    const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.5, 0.02, -0.125, 0.295); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife';
+    const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.5, 0.02, -0.125, 0.295); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife'; kh.userData.glove = 'R';
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.01, -0.25), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
   mk('he', new THREE.Vector3(0.22, -0.2, -0.42), g => {
@@ -6089,7 +6304,8 @@ function skinTex(sk) {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; const rep = sk.rep || 2; tex.repeat.set(rep, rep);
   texCache.set(sk.id, tex); return tex;
 }
-function applySkin(c, sk) {
+function applySkin(c, sk) { applySkin0(c, sk); CharGLB.sync(c); }
+function applySkin0(c, sk) {
   const M = c.kit; if (!M) return;
   const tc = new THREE.Color(c.color);
   const set = (m, col, map = null) => { m.color.set(col); if (m.map !== map) { m.map = map; m.needsUpdate = true; } };
@@ -6144,7 +6360,7 @@ function loadT3(src) {
   }
   return t3Scripts.get(src);
 }
-GunGLB.load();
+GunGLB.load(); CharGLB.load();
 function loadModelLibs() {
   if (modelLibs) return modelLibs;
   const one = loadT3;
@@ -8509,7 +8725,7 @@ function renderSettings() {
   let h = '';
   if (setTab === 0) {
     h = R_('video', 'fov', 'Campo de visão (vertical)', 60, 100, 1) + `<p class="note" id="hfov"></p>` + Sel('video', 'res', 'Resolução interna', ['Baixa (70%)', 'Normal (100%)', 'Alta (tela retina)']) +
-      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'gunModels', 'Armas detalhadas (modelos 3D; desligue se o celular pesar)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
+      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'gunModels', 'Armas detalhadas (modelos 3D; desligue se o celular pesar)') + T_('video', 'charModels', 'Bonecos detalhados (modelos 3D; desligue se o celular pesar)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
 ''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
@@ -8572,6 +8788,7 @@ function renderSettings() {
       if (el.type === 'range') el.nextElementSibling.textContent = (+el.value).toFixed(el.step < 1 ? (el.step < 0.1 ? 2 : 1) : 0);
       saveSettings(); applySettingsLight(g); drawPreview(); hfov();
       if (g === 'hud' || g === 'touch') { applyLayout(); updateTouchUI(); }
+      if (k === 'charModels') { if (CharGLB.state === 'idle') CharGLB.load(); else if (CharGLB.state === 'ready') CharGLB.refresh(); }
       if (k === 'gunModels') { if (GunGLB.state === 'idle') GunGLB.load(); else if (GunGLB.state === 'ready') GunGLB.refresh(); }
     };
     el.addEventListener('input', upd); el.addEventListener('change', upd);
@@ -8796,8 +9013,8 @@ function frame(t) {
     updateListener();
     const kcOn = kcApply(dt);
     renderer.clear(); renderer.render(scene, camera);
-    if (kcOn) { kcRestore(); if (kc.active && kcVmShow(kc.wi, kc.pd || dt)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); kcVmHide(); } }
-    else if (player.alive && !thirdOn() && !(mode && mode.noWeapons)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); }
+    if (kcOn) { kcRestore(); VMArms.update(null, false); if (kc.active && kcVmShow(kc.wi, kc.pd || dt)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); kcVmHide(); } }
+    else if (player.alive && !thirdOn() && !(mode && mode.noWeapons)) { VMArms.update(vmModels[active().wi], true); renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
   } else {
     if (skinView) { heroFade(1); updateSkinView(dt); $('#heroTag').hidden = true; }
@@ -10163,7 +10380,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { RealTex, texMatCache, GunGLB, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
