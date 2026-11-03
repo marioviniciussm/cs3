@@ -3534,7 +3534,7 @@ function applyPhysics(cfg) {
 }
 const pw = { slots: [], cur: 0, prev: 0, nextFire: 0, reloadT: 0, drawT: 0, shotSpread: 0, zoom: 0, rezoom: 0, rezoomAt: 0, zoomAt: 0, lastShot: -9, spread: 0, infinite: false, spray: 0, punch: { x: 0, y: 0 }, landT: 0 };
 const pv = { recoil: { x: 0, y: 0 }, landDip: 0, bob: 0, step: 0, jumpQ: -9, god: false, noclip: false, kick: 0, sway: { x: 0, y: 0 }, vbob: 0, boltT: 1, flashT: 0,
-  swing: 0, swingAlt: false, swingSide: 1, roll: 0, flipT: 0 };
+  swing: 0, swingAlt: false, swingSide: 1, roll: 0, flipT: 0, flipL: 1 };
 
 const loadoutIds = () => (mode && mode.classes) ? classIds(myClass) : (mode && mode.pickup) ? [WI('knife')].concat(mode.weapons.includes(WI('pistol')) ? [WI('pistol')] : []) :
   (mode && mode.cfg && mode.cfg.duel && duelLoadout(mode, player.team)) || (mode && mode.weapons) || CLASSIC_IDS();
@@ -3554,7 +3554,7 @@ function defaultSlot() {
 function selectWeapon(i, force) {
   if (i == null || i < 0 || i >= pw.slots.length || (i === pw.cur && !force)) return;
   if (i !== pw.cur) pw.prev = pw.cur;
-  pw.cur = i; pw.ads = 0; pw.bowT = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0; pv.inspT = 0; pv.flipT = pw.slots[i].w.melee ? 0.7 : 0;
+  pw.cur = i; pw.ads = 0; pw.bowT = 0; pw.reloadT = 0; pw.zoom = 0; pw.rezoom = 0; pw.shotSpread = 0; pw.spray = 0; pw.punch.x = pw.punch.y = 0; pw.drawT = pw.slots[i].w.draw; pv.boltT = 1; pv.swing = 0; pv.inspT = 0; pv.flipT = pv.flipL = pw.slots[i].w.melee ? KDRAW[(vmModels[pw.slots[i].wi] || {}).kstyle] || 0.65 : 0;
   vmModels.forEach((m, j) => m.g.visible = j === pw.slots[i].wi);
   if (player) setGunShape(player, pw.slots[i].w);
   play('draw', 0.6);
@@ -3946,9 +3946,14 @@ function knifeSwing(st, t, alt, side, rpos, rot) {
   else { rpos.x -= 0.14 * e * side; rpos.y += 0.045 * e; rot(-0.3 * e, 0.7 * e * side, 0.8 * e * side); }
 }
 // canivete borboleta: abre girando quando é puxado (pv.flipT) e faz floreios na inspeção
+// tempo da animação de sacar cada faca (só visual: a faca já pode atacar)
+const KDRAW = { butterfly: 1.15, karambit: 0.85, katana: 0.75 };
 function bflyPose(B, w) {
   let a = 0, h = 0;
-  if (pv.flipT > 0) { const t = 1 - pv.flipT / 0.7, sm = t * t * (3 - 2 * t); a = sm * Math.PI * 2; h = Math.sin(t * Math.PI) * 2.6; }
+  if (pv.flipT > 0) {   // sacar: começa fechada, abre o cabo, a lâmina dá duas voltas e meia e o cabo fecha travando
+    const t = 1 - pv.flipT / pv.flipL, sm = k => k * k * (3 - 2 * k), ph = (x, y) => sm(clamp((t - x) / (y - x), 0, 1));
+    a = Math.PI + 5 * Math.PI * ph(0.12, 0.82); h = Math.PI * ph(0, 0.2) * (1 - ph(0.78, 1));
+  }
   if (pv.inspT > 0) { const t = 1 - pv.inspT / 2.2; if (t > 0.15 && t < 0.85) { const k = (t - 0.15) / 0.7, sm = k * k * (3 - 2 * k); a = sm * Math.PI * 6; h = Math.abs(Math.sin(sm * Math.PI * 3)) * 2.8; } }
   B.b.rotation.x = a; B.hB.rotation.x = -h;
 }
@@ -3980,6 +3985,7 @@ function updateViewModel(dt) {
   let twirl = 0;
   if (w.melee && pv.swing > 0) knifeSwing(m.kstyle || 'classic', 1 - pv.swing, pv.swingAlt, pv.swingSide, rpos, (a, b, c) => { rx += a; ry += b; rz += c; });
   pv.flipT = Math.max(0, (pv.flipT || 0) - dt); if (m.bfly) bflyPose(m.bfly, w);
+  if (w.melee && pv.flipT > 0) { const e = Math.sin((1 - pv.flipT / pv.flipL) * Math.PI); rpos.x -= 0.05 * e; rpos.y += 0.05 * e; rx += 0.25 * e; ry += 0.3 * e; }
   // inspeção: levanta e vira a arma para mostrar o lado esquerdo, depois o direito/de cima, e volta (faca dá um giro no ar)
   if (pv.inspT > 0) {
     const L = w.melee ? 2.2 : 2.8; pv.inspT = Math.max(0, pv.inspT - dt); const t = 1 - pv.inspT / L;
@@ -3997,7 +4003,14 @@ function updateViewModel(dt) {
     }
   }
   if (m.kpivot) {   // faca girando entre os dedos (inspeção); o karambit gira pelo anel, as outras mostram os dois lados
-    m.kpivot.rotation.copy(m.kpivot.userData.hold || _zeroE);
+    m.kpivot.rotation.copy(m.kpivot.userData.hold || _zeroE); m.kpivot.position.copy(KNIFE_FIST);
+    if (pv.flipT > 0) {   // sacar a faca com estilo
+      const t = 1 - pv.flipT / pv.flipL, sm = t * t * (3 - 2 * t), st = m.kstyle || 'classic';
+      if (st === 'karambit') m.kpivot.rotateX(-sm * Math.PI * 6);                                       // três voltas pelo anel
+      else if (st === 'butterfly') m.kpivot.rotateZ(Math.sin(t * Math.PI) * 0.8);                       // o punho acompanha o floreio
+      else if (st === 'katana') { m.kpivot.position.z += 0.32 * (1 - sm); m.kpivot.rotateZ(0.6 * (1 - sm)); }   // sai da bainha
+      else m.kpivot.rotateX(-sm * Math.PI * 2);                                                       // joga e pega no ar
+    }
     if (twirl) { if (m.kstyle === 'karambit') m.kpivot.rotateX(-twirl); else m.kpivot.rotateZ(twirl); }
   }
   pv.boltT = Math.min(1, pv.boltT + dt / Math.max(0.08, w.interval * 0.8));
