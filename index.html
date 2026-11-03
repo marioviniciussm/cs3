@@ -3167,8 +3167,11 @@ const GunGLB = {
     if (this.state !== 'idle' || !this.on()) return; this.state = 'loading';
     loadT3('loaders/GLTFLoader.js').then(() => {
       const L = new THREE.GLTFLoader();
-      return Promise.all(Object.entries(GUN_GLB).map(([id, d]) => new Promise(ok => L.load('weapons/' + d.f + '.glb',
-        g => { try { this.tpl[id] = this.extract(g.scene, d); } catch (e) { console.warn('arma', id, e); } ok(); }, undefined, () => ok()))));
+      // .glb direto; se o servidor não entregar .glb (a prévia jogável no Claude), tenta a cópia em base64 (.glb.txt)
+      const get = f => fetch('weapons/' + f + '.glb').then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+        .catch(() => fetch('weapons/' + f + '.glb.txt').then(r => { if (!r.ok) throw 0; return r.text(); }).then(t => Uint8Array.from(atob(t.trim()), c => c.charCodeAt(0)).buffer));
+      return Promise.all(Object.entries(GUN_GLB).map(([id, d]) => get(d.f).then(buf => new Promise(ok => L.parse(buf, '',
+        g => { try { this.tpl[id] = this.extract(g.scene, d); } catch (e) { console.warn('arma', id, e); } ok(); }, () => ok()))).catch(() => {})));
     }).then(() => { this.state = 'ready'; if (Object.keys(this.tpl).length) this.refresh(); }).catch(() => { this.state = 'fail'; });
   },
   mat(m, d) {
