@@ -475,6 +475,7 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
       <div class="tiles">
         <button class="tile" id="bAim"><svg><use href="#i-aim"/></svg>Treino de mira</button>
         <button class="tile" id="bSkins"><svg><use href="#i-skin"/></svg>Skins e spray</button>
+        <button class="tile" id="bArms"><svg><use href="#i-mark"/></svg>Armas e facas</button>
         <button class="tile" id="bMapEd"><svg><use href="#i-map"/></svg>Editor de mapa</button>
         <button class="tile" id="bProf"><svg><use href="#i-hist"/></svg><span id="profTile">Perfil</span></button>
       </div>
@@ -683,7 +684,7 @@ const ACTIONS = [
   ['jump', 'Pular', 'Space'], ['crouch', 'Agachar', KB_LOCK ? 'ControlLeft' : 'KeyC'], ['walk', 'Andar devagar (silencioso)', 'ShiftLeft'],
   ['fire', 'Atirar / golpe da faca', 'Mouse0'], ['scope', 'Mirar pela arma / zoom da sniper / facada forte', 'Mouse2'], ['reload', 'Recarregar', 'KeyR'], ['inspect', 'Inspecionar a arma', 'KeyH'],
   ['w1', 'Arma 1', 'Digit1'], ['w2', 'Arma 2', 'Digit2'], ['w3', 'Arma 3', 'Digit3'], ['w4', 'Arma 4', 'Digit4'], ['w5', 'Arma 5', 'Digit5'], ['w6', 'Arma 6', 'Digit6'],
-  ['w7', 'Arma 7', 'Digit7'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
+  ['w7', 'Arma 7', 'Digit7'], ['w8', 'Arma 8', 'Digit8'], ['w9', 'Arma 9', 'Digit9'], ['knife', 'Faca (atalho)', 'KeyF'], ['last', 'Última arma', 'KeyQ'],
   ['use', 'Pegar / trocar arma do chão', 'KeyE'], ['drop', 'Largar arma', 'KeyG'], ['chat', 'Chat (Enter também abre)', 'KeyY'], ['spray', 'Spray na parede', 'KeyT'], ['cls', 'Trocar classe (modo com classes)', 'KeyB'], ['adm', 'Menu de admin', 'KeyM'],
   ['ab1', 'Habilidade 1 (Xadrez FPS)', 'KeyQ'], ['ab2', 'Habilidade 2 (Xadrez FPS)', 'KeyE'], ['topView', 'Ver o tabuleiro de cima (Xadrez FPS)', 'KeyV'],
   ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
@@ -1259,7 +1260,7 @@ function initAudio() {
 // sintetizado de mesmo nome (ex.: { "pistol": "pistol.ogg", "step0": "passo1.ogg" }). Use só sons de licença
 // livre (CC0 / domínio público). Sem a pasta, fica tudo sintetizado como antes. Ver sounds/LEIAME.md
 async function loadSoundPack() {
-  if (!/^https?:/.test(location.protocol)) return;
+  if (location.protocol === 'file:') return;   // no arquivo local o navegador bloqueia; no site e na prévia jogável funciona
   let list; try { const r = await fetch('sounds/sons.json', { cache: 'no-cache' }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
   if (!list || typeof list !== 'object') return;
   await Promise.all(Object.entries(list).map(async ([name, file]) => {
@@ -3175,7 +3176,7 @@ function knifeShell(vm) {   // esconde a faca antiga e devolve o grupo novo
 // segura a faca como nos jogos de tiro: ponta um pouco para cima e para a esquerda e lâmina deitada para mostrar o lado; o punho gira junto
 const KNIFE_HOLD = new THREE.Euler(0.32, 0.28, -0.62);
 function knifeHold(vm, r) {
-  const pv_ = new THREE.Group(); pv_.position.copy(KNIFE_FIST); pv_.rotation.copy(KNIFE_HOLD); vm.g.add(pv_);
+  const pv_ = new THREE.Group(); pv_.position.copy(KNIFE_FIST); pv_.rotation.copy(KNIFE_HOLD); pv_.userData.hold = KNIFE_HOLD; vm.g.add(pv_); vm.kpivot = pv_;
   r.position.sub(KNIFE_FIST); pv_.add(r);
   vm.g.children.forEach(ch => { if (ch.userData.hand === 'knife' && ch.position.distanceTo(KNIFE_FIST) < 0.001) ch.rotation.copy(KNIFE_HOLD); });
   vm.offset = vm.offset.clone().add(new THREE.Vector3(-0.02, 0.035, 0.0));
@@ -3361,6 +3362,10 @@ flashMesh.visible = false; vmScene.add(flashMesh);
 function buildViewModels(sleeve, vmRoot_ = vmRoot, vmModels_ = vmModels) {
   buildViewModels0(sleeve, vmRoot_, vmModels_);
   vmModels_.forEach((vm, i) => vm && GunGLB.attach(vm, WEAPONS[i].id, vmModels_ === vmModels));
+  // faca clássica: as peças vão para um eixo no punho, para a faca poder girar na mão sem girar o braço
+  const kv = vmModels_[WI('knife')];
+  if (kv && !kv.kpivot) { const P = new THREE.Group(); P.position.copy(KNIFE_FIST); kv.g.add(P); kv.kpivot = P;
+    [...kv.g.children].forEach(ch => { if (ch !== P && !ch.userData.hand) { ch.position.sub(KNIFE_FIST); P.add(ch); } }); }
 }
 function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   const vmRoot = vmRoot_, vmModels = vmModels_;
@@ -3377,7 +3382,7 @@ function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   mk('knife', new THREE.Vector3(0.2, -0.21, -0.4), g => {
     const mag = X(g, C.black, 0.035, 0.045, 0.13, 0, 0, 0.03); X(g, C.metal2, 0.06, 0.05, 0.015, 0, 0.005, -0.04);
     const bolt = X(g, 0xc8ccd2, 0.008, 0.045, 0.2, 0, 0.012, -0.145); X(g, 0xe6e9ee, 0.009, 0.012, 0.2, 0, -0.008, -0.145);
-    const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.2, 0.02, -0.06, 0.16); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife';
+    const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.5, 0.02, -0.125, 0.295); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife';
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.01, -0.25), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
   mk('he', new THREE.Vector3(0.22, -0.2, -0.42), g => {
@@ -3801,7 +3806,7 @@ function updateWeapons(dt) {
   if (mode && mode.onWheel && wheel && canInput()) mode.onWheel(Math.sign(wheel));
   if (!player.alive || !canInput() || (mode && mode.noWeapons)) { wheel = 0; pw.bowT = 0; return; }
   const n = pw.slots.length;
-  for (let i = 0; i < 7; i++) if (isDown('w' + (i + 1))) selectWeapon(i);
+  for (let i = 0; i < 9; i++) if (isDown('w' + (i + 1)) && pw.slots[i]) selectWeapon(i);
   if (isDown('knife')) { const k = pw.slots.findIndex(s => s.w.melee); if (k >= 0) selectWeapon(k === pw.cur ? pw.prev : k); }
   if (Ab.on) { if (isDown('ab1')) Ab.use(0); if (isDown('ab2')) Ab.use(1); }
   else if (isDown('last')) selectWeapon(pw.prev);
@@ -3936,9 +3941,9 @@ function knifeSwing(st, t, alt, side, rpos, rot) {
       rot(-0.25 * b, 0.9 * a * side - 1.1 * b * side, 0.7 * a * side - 0.5 * b * side); }
   } else if (st === 'karambit') {
     if (alt) { rpos.z -= 0.12 * e; rpos.y -= 0.04 * e; rpos.x -= 0.04 * e; rot(0.6 * e, 0.2 * e, -0.5 * e); }   // gancho de baixo para cima
-    else { rpos.x -= 0.16 * e * side; rpos.y -= 0.03 * e; rot(0.3 * e, 0.9 * e * side, 1.4 * e * side); }   // corte em gancho, girando o punho
+    else { rpos.x -= 0.16 * e * side; rpos.y += 0.04 * e; rot(0.3 * e, 0.9 * e * side, 1.4 * e * side); }   // corte em gancho, girando o punho
   } else if (alt) { rpos.z -= 0.18 * e; rpos.y += 0.04 * e; rot(-0.5 * e, 0, 0); }
-  else { rpos.x -= 0.14 * e * side; rot(-0.3 * e, 0.7 * e * side, 0.8 * e * side); }
+  else { rpos.x -= 0.14 * e * side; rpos.y += 0.045 * e; rot(-0.3 * e, 0.7 * e * side, 0.8 * e * side); }
 }
 // canivete borboleta: abre girando quando é puxado (pv.flipT) e faz floreios na inspeção
 function bflyPose(B, w) {
@@ -3947,6 +3952,7 @@ function bflyPose(B, w) {
   if (pv.inspT > 0) { const t = 1 - pv.inspT / 2.2; if (t > 0.15 && t < 0.85) { const k = (t - 0.15) / 0.7, sm = k * k * (3 - 2 * k); a = sm * Math.PI * 6; h = Math.abs(Math.sin(sm * Math.PI * 3)) * 2.8; } }
   B.b.rotation.x = a; B.hB.rotation.x = -h;
 }
+const _zeroE = new THREE.Euler();
 function updateViewModel(dt) {
   const m = vmModels[active().wi]; if (!m) return;
   const w = active().w;
@@ -3971,6 +3977,7 @@ function updateViewModel(dt) {
   }
   m.supM.forEach(([o, b]) => o.position.copy(b).add(hd));
   pv.swing = Math.max(0, pv.swing - dt / (pv.swingAlt ? 0.55 : 0.32));
+  let twirl = 0;
   if (w.melee && pv.swing > 0) knifeSwing(m.kstyle || 'classic', 1 - pv.swing, pv.swingAlt, pv.swingSide, rpos, (a, b, c) => { rx += a; ry += b; rz += c; });
   pv.flipT = Math.max(0, (pv.flipT || 0) - dt); if (m.bfly) bflyPose(m.bfly, w);
   // inspeção: levanta e vira a arma para mostrar o lado esquerdo, depois o direito/de cima, e volta (faca dá um giro no ar)
@@ -3980,17 +3987,18 @@ function updateViewModel(dt) {
     const up = ph(0, 0.15) * (1 - ph(0.85, 1));
     if (w.melee && m.bfly) {   // borboleta: levanta e mostra; os cabos giram (bflyPose)
       rpos.x -= 0.08 * up; rpos.y += 0.06 * up; rx += 0.25 * up; ry += 0.5 * up; rz += 0.5 * up;
-    } else if (w.melee && m.kstyle === 'karambit') {   // karambit: gira duas vezes em volta do dedo no anel
-      const spin = ph(0.3, 0.7);
-      rpos.x -= 0.09 * up; rpos.y += 0.05 * up; rx += 0.3 * up; ry += 0.55 * up; rz += 0.7 * up + spin * Math.PI * 4;
-    } else if (w.melee) {
-      const spin = ph(0.35, 0.6);
-      rpos.x -= 0.1 * up; rpos.y += 0.05 * up + 0.12 * Math.sin(spin * Math.PI); rx += 0.35 * up; ry += 0.6 * up; rz += 0.9 * up + spin * Math.PI * 2;
+    } else if (w.melee) {   // o braço só levanta e vira um pouco; quem gira é a faca, na mão (knifeTwirl)
+      rpos.x -= 0.06 * up; rpos.y += 0.04 * up; rx += 0.2 * up; ry += 0.35 * up; rz += 0.35 * up;
+      twirl = m.kstyle === 'karambit' ? ph(0.3, 0.7) * Math.PI * 4 : ph(0.35, 0.65) * Math.PI * 2;
     } else {
       const a = ph(0.1, 0.3) * (1 - ph(0.45, 0.6)), b = ph(0.45, 0.6) * (1 - ph(0.8, 0.95));
       rpos.x -= 0.13 * up; rpos.y += 0.06 * up + 0.03 * b; rpos.z += 0.05 * up;
       ry += 1.0 * a - 0.3 * b; rz += 0.85 * a - 0.35 * b; rx += 0.15 * up - 0.2 * b;
     }
+  }
+  if (m.kpivot) {   // faca girando entre os dedos (inspeção); o karambit gira pelo anel, as outras mostram os dois lados
+    m.kpivot.rotation.copy(m.kpivot.userData.hold || _zeroE);
+    if (twirl) { if (m.kstyle === 'karambit') m.kpivot.rotateX(-twirl); else m.kpivot.rotateZ(twirl); }
   }
   pv.boltT = Math.min(1, pv.boltT + dt / Math.max(0.08, w.interval * 0.8));
   const blow = ['pistol', 'rifle', 'deagle', 'smg'].includes(w.id);
@@ -4347,7 +4355,7 @@ function duelLoadout(m, team, c) {
   const d = m.cfg.duel, K = WI('knife');
   if (d === 'knife') return [K];
   if (d === 'awp') return [WI('sniper'), K];
-  if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : null;
+  if (d === 'random') return m.roundGun != null ? [m.roundGun, K] : [K];   // até a arma do round chegar do anfitrião, só faca
   if (d === 'gungame') { const L = ggLadder(m.cfg), lv = m.ffa ? ggLv(c || player) : m.score[team], id = L[Math.min(lv, L.length - 1)]; return id === K ? [K] : [id, K]; }
   if (d === 'chess') return m.cfg.teamWeapons ? m.cfg.teamWeapons[team] : null;
   if (d === 'roleta') return m.rule === 'faca' ? [K] : m.rule === 'troca' && m.myGun != null ? [m.myGun, K] : m.weapons;
@@ -4649,7 +4657,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
     startRound(first) {
       if (!host && !first) return;
       this.live = true; this.nextRoundAt = -1;
-      if (cfg.duel === 'random' && host) this.roundGun = randomGun(cfg);
+      if (cfg.duel === 'random' && (host || (!rounds && this.roundGun == null))) this.roundGun = randomGun(cfg);
       if (cfg.duel === 'roleta' && host) { Rol.apply(this, Rol.pick(this.rule), true); this.rlNext = now + RL_EVERY; }
       if (rounds) {
         this.round++; this.timeLeft = cfg.roundTime;
@@ -4671,6 +4679,7 @@ function makeX1Mode(cfg, net, weapons, myTeam) {
       const keep = this.pickup && player.alive ? pw.slots.map(x => Object.assign({}, x)) : null;
       if (!player.spec) respawn(player, teamSpawn(myTeam, player.spawnIdx)); clearBuilds();
       if (this.pickup) { resetItems(); if (keep) { pw.slots = keep; pw.cur = -1; selectWeapon(defaultSlot(), true); buildSlots(); } }
+      applyDuel(this);   // convidado também troca para as armas do round (antes ficava com todas)
       if (this.chessBanner) this.chessBanner(); else if (cfg.duel !== 'roleta') banner(`Round ${m.n}`, cfg.duel === 'random' && this.roundGun != null ? `Arma do round: ${WEAPONS[this.roundGun].name}` : `Primeiro a vencer ${cfg.target} rounds`); play('round', 0.7);
     },
     endRound(winner) {
@@ -5699,7 +5708,7 @@ function startDev() {
   setupPlayer(mapInfo.playerSpawn);
   devSelected = null; devTimeScale = 1; applyPhysics(null);
   mode = {
-    type: 'dev', over: false, attackPlayer: true, botsFight: false, dmgNums: true, cfg: { gravity: 1, speed: 1, hp: 100, bhop: 1, infinite: false, hsOnly: false },
+    type: 'dev', weapons: [...CLASSIC_IDS(), WI('revolver')], over: false, attackPlayer: true, botsFight: false, dmgNums: true, cfg: { gravity: 1, speed: 1, hp: 100, bhop: 1, infinite: false, hsOnly: false },
     enemies(a, b) { if (a === b) return false; if (a.isPlayer || b.isPlayer) return this.attackPlayer; return this.botsFight; },
     top() { return 'Mapa de testes (desenvolvedor)'; },
     onDeath(v) { if (v.isPlayer) v.respawnAt = now + 1.5; else if (v.cfg.respawn) v.respawnAt = now + 2; },
@@ -5715,6 +5724,7 @@ function startDev() {
     },
     restart() { startDev(); },
   };
+  pw.slots = []; resetPlayerWeapons();   // armas do mapa de testes (inclui o revólver)
   addTargets();
   enterPlaying();
 }
@@ -7687,7 +7697,7 @@ function addFeed(k, v, weapon, head) {
   setTimeout(() => d.remove(), 6000);
 }
 function buildSlots() {
-  $('#slots').innerHTML = pw.slots.map((s, i) => `<div data-i="${i}"><b>${i < 7 ? keyLabel(S.keys['w' + (i + 1)]) : ''}</b> &nbsp;${s.w.name}${s.w.melee ? ` <span style="color:var(--muted)">(${keyLabel(S.keys.knife)})</span>` : ''}</div>`).join('');
+  $('#slots').innerHTML = pw.slots.map((s, i) => `<div data-i="${i}"><b>${i < 9 ? keyLabel(S.keys['w' + (i + 1)]) : ''}</b> &nbsp;${s.w.name}${s.w.melee ? ` <span style="color:var(--muted)">(${keyLabel(S.keys.knife)})</span>` : ''}</div>`).join('');
   H('slots')._cur = -1;
 }
 function fillScore(tbody) {
@@ -7934,7 +7944,7 @@ addEventListener('keydown', e => {
 function renderHelp() {
   const k = a => `<kbd>${esc(keyLabel(S.keys[a]))}</kbd>`;
   const rows = [['Movimento'], [`${k('forward')} ${k('left')} ${k('back')} ${k('right')}`, 'Andar'], [k('jump'), 'Pular (segure para pular sem parar)'], [k('crouch'), 'Agachar'], [k('walk'), 'Andar devagar, sem barulho'],
-    ['Combate'], [k('fire'), 'Atirar / golpe de faca'], [k('scope'), 'Segure para mirar pela arma (sniper: zoom; faca: facada forte)'], [k('reload'), 'Recarregar'], [`${k('w1')}–${k('w7')}`, 'Trocar de arma'], [k('knife'), 'Faca'], [k('last'), 'Última arma'],
+    ['Combate'], [k('fire'), 'Atirar / golpe de faca'], [k('scope'), 'Segure para mirar pela arma (sniper: zoom; faca: facada forte)'], [k('reload'), 'Recarregar'], [`${k('w1')}–${k('w9')}`, 'Trocar de arma'], [k('knife'), 'Faca'], [k('last'), 'Última arma'],
     ['No mapa'], [k('use'), 'Pegar ou trocar arma do chão'], [k('drop'), 'Largar a arma'], [k('spray'), 'Spray na parede'], [`${k('chat')} ou <kbd>Enter</kbd>`, 'Chat'], [k('score'), 'Placar'], ['<kbd>Esc</kbd>', 'Pausa']];
   $('#controlsNote').innerHTML = `<div class="keys">${rows.map(r => r.length === 1 ? `<div class="grp">${r[0]}</div>` : `<span class="k">${r[0]}</span><span>${r[1]}</span>`).join('')}</div>
     <p class="note" style="margin:10px 0 0"><b>Bunny hop:</b> pule, aperte ${k('crouch')} no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.</p>
@@ -7976,7 +7986,8 @@ $('#bDmStart').onclick = () => startDeathmatch({ bots: +$('#dmBots').value, diff
 $('#bAim').onclick = () => { initAudio(); $('#mainButtons').hidden = true; $('#aimSetup').hidden = false; renderAimSetup(); };
 $('#bAimBack').onclick = () => { $('#aimSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bAimStart').onclick = () => startAim();
-$('#bSkins').onclick = () => openSkins();
+$('#bSkins').onclick = () => { if (skinFor === 'arms') skinFor = 'me'; openSkins(); };
+$('#bArms').onclick = () => { skinFor = 'arms'; openSkins(); };
 $('#bSkinBack').onclick = () => closeSkins();
 function renderHist() {
   const h = loadHist(), t = histTotals(h.matches);
@@ -9892,12 +9903,13 @@ function addMatchRemote(p) {
 function matchSync() {
   const k = [[Net.myId, player]].concat([...mode.remotes].map(([id, r]) => [id, r]), mode.netBots ? [...mode.netBots].map(([id, b]) => [id, b]) : [])
     .map(([id, c]) => [id, c.kills | 0, c.deaths | 0, c.ggDown | 0]);
-  return { s: mode.score.slice(), tl: +mode.timeLeft.toFixed(1), rd: mode.round | 0, live: mode.live ? 1 : 0, k };
+  return { s: mode.score.slice(), tl: +mode.timeLeft.toFixed(1), rd: mode.round | 0, live: mode.live ? 1 : 0, k, g: mode.rounds ? mode.roundGun : undefined };
 }
 function applyMatchSync(m) {
   if (Array.isArray(m.s) && m.s.length === 2) mode.score = m.s.map(v => clamp(v | 0, 0, 999));
   if (isFinite(+m.tl)) mode.timeLeft = clamp(+m.tl, 0, 36000);
   mode.round = clamp(m.rd | 0, 0, 999); mode.live = !!m.live || !mode.rounds;
+  if (mode.rounds && WEAPONS[m.g | 0] && m.g != null) mode.roundGun = m.g | 0;
   if (Array.isArray(m.k)) for (const e of m.k.slice(0, 40)) {
     if (!Array.isArray(e)) continue;
     const c = e[0] === Net.myId ? player : remoteOf(String(e[0])); if (!c) continue;
