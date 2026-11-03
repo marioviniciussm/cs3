@@ -149,6 +149,7 @@ body:not(.pickup) #tUse, body:not(.pickup) #tDrop { display: none !important; }
 button.skcard { display: flex; flex-direction: column; gap: 4px; padding: 5px; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); cursor: pointer; font: 12px var(--body); text-align: center; }
 button.skcard span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.skcard.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); } button.skcard:hover { border-color: var(--accent); }
+button.skcard.locked { opacity: 0.55; } button.skcard .skt { display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .skt { display: block; aspect-ratio: 1; background-size: cover; background-position: center; image-rendering: pixelated; }
 .skrand { display: grid; place-items: center; font: 700 28px var(--display); font-style: normal; color: var(--muted); background: #1b2026; }
 #skinBody .tabs { margin-bottom: 4px; }
@@ -3137,10 +3138,27 @@ const GUN_GLB = {
   pistol: { f: 'Pistol_Full_West', bolt: 'Slide', k: 1.25 },
   deagle: { f: 'Pistol_Full_East', bolt: 'Slide', chrome: true, k: 1.3 },
   smg: { f: 'SMG_Full_West', bolt: 'Bolt' },
-  shotgun: { f: 'Shotgun_Pump_East', bolt: 'Pump', mag: 'Shell' },
+  shotgun: { f: 'Shotgun_Pump_East', bolt: 'Pump', mag: 'Shell', muzzleY: 0.78 },
   rifle: { f: 'Rifle_Assault_East', bolt: 'Bolt' },
   semi: { f: 'Rifle_Battle_West', bolt: 'Bolt' },
   sniper: { f: 'Sniper_Rifle_West', bolt: 'Bolt', scope: true },
+  revolver: { f: 'Revolver_1', rot: [0, Math.PI / 2, 0], muzzleY: 0.8, k: 1.15, trig: [0.42, 0.3] },   // Quaternius (Survival Pack)
+  // facas (Quaternius): a escolhida em Skins > Armas e facas troca a faca da sua mão
+  knife_bowie: { f: 'Knife_Survival', rot: [-Math.PI / 2, 0, 0], knife: true },
+  knife_kitchen: { f: 'Knife_Kitchen', rot: [0, 0, Math.PI / 2], knife: true, k: 1.1 },
+  knife_dagger: { f: 'Dagger', rot: [-Math.PI / 2, 0, 0], knife: true, k: 1.1 },
+  knife_gdagger: { f: 'Dagger_Gold', rot: [-Math.PI / 2, 0, 0], knife: true, k: 1.15 },
+  knife_katana: { f: 'Katana', rot: [-Math.PI / 2, 0, 0], knife: true, k: 2.6 },
+};
+// facas e pinturas: liberadas pelas conquistas dos modos de jogo (null = já vem liberada)
+const KNIVES = [['classic', 'Clássica', null], ['bowie', 'Faca de combate', null], ['kitchen', 'Faca de cozinha', 'knife'], ['dagger', 'Adaga', 'gg'], ['gdagger', 'Adaga dourada', 'wave10'], ['katana', 'Katana', 'win10']];
+const WSKINS = [['std', 'Original', null, null], ['desert', 'Deserto', 0xb89b68, 'lv5'], ['forest', 'Floresta', 0x5f6b40, 'k100'], ['arctic', 'Ártico', 0xd7dce1, 'lv10'],
+  ['crimson', 'Carmesim', 0x8e1f24, 'hs10'], ['night', 'Noturna', 0x2b3550, 'night'], ['gold', 'Dourada', 0xc9a640, 'k500']];
+const Arms = {
+  d() { const d = Prof.d.arms || (Prof.d.arms = { knife: 'bowie', sk: {} }); if (!d.sk) d.sk = {}; return d; },
+  open(ach) { return !ach || !!(Prof.d.ach && Prof.d.ach[ach]); },
+  knife() { const k = KNIVES.find(x => x[0] === this.d().knife); return k && this.open(k[2]) ? k[0] : 'bowie'; },
+  skin(id) { const k = WSKINS.find(x => x[0] === this.d().sk[id]); return k && this.open(k[3]) ? k : null; },
 };
 const GunGLB = {
   tpl: {}, state: 'idle', mats: new Map(),
@@ -3154,17 +3172,19 @@ const GunGLB = {
     }).then(() => { this.state = 'ready'; if (Object.keys(this.tpl).length) this.refresh(); }).catch(() => { this.state = 'fail'; });
   },
   mat(m, d) {
-    const key = m.name + (d.chrome ? ':c' : ''); if (this.mats.has(key)) return this.mats.get(key);
+    const key = m.name + (d.chrome ? ':c' : '') + (d.knife ? ':k' : ''); if (this.mats.has(key)) return this.mats.get(key);
     const c = m.color.clone().convertLinearToSRGB(), hsl = {}; c.getHSL(hsl);
+    if (d.knife && m.metalness > 0.5) { c.setHSL(hsl.h, hsl.s * 0.5, Math.max(hsl.l, 0.62)); c.getHSL(hsl); }   // lâmina: aço claro (o Phong não tem reflexo de metal)
     if (hsl.l < 0.16) c.setHSL(hsl.h, hsl.s, 0.13 + hsl.l * 0.4);
     let spec = 0x3a3d44, shin = 38;
     if (/Brown|Rosewood|Wood/i.test(m.name)) { spec = 0x1c150e; shin = 14; }
     else if (/Brass|Yellow/i.test(m.name)) { spec = 0xaa8844; shin = 70; }
     else if (d.chrome && hsl.s < 0.15) { c.setHSL(0.6, 0.04, 0.4 + hsl.l * 1.2); spec = 0xc0c6d0; shin = 90; }
-    const r = new THREE.MeshPhongMaterial({ color: c, specular: spec, shininess: shin }); this.mats.set(key, r); return r;
+    const r = new THREE.MeshPhongMaterial({ color: c, specular: spec, shininess: shin }); r.userData.src = m.name; this.mats.set(key, r); return r;
   },
   // separa os triângulos pela peça (osso) que os move e guarda tudo como malhas comuns, sem esqueleto
   extract(scene, d) {
+    if (d.rot) scene.rotation.set(...d.rot);
     scene.updateMatrixWorld(true);
     const marks = {}; scene.traverse(o => { if (o.isBone || /^Attach_|^Trigger$/.test(o.name)) marks[o.name] = o.getWorldPosition(new THREE.Vector3()); });
     const want = { bolt: d.bolt, mag: d.mag || 'Magazine' }, parts = { body: new Map(), bolt: new Map(), mag: new Map() };
@@ -3195,11 +3215,13 @@ const GunGLB = {
       });
     }
     const box = new THREE.Box3().setFromObject(root), sz = box.getSize(new THREE.Vector3());
-    const muzzle = marks.Attach_Muzzle || new THREE.Vector3(0, box.getCenter(v).y, box.min.z);
-    return { root, box, len: sz.z, muzzle, trigger: marks.Trigger || null, scope: marks.Attach_Scope || null };
+    const muzzle = marks.Attach_Muzzle || new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (d.muzzleY ?? 0.5) * sz.y, box.min.z);
+    const trig = d.trig ? new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + d.trig[0] * sz.y, box.max.z - d.trig[1] * sz.z) : null;
+    return { root, box, len: sz.z, muzzle, trigger: marks.Trigger || trig, scope: marks.Attach_Scope || null };
   },
   // troca as caixas da arma pelo modelo; mãos continuam (a de baixo vai para o cabo do modelo)
-  attach(vm, id) {
+  attach(vm, id, own) {
+    if (id === 'knife') { if (!own) return; id = 'knife_' + Arms.knife(); }
     const T = this.on() && this.tpl[id], d = GUN_GLB[id]; if (!T) return;
     const g = vm.g, pb = new THREE.Box3(), b = new THREE.Box3();
     const proc = new THREE.Group(); proc.name = 'proc'; proc.visible = false;
@@ -3212,6 +3234,13 @@ const GunGLB = {
     const s = (pb.max.z - pb.min.z) / T.len * (d.k || 1);
     const r = T.root.clone(true); r.scale.setScalar(s);
     r.position.set(-T.muzzle.x * s, vm.muzzle.y - T.muzzle.y * s, vm.muzzle.z - T.muzzle.z * s);
+    if (d.knife) {   // faca: o cabo fica na mão (o fim do cabo onde terminava o da faca antiga); a ponta vai até onde o tamanho mandar
+      const cx = (T.box.min.x + T.box.max.x) / 2, cy = (T.box.min.y + T.box.max.y) / 2;
+      r.position.set(-cx * s, 0.005 - cy * s, pb.max.z - T.box.max.z * s);
+      vm.muzzle = new THREE.Vector3(0, 0.01, r.position.z + T.box.min.z * s);
+    }
+    const sk = own && Arms.skin(id);
+    if (sk) r.traverse(m => { if (m.isMesh && m.userData.glb) m.material = this.paint(m.material, sk); });
     g.add(r);
     if (d.scope) {   // luneta (o modelo vem só com o trilho)
       const sc = T.scope || new THREE.Vector3(0, T.box.max.y, (T.box.min.z + T.box.max.z) / 2), top = sc.y * s + r.position.y + 0.01, zc = sc.z * s + r.position.z;
@@ -3223,12 +3252,33 @@ const GunGLB = {
     vm.glb = { r, s, bolt: r.getObjectByName('glb_bolt'), mag: r.getObjectByName('glb_mag') };
     vm.adsY = T.box.max.y * s + r.position.y;
     if (T.trigger && vm.grip) {
-      const pistol = id === 'pistol' || id === 'deagle';
+      const pistol = id === 'pistol' || id === 'deagle' || id === 'revolver';
       const tg = T.trigger.clone().multiplyScalar(s).add(r.position);
       const ng = [0, tg.y - (pistol ? 0.045 : 0.05), tg.z + (pistol ? 0.035 : 0.05)], dg = ng.map((x, i) => x - vm.grip[i]);
       g.children.forEach(ch => { if (ch.userData.hand === 'grip' || (pistol && ch.userData.hand === 'sup')) ch.position.add(new THREE.Vector3(...dg)); });
       vm.grip = ng; if (pistol) vm.sup = vm.sup.map((x, i) => x + dg[i]);
     }
+    if (vm.sup && !d.knife && !['pistol', 'deagle', 'revolver'].includes(id)) {
+      // mão de apoio encosta embaixo do guarda-mão (ou da telha) do modelo, em vez de ficar na altura das caixas antigas
+      const zl = (vm.sup[2] - r.position.z) / s, tol = 0.035 / s, top = (vm.muzzle.y - r.position.y) / s, bot = top - 0.1 / s; let lo = Infinity;
+      r.traverse(o => { if (!o.isMesh) return; const P = o.geometry.attributes.position; for (let i = 0; i < P.count; i++) { const y = P.getY(i); if (Math.abs(P.getZ(i) - zl) < tol && Math.abs(P.getX(i)) < 0.05 / s && y > bot && y < top) lo = Math.min(lo, y); } });
+      if (isFinite(lo)) {
+        const dy = lo * s + r.position.y - 0.022 - vm.sup[1];
+        g.children.forEach(ch => { if (ch.userData.hand === 'sup') ch.position.y += dy; }); vm.sup = [vm.sup[0], vm.sup[1] + dy, vm.sup[2]];
+      }
+    }
+  },
+  // pintura: troca as cores escuras/metálicas pela cor da skin (madeira, latão e detalhes brancos ficam)
+  paint(mat, sk) {
+    const key = mat.uuid + ':' + sk[0]; if (this.mats.has(key)) return this.mats.get(key);
+    let r = mat;
+    if (!/Wood|Brown|Rosewood|Brass|Yellow|White|Gold/i.test(mat.userData.src || '')) {
+      const hsl = {}; mat.color.getHSL(hsl); const c = new THREE.Color(sk[2]), k = clamp(0.55 + hsl.l * 1.4, 0.5, 1.25);
+      c.multiplyScalar(k); r = mat.clone(); r.color.copy(c);
+      if (sk[0] === 'gold') { r.specular = new THREE.Color(0xffe6a0); r.shininess = 80; }
+      if (sk[0] === 'arctic') { r.specular = new THREE.Color(0x555555); r.shininess = 20; }
+    }
+    this.mats.set(key, r); return r;
   },
   sync(m) {
     const G = m.glb; if (!G) return;
@@ -3247,7 +3297,7 @@ const flashMesh = new THREE.Mesh(SPHERE, new THREE.MeshBasicMaterial({ color: 0x
 flashMesh.visible = false; vmScene.add(flashMesh);
 function buildViewModels(sleeve, vmRoot_ = vmRoot, vmModels_ = vmModels) {
   buildViewModels0(sleeve, vmRoot_, vmModels_);
-  vmModels_.forEach((vm, i) => vm && GunGLB.attach(vm, WEAPONS[i].id));
+  vmModels_.forEach((vm, i) => vm && GunGLB.attach(vm, WEAPONS[i].id, vmModels_ === vmModels));
 }
 function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   const vmRoot = vmRoot_, vmModels = vmModels_;
@@ -3264,7 +3314,7 @@ function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   mk('knife', new THREE.Vector3(0.2, -0.21, -0.4), g => {
     const mag = X(g, C.black, 0.035, 0.045, 0.13, 0, 0, 0.03); X(g, C.metal2, 0.06, 0.05, 0.015, 0, 0.005, -0.04);
     const bolt = X(g, 0xc8ccd2, 0.008, 0.045, 0.2, 0, 0.012, -0.145); X(g, 0xe6e9ee, 0.009, 0.012, 0.2, 0, -0.008, -0.145);
-    X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.2, 0.02, -0.06, 0.16); ar.rotation.set(0.45, 0.1, 0);
+    const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.2, 0.02, -0.06, 0.16); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife';
     return { bolt, mag, muzzle: new THREE.Vector3(0, 0.01, -0.25), boltTravel: new THREE.Vector3(0, 0, 0) };
   });
   mk('he', new THREE.Vector3(0.22, -0.2, -0.42), g => {
@@ -3778,6 +3828,36 @@ function tryFire(pressedNow, charge = 1) {
 }
 const v3a = v => v ? [+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(2)] : null;
 
+// recarga na mão: a mão de apoio vai até o pente, tira junto com ele, põe o novo e volta; shotgun põe cartucho por
+// cartucho na janela e puxa a telha; revólver vira de lado e a mão vai no tambor; no fim puxa o ferrolho
+const _rlHd = new THREE.Vector3(), _rlT = new THREE.Vector3();
+function reloadPose(m, w, pr, hd) {
+  const sm = (a, b) => { const k = clamp((pr - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+  const pulse = (a, b) => pr > a && pr < b ? Math.sin((pr - a) / (b - a) * Math.PI) : 0;
+  const glove = m.supM && m.supM[0] ? m.supM[0][1] : null;
+  const toMag = glove ? _rlT.copy(m.magBase).add(new THREE.Vector3(-0.005, -0.06, 0.01)).sub(glove) : _rlT.set(0, 0, 0);
+  if (w.proj || w.bowDraw) {   // besta, arco, foguete: o carregador "some" e volta como antes
+    const drop = sm(0.2, 0.35) * (1 - sm(0.6, 0.8)); m.mag.position.add(new THREE.Vector3(0, -0.25 * drop, 0.05 * drop)); m.mag.visible = drop < 0.95; return 0;
+  }
+  if (w.id === 'shotgun' || w.id === 'blunder') {
+    const reach = sm(0.04, 0.12) * (1 - sm(0.8, 0.86));
+    let dip = 0; for (const t of [0.15, 0.33, 0.51, 0.69]) dip = Math.max(dip, pulse(t - 0.13, t + 0.02));
+    hd.copy(toMag).multiplyScalar(reach).add(new THREE.Vector3(-0.03 * dip, -0.12 * dip, 0.03 * dip));
+    const pump = pulse(0.86, 0.98); hd.addScaledVector(m.boltTravel, pump); return pump;
+  }
+  if (w.id === 'revolver') {
+    const reach = sm(0.05, 0.18) * (1 - sm(0.85, 0.96));
+    let dip = 0; for (const t of [0.3, 0.45, 0.6]) dip = Math.max(dip, pulse(t - 0.12, t + 0.02));
+    hd.copy(toMag).multiplyScalar(reach).add(new THREE.Vector3(-0.02 * dip, -0.1 * dip, 0.02 * dip)); return 0;
+  }
+  // pente: a mão chega, puxa o pente para baixo, some com ele, volta com o novo e encaixa
+  const reach = sm(0.03, 0.15) * (1 - sm(0.72, 0.84));
+  const drop = sm(0.15, 0.3) * (1 - sm(0.5, 0.66));
+  hd.copy(toMag).multiplyScalar(reach).add(new THREE.Vector3(0, -0.3 * drop, 0.06 * drop));
+  m.mag.position.add(new THREE.Vector3(0, -0.3 * drop, 0.06 * drop)); m.mag.visible = drop < 0.9;
+  const rackAt = w.id === 'sniper' ? [[0.03, 0.14], [0.84, 0.97]] : [[0.82, 0.95]];
+  let rk = 0; for (const [a, b] of rackAt) rk = Math.max(rk, pulse(a, b)); return rk;
+}
 function updateViewModel(dt) {
   const m = vmModels[active().wi]; if (!m) return;
   const w = active().w;
@@ -3791,12 +3871,16 @@ function updateViewModel(dt) {
   const dfrac = pw.drawT > 0 ? 1 - pw.drawT / w.draw : 1; const de = 1 - (1 - dfrac) * (1 - dfrac);
   let rx = 0, ry = 0, rz = 0; const rpos = new THREE.Vector3();
   m.mag.position.copy(m.magBase); m.mag.visible = true;
+  if (!m.supM) { m.supM = []; m.g.children.forEach(o => { if (o.userData.hand === 'sup') m.supM.push([o, o.position.clone()]); }); }
+  let rk = 0; const hd = _rlHd.set(0, 0, 0);
   if (pw.reloadT > 0) {
     const pr = 1 - pw.reloadT / w.reload; const wv = clamp(Math.sin(pr * Math.PI) * 1.6, 0, 1);
-    rpos.set(-0.02 * wv, -0.05 * wv, 0); rx = -0.2 * wv; rz = 0.52 * wv;
-    const drop = pr < 0.2 ? 0 : pr < 0.35 ? (pr - 0.2) / 0.15 : pr < 0.6 ? 1 : pr < 0.8 ? 1 - (pr - 0.6) / 0.2 : 0;
-    m.mag.position.add(new THREE.Vector3(0, -0.25 * drop, 0.05 * drop)); m.mag.visible = drop < 0.95;
+    // levanta e vira a arma de lado, com a boca um pouco para cima: dá para ver o pente e a mão trabalhando
+    rpos.set(-0.04 * wv, -0.01 * wv, 0.02 * wv); rx = 0.02 * wv; rz = 0.45 * wv;
+    rk = reloadPose(m, w, pr, hd);
+    if (w.id === 'revolver') { rz += 0.35 * wv; ry -= 0.25 * wv; }
   }
+  m.supM.forEach(([o, b]) => o.position.copy(b).add(hd));
   pv.swing = Math.max(0, pv.swing - dt / (pv.swingAlt ? 0.55 : 0.32));
   if (w.melee && pv.swing > 0) {
     const e = Math.sin((1 - pv.swing) * Math.PI);
@@ -3820,7 +3904,7 @@ function updateViewModel(dt) {
   pv.boltT = Math.min(1, pv.boltT + dt / Math.max(0.08, w.interval * 0.8));
   const blow = ['pistol', 'rifle', 'deagle', 'smg'].includes(w.id);
   const bk = blow ? (pv.boltT < 0.5 ? 1 - pv.boltT * 2 : 0) : (pv.boltT < 0.25 ? 0 : Math.sin((pv.boltT - 0.25) / 0.75 * Math.PI));
-  m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, bk); GunGLB.sync(m);
+  m.bolt.position.copy(m.boltBase).addScaledVector(m.boltTravel, Math.max(bk, rk)); GunGLB.sync(m);
   if (w.proj) m.bolt.visible = active().mag > 0 && !pw.reloadT;
   if (w.bowDraw && pw.bowT > 0) { const e = Math.sin(pw.bowT * Math.PI / 2) * 0.16; m.mag.position.z += e; m.bolt.position.z += e; } // corda e flecha vêm para trás
   const tilt = (w.id === 'sniper' || w.id === 'shotgun') ? bk * 0.14 : 0;
@@ -6247,7 +6331,30 @@ function skinThumb(sk) {
   if (!sk._thumb) sk._thumb = patternCanvas(sk, 64).toDataURL();
   return `<i class="skt" style="background-image:url(${sk._thumb})"></i>`;
 }
-const skinTabs = () => `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="cos" aria-selected="${skinFor === 'cos'}">Acessórios</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button><button role="tab" data-for="spray" aria-selected="${skinFor === 'spray'}">Spray</button></div>`;
+const skinTabs = () => `<div class="tabs" role="tablist"><button role="tab" data-for="me" aria-selected="${skinFor === 'me'}">Sua skin</button><button role="tab" data-for="cos" aria-selected="${skinFor === 'cos'}">Acessórios</button><button role="tab" data-for="bots" aria-selected="${skinFor === 'bots'}">Skin dos bots</button><button role="tab" data-for="spray" aria-selected="${skinFor === 'spray'}">Spray</button><button role="tab" data-for="arms" aria-selected="${skinFor === 'arms'}">Armas e facas</button></div>`;
+let armsFor = 'rifle';
+function renderArms() {
+  const A = Arms.d(), achTxt = id => { const a = ACH.find(x => x[0] === id); return a ? `${a[1]} ${a[2]}: ${a[3]}` : ''; };
+  const lock = ach => Arms.open(ach) ? '' : ' locked';
+  const kcard = k => `<button class="skcard${A.knife === k[0] && Arms.open(k[2]) ? ' on' : ''}${lock(k[2])}" data-kn="${k[0]}" title="${esc(Arms.open(k[2]) ? k[1] : 'Libera com: ' + achTxt(k[2]))}"><i class="skt skrand">${Arms.open(k[2]) ? '🔪' : '🔒'}</i><span>${esc(k[1])}</span></button>`;
+  const guns = Object.keys(GUN_GLB).filter(id => !id.startsWith('knife_') && WEAPONS[WI(id)]);
+  if (!guns.includes(armsFor)) armsFor = guns[0];
+  const cur = A.sk[armsFor] || 'std';
+  const scard = k => `<button class="skcard${cur === k[0] && Arms.open(k[3]) ? ' on' : ''}${lock(k[3])}" data-ws="${k[0]}" title="${esc(Arms.open(k[3]) ? k[1] : 'Libera com: ' + achTxt(k[3]))}"><i class="skt" style="background:${k[2] == null ? 'linear-gradient(135deg,#2a2c30 50%,#5a5f66 50%)' : hex(k[2])}">${Arms.open(k[3]) ? '' : '🔒'}</i><span>${esc(k[1])}</span></button>`;
+  let h = skinTabs();
+  h += `<div class="formh">Faca</div><div class="skgrid">${KNIVES.map(kcard).join('')}</div>`;
+  h += `<div class="formh">Pintura da arma</div><div class="row"><label for="ws_gun">Arma</label><select id="ws_gun">${guns.map(id => `<option value="${id}" ${id === armsFor ? 'selected' : ''}>${esc(WEAPONS[WI(id)].name)}</option>`).join('')}</select><span></span></div>`;
+  h += `<div class="skgrid">${WSKINS.map(scard).join('')}</div>`;
+  const locked = [...KNIVES.map(k => k[2]), ...WSKINS.map(k => k[3])].filter(a => a && !Arms.open(a));
+  h += `<p class="note" style="margin:4px 0 0">Facas e pinturas trancadas abrem com as conquistas dos modos de jogo (passe o mouse no cadeado para ver qual). ${locked.length ? '' : 'Você já liberou tudo.'} Por enquanto só você vê a sua faca e a sua pintura; os outros jogadores veem a arma original.</p><p class="note" id="skMsg" style="margin:0"></p>`;
+  $('#skinBody').innerHTML = h;
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  const msg = t => { const m = $('#skMsg'); if (m) m.textContent = t; };
+  const apply = () => { Prof.save(); if (GunGLB.state === 'ready' && player) GunGLB.refresh(); renderArms(); };
+  $('#skinBody').querySelectorAll('[data-kn]').forEach(b => b.onclick = () => { const k = KNIVES.find(x => x[0] === b.dataset.kn); if (!Arms.open(k[2])) { msg('Trancada. Libera com: ' + achTxt(k[2])); return; } A.knife = k[0]; apply(); });
+  $('#skinBody').querySelectorAll('[data-ws]').forEach(b => b.onclick = () => { const k = WSKINS.find(x => x[0] === b.dataset.ws); if (!Arms.open(k[3])) { msg('Trancada. Libera com: ' + achTxt(k[3])); return; } A.sk[armsFor] = k[0]; apply(); });
+  $('#ws_gun').onchange = e => { armsFor = e.target.value; renderArms(); };
+}
 function renderSpray() {
   const card = sp => `<button class="skcard ${SPRAY.cur === sp.id ? 'on' : ''}" data-sp="${esc(sp.id)}"><i class="skt" style="background:#3a4048 url(${sprayImg(sp)}) center/contain no-repeat;image-rendering:auto"></i><span>${esc(sp.name)}</span></button>`;
   const mine = SPRAY.list.find(x => x.id === SPRAY.cur);
@@ -6306,6 +6413,7 @@ function renderSkins() {
   const card = (id, name, sk, extra = '') => `<button class="skcard ${cur === id ? 'on' : ''}" data-sk="${esc(id)}">${extra || skinThumb(sk)}<span>${esc(name)}</span></button>`;
   if (skinFor === 'spray') { renderSpray(); return; }
   if (skinFor === 'cos') { renderCos(); return; }
+  if (skinFor === 'arms') { renderArms(); return; }
   let h = skinTabs();
   h += `<div class="skgrid">${card('team', 'Cores do time', null)}${skinFor === 'bots' ? card('random', 'Sorteada', null, '<i class="skt skrand">?</i>') : ''}` +
     SKIN_PRESETS.map(s => card(s.id, s.name, s)).join('') + SKINS.list.map(s => card(s.id, s.name, s)).join('') + `</div>`;

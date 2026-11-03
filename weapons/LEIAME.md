@@ -19,3 +19,18 @@ Baixados do espelho em https://github.com/petroulacl/fps-asset-kit.
 O jogo separa as peças pelo esqueleto do GLB (ferrolho, carregador, telha da shotgun) para animar tiro e recarga.
 Se o modelo não carregar (sem internet para o leitor de GLB), a arma antiga feita de caixas aparece no lugar.
 Dá para desligar em Configurações > Vídeo > "Armas detalhadas".
+
+## Revólver e facas (Quaternius, CC0)
+
+Pacotes CC0 de https://quaternius.com (Survival Pack, Ultimate House Interior Pack, Modular Weapons Pack, Single Knight Pack), baixados do espelho https://github.com/trebeljahr/quaternius-showcase.
+
+| Arquivo | No jogo |
+|---|---|
+| Revolver_1.glb | Revólver |
+| Knife_Survival.glb | Faca de combate (padrão) |
+| Knife_Kitchen.glb | Faca de cozinha |
+| Dagger.glb | Adaga |
+| Dagger_Gold.glb | Adaga dourada |
+| Katana.glb | Katana |
+
+Facas e pinturas das armas ficam em Skins > Armas e facas, e as trancadas abrem com conquistas.
