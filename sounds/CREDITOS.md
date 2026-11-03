@@ -17,6 +17,12 @@ Todos **CC0 (domínio público)**: pode usar, mudar e vender sem pedir nem dar c
 | musket.ogg | Mosin Nagant 7.62x54 (M_21P) | idem |
 | blunder.ogg | Winchester Model 12 calibre 12 (K_22P) | idem |
 | minigun.ogg | PPSh 7.62x25 (P_30P) | idem |
-| step0..step3.ogg | Fantozzi's Footsteps (pedra) | https://opengameart.org/content/fantozzis-footsteps-grasssand-stone |
+| st_stone0..5.ogg, st_sand0..5.ogg | Fantozzi's Footsteps (pedra e areia) | https://opengameart.org/content/fantozzis-footsteps-grasssand-stone |
+| st_grass0..4.ogg, st_wood0..4.ogg | Kenney, Impact Sounds (footstep_grass, footstep_wood) | https://kenney.nl/assets/impact-sounds |
+| st_metal0..4.ogg | Kenney, Impact Sounds (footstep_concrete misturado com impact_metal_light) | idem |
+| rl_magout, rl_magin2, rl_rack | LFA, Equipment Clicks III | https://opengameart.org/content/equipment-clicks-iii |
+| rl_magin, rl_shell | Brian MacIntosh (BMacZero), Gun Reload Sound Effects (clipload2, singlebullet1) | https://opengameart.org/content/gun-reload-sound-effects |
+| rl_pout, rl_pin, rl_prack | zer0_sol, Handgun Reload Sound Effect | https://opengameart.org/content/handgun-reload-sound-effect |
+| rl_rack2 | SpringySpringo, Gun Reload Sounds | https://opengameart.org/content/gun-reload-sounds |
 
-Baixados do espelho CC0 em https://github.com/petroulacl/fps-asset-kit.
+Baixados dos espelhos em https://github.com/petroulacl/fps-asset-kit, https://github.com/Boyquotes/kenney-impact-sounds-for-godot, https://github.com/VtCasagrande/warcats-web e https://github.com/DeathByDenim/openspades-free-pak (só os arquivos marcados CC0 lá).

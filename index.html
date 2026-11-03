@@ -1261,10 +1261,10 @@ async function loadSoundPack() {
   if (!/^https?:/.test(location.protocol)) return;
   let list; try { const r = await fetch('sounds/sons.json', { cache: 'no-cache' }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
   if (!list || typeof list !== 'object') return;
-  for (const [name, file] of Object.entries(list)) {
-    if (!/^[a-zA-Z0-9]+$/.test(name) || typeof file !== 'string' || !/^[\w.\-\/]+$/.test(file) || file.includes('..')) continue;
-    try { const r = await fetch('sounds/' + file); if (!r.ok) continue; buffers[name] = await actx.decodeAudioData(await r.arrayBuffer()); } catch (e) {}
-  }
+  await Promise.all(Object.entries(list).map(async ([name, file]) => {
+    if (!/^[a-zA-Z0-9]+$/.test(name) || typeof file !== 'string' || !/^[\w.\-\/]+$/.test(file) || file.includes('..')) return;
+    try { const r = await fetch('sounds/' + file); if (!r.ok) return; buffers[name] = await actx.decodeAudioData(await r.arrayBuffer()); } catch (e) {}
+  }));
 }
 function applyVolume() { if (master) master.gain.value = S.audio.master; }
 // som 3D: cada som de outro jogador sai de onde ele está (frente/trás/lados, com fones fica bem claro),
@@ -1284,11 +1284,27 @@ function updateListener() {
   else { L.setPosition(p.x, p.y, p.z); L.setOrientation(f.x, f.y, f.z, u.x, u.y, u.z); }
 }
 // quem anda perto: inimigo bem audível, aliado mais baixo (dá para saber de quem é o passo)
+// passos: cada chão tem o seu som gravado (areia, pedra, grama, madeira, metal), sem repetir o mesmo arquivo seguido
+const STEP_SURF = { ground: 'Sand', grass: 'Grass', crate: 'Wood', metal: 'Metal' };   // o resto (concreto, azulejo, calçada...) = pedra
+const STEP_N = { Stone: 6, Sand: 6, Grass: 5, Wood: 5, Metal: 5 }, STEP_GAIN = { Stone: 1, Sand: 0.95, Grass: 0.85, Wood: 1, Metal: 0.9 };
+const _stRay = new THREE.Raycaster(), _stO = new THREE.Vector3(), _stD = new THREE.Vector3(0, -1, 0);
+function surfaceAt(pos) {
+  _stO.set(pos.x, pos.y + 0.4, pos.z); _stRay.set(_stO, _stD); _stRay.far = 1.2;
+  const h = worldMeshes.length ? _stRay.intersectObjects(worldMeshes, false)[0] : null;
+  let m = h && h.object.material; if (Array.isArray(m)) m = m[0];
+  const k = m ? m.userData.texKind || (m.color && texKind(m.color.getHex())) : 'ground';
+  return STEP_SURF[k] || 'Stone';
+}
+function playStep(c, vol, pos, land) {
+  const sf = surfaceAt(c.pos), n = STEP_N[sf]; let i = Math.random() * n | 0; if (i === c._lastStep) i = (i + 1) % n; c._lastStep = i;
+  const name = 'st' + sf + i; play(buffers[name] ? name : 'step', vol * STEP_GAIN[sf] * (land ? 1.5 : 1), pos, land ? 0.85 : rand(0.92, 1.08));
+  if (land) play('land', vol * 0.6, pos);
+}
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
-  const stepLike = name.startsWith('step') || STEPPY[name];
+  const stepLike = name.startsWith('step') || /^st[A-Z]/.test(name) || STEPPY[name];
   if (!actx || !buffers[name]) return;
   const src = actx.createBufferSource(); src.buffer = buffers[name];
   const g = actx.createGain(); let v = vol * S.audio.sfx;
@@ -2645,28 +2661,32 @@ function startAnim(c, kind, dur, alt) {
 // Valem para você e para os inimigos: o do inimigo sai da posição dele, então dá para ouvir quem está recarregando.
 // [fração da recarga, som, volume, tom]
 function RELOAD_SFX(w) {
-  const mag = (r, out = 0.08, inn = 0.55, rk = 0.82) => [[out, 'magOut', 0.9, r], [inn, 'magIn', 1, r], [rk, 'rack', 0.9, r]];
+  // gravações CC0 (sounds/rl_*.ogg); o tom muda um pouco por arma
+  const mag = (r, out = 0.08, inn = 0.55, rk = 0.82, i = 'rlMagIn') => [[out, 'rlMagOut', 0.9, r], [inn, i, 1, r], [rk, 'rlRack', 0.9, r]];
+  const pis = r => [[0.08, 'rlPOut', 0.9, r], [0.55, 'rlPIn', 1, r], [0.82, 'rlPRack', 0.95, r]];
   switch (w.id) {
-    case 'pistol': return mag(1.15, 0.06, 0.55, 0.84);
-    case 'deagle': return mag(0.95, 0.06, 0.55, 0.84);
-    case 'smg': return mag(1.2);
-    case 'rifle': return mag(0.92);
-    case 'semi': return mag(1.02);
-    case 'lmg': case 'minigun': return [[0.06, 'rack', 0.8, 0.8], [0.25, 'magOut', 1, 0.75], [0.6, 'magIn', 1, 0.75], [0.88, 'rack', 1, 0.8]];
-    case 'sniper': return [[0.06, 'rack', 0.9, 0.85], [0.22, 'magOut', 0.9, 0.95], [0.6, 'magIn', 1, 0.95], [0.86, 'rack', 1, 0.85]];
-    case 'shotgun': case 'blunder': return [[0.15, 'shellIn', 1, 1], [0.33, 'shellIn', 1, 1.05], [0.51, 'shellIn', 1, 0.97], [0.69, 'shellIn', 1, 1.02], [0.88, 'rack', 1.1, 0.72]];
-    case 'revolver': return [[0.08, 'magOut', 0.8, 1.4], [0.3, 'shellIn', 0.8, 1.35], [0.45, 'shellIn', 0.8, 1.4], [0.6, 'shellIn', 0.8, 1.3], [0.85, 'magIn', 0.9, 1.3]];
-    case 'musket': return [[0.2, 'shellIn', 0.8, 0.8], [0.5, 'slide', 0.5, 1.6], [0.85, 'rack', 0.8, 0.7]];
+    case 'pistol': return pis(1.05);
+    case 'deagle': return pis(0.9);
+    case 'smg': return mag(1.08, 0.08, 0.5, 0.82, 'rlMagIn2');
+    case 'rifle': return mag(0.95);
+    case 'semi': return mag(1.02, 0.08, 0.55, 0.82, 'rlMagIn2');
+    case 'lmg': case 'minigun': return [[0.06, 'rlRack2', 0.8, 0.85], [0.25, 'rlMagOut', 1, 0.85], [0.6, 'rlMagIn', 1, 0.85], [0.86, 'rlRack', 1, 0.85]];
+    case 'sniper': return [[0.06, 'rlRack2', 0.9, 0.9], [0.22, 'rlMagOut', 0.9, 1], [0.6, 'rlMagIn', 1, 1], [0.86, 'rlRack2', 1, 0.85]];
+    case 'shotgun': case 'blunder': return [[0.15, 'rlShell', 1, 1], [0.33, 'rlShell', 1, 1.04], [0.51, 'rlShell', 1, 0.97], [0.69, 'rlShell', 1, 1.02], [0.86, 'rlRack', 1.1, 0.75]];
+    case 'revolver': return [[0.08, 'rlPOut', 0.8, 1.25], [0.3, 'rlShell', 0.8, 1.3], [0.45, 'rlShell', 0.8, 1.35], [0.6, 'rlShell', 0.8, 1.28], [0.85, 'rlPIn', 0.9, 1.2]];
+    case 'musket': return [[0.2, 'rlShell', 0.8, 0.8], [0.5, 'slide', 0.5, 1.6], [0.85, 'rlRack2', 0.8, 0.75]];
     case 'crossbow': return [[0.02, 'crank', 0.8, 1], [0.9, 'xbow', 0.25, 1.6]];
-    case 'rocket': case 'rj': return [[0.2, 'slide', 0.7, 0.8], [0.75, 'magIn', 1, 0.6]];
+    case 'rocket': case 'rj': return [[0.2, 'slide', 0.7, 0.8], [0.75, 'rlMagIn', 1, 0.6]];
     default: return w.bowDraw || w.melee || w.nade || w.build ? null : mag(1);
   }
 }
+// sem as gravações (site aberto sem a pasta sounds/), cai no som sintetizado parecido
+const RL_FB = { rlMagOut: 'magOut', rlMagIn: 'magIn', rlMagIn2: 'magIn', rlRack: 'rack', rlRack2: 'rack', rlPOut: 'magOut', rlPIn: 'magIn', rlPRack: 'rack', rlShell: 'shellIn' };
 function tickReloadSfx(c) {
   const R = c.rlSfx; if (!R) return;
   const going = c.alive && (c === player ? pw.reloadT > 0 : c.bot ? c.bot.reloadT > 0 : now - R.t0 < R.dur);
   const list = RELOAD_SFX(R.w), fr = (now - R.t0) / R.dur;
-  while (R.i < list.length && list[R.i][0] <= fr) { const [, n, v, r] = list[R.i++]; if (going) play(n, v * (c === player ? 0.8 : 1.1), c === player ? null : c.pos, r); }
+  while (R.i < list.length && list[R.i][0] <= fr) { const [, n0, v, r] = list[R.i++], n = buffers[n0] ? n0 : RL_FB[n0] || n0; if (going) play(n, v * (c === player ? 0.8 : 1.1), c === player ? null : c.pos, r); }
   if (!going || R.i >= list.length) c.rlSfx = null;
 }
 const ease = k => 1 - (1 - k) * (1 - k), env = (k, a, b) => clamp(Math.min(k / a, (1 - k) / b), 0, 1);
@@ -3588,11 +3608,11 @@ function updatePlayer(dt) {
     if (Ab.on) Ab.land(p);
     pv.landDip = clamp(-fallV * 0.012, 0, 0.12); pw.landT = 0.35;
     if (MV.slide && p.crouching && p.slideReady) startSlide(p, true);
-    else if (fallV < -6) play('land', 0.7);
+    else if (fallV < -6) playStep(p, 0.5, null, true);
     p.slideReady = false;
   }
   hs = Math.hypot(p.vel.x, p.vel.z);
-  if (p.grounded && !walking && !p.crouching && hs > 3) { pv.step += hs * dt; if (pv.step > 2.3) { pv.step = 0; play('step', 0.35); } }
+  if (p.grounded && !walking && !p.crouching && hs > 3) { pv.step += hs * dt; if (pv.step > 2.3) { pv.step = 0; playStep(p, 0.35); } }
 }
 function accel(vel, dir, wishSpeed, amount) {
   if (!dir.lengthSq()) return;
@@ -3995,7 +4015,7 @@ function updateBot(c, dt) {
   if (dt > 0) { c.vel.x = (c.pos.x - ox) / dt; c.vel.z = (c.pos.z - oz) / dt; }
   if (now >= b.stuckAt) { if (desired.lengthSq() > 0.01 && b.lastPos.distanceTo(c.pos) < 0.3) { b.hasWp = false; b.strafe = -b.strafe; } b.lastPos.copy(c.pos); b.stuckAt = now + 1; }
   const hs = Math.hypot(c.vel.x, c.vel.z);
-  if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; play('step', stepVol(c), c.pos); } }
+  if (c.grounded && hs > 3) { b.step += hs * dt; if (b.step > 2.3) { b.step = 0; playStep(c, stepVol(c), c.pos); } }
 }
 function pickWp(b) { const wps = mapInfo.waypoints; if (!wps.length) { b.hasWp = false; return; } b.wp.copy(wps[Math.floor(Math.random() * wps.length)]); b.hasWp = true; }
 // grade de navegação (1 m) do mapa atual, para os clones do Peão contornarem paredes e peças
@@ -5164,11 +5184,11 @@ function updateOtherSounds(dt) {
     if (c.isPlayer || !c.alive) { c._airV = 0; continue; }
     if (c.remote) {
       const hs = Math.hypot(c.vel.x, c.vel.z), air = Math.abs(c.vel.y) > 0.6;
-      if (!air && hs > 3) { c._step = (c._step || 0) + hs * dt; if (c._step > 2.3) { c._step = 0; play('step', stepVol(c), c.pos); } }
+      if (!air && hs > 3) { c._step = (c._step || 0) + hs * dt; if (c._step > 2.3) { c._step = 0; playStep(c, stepVol(c), c.pos); } }
     }
     const air = c.remote ? Math.abs(c.vel.y) > 0.6 : !c.grounded;
     if (air) c._airV = Math.min(c._airV || 0, c.vel.y);
-    else { if ((c._airV || 0) < -5) play('land', stepVol(c), c.pos); c._airV = 0; }
+    else { if ((c._airV || 0) < -5) playStep(c, stepVol(c), c.pos, true); c._airV = 0; }
   }
 }
 function updateRemote(dt) {
@@ -9919,7 +9939,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { RealTex, texMatCache, GunGLB, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { RealTex, texMatCache, GunGLB, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };

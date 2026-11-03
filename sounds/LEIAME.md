@@ -1,6 +1,6 @@
 # Sons gravados
 
-Os tiros e os passos já vêm com gravações reais CC0 (lista em `CREDITOS.md`, mapa em `sons.json`). O resto continua sintetizado. Para trocar mais algum:
+Os tiros, os passos (um tipo por chão: pedra, areia, grama, madeira, metal) e a recarga já vêm com gravações reais CC0 (lista em `CREDITOS.md`, mapa em `sons.json`). O resto continua sintetizado. Para trocar mais algum:
 
 1. Baixe sons com licença **CC0 / domínio público** (por exemplo, no Freesound filtrando por "Creative Commons 0", ou no OpenGameArt filtrando por CC0). Não use sons extraídos de outros jogos (CS 1.6 etc.): eles têm dono.
 2. Coloque os arquivos (`.ogg`, `.mp3` ou `.wav`) nesta pasta.
@@ -10,6 +10,6 @@ Os tiros e os passos já vêm com gravações reais CC0 (lista em `CREDITOS.md`,
 { "pistol": "pistola.ogg", "rifle": "fuzil.ogg", "step0": "passo1.ogg", "step1": "passo2.ogg", "step2": "passo3.ogg", "step3": "passo4.ogg" }
 ```
 
-Nomes que dá para trocar: pistol, deagle, revolver, smg, rifle, semi, lmg, shotgun, sniper, musket, blunder, minigun, rocket, xbow, bowTwang, bowDraw, crank, knife, knifeHit, knifeWall, boom, magOut, magIn, rack (ferrolho/telha), shellIn (cartucho entrando), empty, draw, zoom, step0..step3 (passos, sorteados), land, slide, hurt, hit, head, kill, round, spray, build.
+Nomes que dá para trocar: pistol, deagle, revolver, smg, rifle, semi, lmg, shotgun, sniper, musket, blunder, minigun, rocket, xbow, bowTwang, bowDraw, crank, knife, knifeHit, knifeWall, boom, magOut, magIn, rack (ferrolho/telha), shellIn (cartucho entrando), empty, draw, zoom, step0..step3 (passos genéricos), stStone0..5, stSand0..5, stGrass0..4, stWood0..4, stMetal0..4 (passos por chão), rlMagOut, rlMagIn, rlMagIn2, rlRack, rlRack2, rlPOut, rlPIn, rlPRack, rlShell (recarga), land, slide, hurt, hit, head, kill, round, spray, build.
 
 Quem não estiver na lista continua sintetizado. Anote de onde veio cada som (autor e link) em `CREDITOS.md` nesta pasta.
