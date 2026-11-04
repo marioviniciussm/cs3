@@ -3394,6 +3394,24 @@ const CHAR_GLB = [{ f: 'Swat', outfit: ['Swat'] }, { f: 'Soldier', outfit: ['Swa
 const CHAR_INVIS = new THREE.MeshBasicMaterial({ visible: false });
 const _cq = new THREE.Quaternion(), _cq2 = new THREE.Quaternion(), _cqB = new THREE.Quaternion(), _cqH = new THREE.Quaternion(), _cm = new THREE.Matrix4(), _cm2 = new THREE.Matrix4();
 const _cv = new THREE.Vector3(), _cv2 = new THREE.Vector3(), _cv3 = new THREE.Vector3(), _cs = new THREE.Vector3(), _cRy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+const CHAR_TONES = ['#f0c8a0', '#e0b088', '#c99669', '#a07048', '#6e4a30', '#4a3022'], CHAR_HAIRS = ['#2a1f17', '#4a3320', '#7a5a30', '#b08d4e', '#16120d', '#6b2f1a', '#8a8a8a'];
+// a textura da skin vai no boneco 3D projetada (de frente, de lado e de cima), já que o modelo não tem o mapa dos desenhos da skin
+function skinProject(m, tex, shirtOnly) {
+  if (!tex) { if (m.map) { m.map = null; m.needsUpdate = true; } m.userData.proj = false; return; }
+  if (m.map !== tex) { m.map = tex; m.needsUpdate = true; }
+  m.userData.shirtOnly = !!shirtOnly;
+  if (m.userData.proj) { if (m.userData.shU) m.userData.shU.value = shirtOnly ? 1 : 0; return; }
+  m.userData.proj = true;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.shirtOnly = m.userData.shU = { value: m.userData.shirtOnly ? 1 : 0 };
+    sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+      #ifdef USE_MAP
+      { vec3 an = abs(normal); vec2 pp = an.z > max(an.x, an.y) ? position.xy : (an.x > an.y ? position.zy : position.xz); vUv = (uvTransform * vec3(pp * 0.9 + 0.5, 1.0)).xy; }
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'skinproj';
+  m.needsUpdate = true;
+}
 // fecha a mão do boneco 3D (segurando a arma): no modelo o eixo X local de cada falange é a dobradiça, e o
 // sentido negativo leva a ponta do dedo para a palma; o polegar dobra por baixo, de frente para os dedos
 function curlHand(bones, s, k) {
@@ -3461,8 +3479,22 @@ const CharGLB = {
   // cor do uniforme: a do time (ou a da skin escolhida)
   tint(c) {
     const G = c.glbChar; if (!G) return;
-    const sk = c.skin, base = sk && !sk.model ? new THREE.Color(sk.img ? sk.avg : sk.cols[0]) : new THREE.Color(c.color);
-    for (const n of G.T.d.outfit) if (G.mats[n]) G.mats[n].color.copy(base).multiplyScalar(0.55);
+    const sk = c.skin && !c.skin.model ? c.skin : null, M = G.mats, T = G.T;
+    // cada boneco tem pele e cabelo próprios (sorteados pelo nome), a skin pode trazer os dela
+    let h = 2166136261; for (const ch of String(c.name || c.id || 'x')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); h >>>= 0;
+    const tone = new THREE.Color(sk && sk.tone || CHAR_TONES[h % CHAR_TONES.length]), hair = new THREE.Color(sk && sk.hair || CHAR_HAIRS[(h >> 5) % CHAR_HAIRS.length]);
+    if (M.Skin) M.Skin.color.copy(tone);
+    if (M.Hair_Brown) M.Hair_Brown.color.copy(hair); if (M.Brown) M.Brown.color.copy(hair).multiplyScalar(0.8);
+    const outfit = T.d.outfit, dark = ['Swat_Black', 'Black'];
+    if (sk) {
+      const tex = skinTex(sk);
+      for (const n of outfit) if (M[n]) { M[n].color.set(0xe6e6e6); skinProject(M[n], tex, sk.apply === 'shirt'); }
+      for (const n of dark) if (M[n]) { if (sk.img && sk.apply === 'all') { M[n].color.set(0xa8a8a8); skinProject(M[n], tex); } else { skinProject(M[n], null); M[n].color.set(sk.vest || sk.gear || 0x2a2c30); } }
+    } else {
+      const base = new THREE.Color(c.color);
+      for (const n of outfit) if (M[n]) { skinProject(M[n], null); M[n].color.copy(base).multiplyScalar(0.55); }
+      for (const n of dark) if (M[n]) { skinProject(M[n], null); M[n].color.copy(T.mats[n]); }
+    }
     c.mats = c.mats.filter(m => !m.userData.glbc).concat(Object.values(G.mats).map(m => { m.userData.glbc = true; return m; }));
   },
   // pontos do corpo agora (no mundo): os mesmos do ragdoll
@@ -6255,6 +6287,15 @@ const SKIN_PRESETS = [
   { id: 'neon', name: 'Neon', pat: 'stripes', cols: ['#141518', '#39ff8f'], vest: '#202226', gear: '#39ff8f' },
   { id: 'realeza', name: 'Realeza', pat: 'stripes', cols: ['#5b2a86', '#e5b53a'], vest: '#3d1c5a', gear: '#e5b53a' },
   { id: 'rosa', name: 'Chiclete', pat: 'camo', cols: ['#f29bc0', '#d66b9a', '#ffd1e3', '#a84a75'], vest: '#7a3456', gear: '#f29bc0' },
+  // estilo antigo de CT (contra-terrorista) e TR (terrorista), cada um com variações de roupa, pele e cabelo
+  { id: 'ct_marinho', name: 'CT · Marinho', pat: 'digital', cols: ['#1c2f54', '#25396a', '#142240', '#2f4575'], vest: '#0e1a33', gear: '#1b2230', tone: '#c99669', hair: '#16120d' },
+  { id: 'ct_preto', name: 'CT · Preto', pat: 'digital', cols: ['#1a1a1c', '#242426', '#101012', '#2c2c30'], vest: '#0c0c0e', gear: '#202024', tone: '#f0c8a0', hair: '#4a3320' },
+  { id: 'ct_digital', name: 'CT · Digital', pat: 'digital', cols: ['#2b3547', '#3e4a60', '#1a2130', '#566078'], vest: '#161c28', gear: '#222936', tone: '#e0b088', hair: '#b08d4e' },
+  { id: 'ct_cinza', name: 'CT · Cinza urbano', pat: 'camo', cols: ['#5b626b', '#454b53', '#7a828c', '#2f343a'], vest: '#262a30', gear: '#30353b', tone: '#6e4a30', hair: '#16120d' },
+  { id: 'tr_marrom', name: 'TR · Marrom', pat: 'camo', cols: ['#4a3b30', '#3b2f27', '#5e4c3d', '#2a211b'], vest: '#1a1512', gear: '#2c241e', tone: '#c99669', hair: '#2a1f17' },
+  { id: 'tr_artico', name: 'TR · Ártico', pat: 'camo', cols: ['#d9dde2', '#a9b2bb', '#eef1f4', '#8e98a3'], vest: '#7d8791', gear: '#b6bec7', tone: '#f0c8a0', hair: '#7a5a30' },
+  { id: 'tr_guerrilha', name: 'TR · Guerrilha', pat: 'camo', cols: ['#6b6a3a', '#4c4a28', '#8a7a46', '#2f2e1b'], vest: '#3a3a22', gear: '#55512f', tone: '#a07048', hair: '#2a1f17' },
+  { id: 'tr_deserto', name: 'TR · Deserto', pat: 'digital', cols: ['#a98f62', '#7d6a47', '#c9b78c', '#4a5a3a'], vest: '#5c5036', gear: '#7d6a47', tone: '#8d5f40', hair: '#16120d' },
 ];
 const SKIN_APPLY = [['all', 'Roupa toda'], ['outfit', 'Camisa e calça'], ['shirt', 'Só a camisa']];
 let SKINS = (() => { const v = loadJSON(SKIN_KEY); return { list: Array.isArray(v.list) ? v.list : [], me: v.me || 'team', bots: v.bots || 'team', cos: v.cos || null }; })();
@@ -10443,7 +10484,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { tryFire, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { tryFire, SKIN_PRESETS, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
