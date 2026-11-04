@@ -3418,10 +3418,20 @@ function skinProject(m, tex, shirtOnly) {
 }
 // fecha a mão do boneco 3D (segurando a arma): no modelo o eixo X local de cada falange é a dobradiça, e o
 // sentido negativo leva a ponta do dedo para a palma; o polegar dobra por baixo, de frente para os dedos
-function curlHand(bones, s, k) {
-  const H = window.HC || { s: 1, a: 1.35, b: 1.45, c: 1.0, t2: 0.7, t3: 0.7, ty: 0 };
-  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const j of [2, 3, 4]) { const b = bones[f + j + s]; if (b) b.rotateX(H.s * k * (j === 2 ? H.a : j === 3 ? H.b : H.c)); }
-  const t2 = bones['Thumb2' + s], t3 = bones['Thumb3' + s]; if (t2) { t2.rotateX(H.s * H.t2 * k); t2.rotateY((s === 'L' ? -1 : 1) * H.ty); } if (t3) t3.rotateX(H.s * H.t3 * k);
+const HAND_MODES = {   // curvatura por dedo [falange2, falange3, falange4]; polegar [t2, t3, giro]
+  fist:    { Index: [1.30, 1.40, 0.90], Middle: [1.40, 1.50, 1.00], Ring: [1.50, 1.50, 1.05], Pinky: [1.55, 1.55, 1.10], th: [0.80, 0.60, 0.15] },   // faca: quatro dedos fechados, polegar por cima
+  pistol:  { Index: [0.22, 0.14, 0.05], Middle: [1.40, 1.50, 1.00], Ring: [1.50, 1.50, 1.05], Pinky: [1.58, 1.55, 1.10], th: [0.35, 0.25, -0.15] }, // indicador estendido no guarda-mato
+  rifle:   { Index: [0.75, 0.85, 0.45], Middle: [1.40, 1.50, 1.00], Ring: [1.50, 1.50, 1.05], Pinky: [1.55, 1.55, 1.10], th: [0.60, 0.50, 0.05] },  // dedo no gatilho
+  support: { Index: [0.95, 1.05, 0.70], Middle: [1.05, 1.15, 0.80], Ring: [1.15, 1.20, 0.85], Pinky: [1.25, 1.25, 0.90], th: [0.45, 0.35, 0.10] },  // mão de apoio em concha
+  relax:   { Index: [0.30, 0.38, 0.26], Middle: [0.40, 0.46, 0.32], Ring: [0.50, 0.52, 0.36], Pinky: [0.60, 0.58, 0.40], th: [0.25, 0.20, 0.00] },
+};
+function curlHand(bones, s, mode, k) {
+  const M = HAND_MODES[mode] || HAND_MODES.fist; k = k || 1;
+  const set = (b, f) => { if (!b) return; if (!b.userData.q0) b.userData.q0 = b.quaternion.clone(); b.quaternion.copy(b.userData.q0); f(b); };
+  for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (let j = 2; j <= 4; j++) set(bones[f + j + s], b => b.rotateX(-0 + k * M[f][j - 2]));
+  set(bones['Thumb2' + s], b => { b.rotateX(k * M.th[0]); b.rotateY((s === 'L' ? -1 : 1) * M.th[2]); });
+  set(bones['Thumb3' + s], b => b.rotateX(k * M.th[1]));
+  if (bones['Hand' + s]) bones['Hand' + s].userData.mode = mode;
 }
 const CharGLB = {
   tpl: [], state: 'idle', all: new Set(),
@@ -3461,7 +3471,7 @@ const CharGLB = {
       if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.castShadow = cs; o.frustumCulled = false; }
     });
     // dedos fechados (segurando a arma)
-    for (const s of ['L', 'R']) curlHand(bones, s, 1);
+    curlHand(bones, 'R', 'rifle'); curlHand(bones, 'L', 'support');
     // braço do modelo é mais curto que o do boneco simples: estica os ossos para a mão alcançar a arma
     const armK = (ARM_A + ARM_B) / ((T.rest.UpperArmR.p.distanceTo(T.rest.LowerArmR.p) + T.rest.LowerArmR.p.distanceTo(T.rest.HandR.p)) * T.s);
     for (const s of ['L', 'R']) if (bones['UpperArm' + s]) bones['UpperArm' + s].scale.setScalar(armK);
@@ -3548,6 +3558,11 @@ const CharGLB = {
     for (const s of ['L', 'R']) {
       if (!R['UpperArm' + s]) continue;
     }
+    {  // dedos conforme a arma: faca = punho fechado; pistola = indicador no guarda-mato; fuzil = dedo no gatilho; mão de apoio em concha
+      const mel = !!(c.weapon && c.weapon.w && c.weapon.w.melee), B = G.bones;
+      const mR = G.rag ? 'relax' : mel ? 'fist' : c.oneHand ? 'pistol' : 'rifle', mL = G.rag || mel ? 'relax' : c.oneHand ? 'relax' : 'support';
+      if (G.mR !== mR) { G.mR = mR; curlHand(B, 'R', mR); } if (G.mL !== mL) { G.mL = mL; curlHand(B, 'L', mL); }
+    }
     // de cima para baixo: rotação local = (rotação do pai no mundo)^-1 * desejada
     const wq = new Map();
     for (const b of G.order) {
@@ -3607,7 +3622,7 @@ const VMArms = {
       if (o.isBone) { bones[o.name] = o; order.push(o); }
       if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.frustumCulled = false; }
     });
-    curlHand(bones, side, 1.1);
+    curlHand(bones, side, window.VMMODE || (side === 'R' ? 'rifle' : 'support'), 1.05);
     // só o braço deste lado aparece (o resto do corpo some)
     const other = side === 'R' ? 'L' : 'R';
     const R = T.rest, k = 0.12 / R['Hand' + side].p.distanceTo(R['Middle4' + side].p);
@@ -3642,12 +3657,11 @@ const VMArms = {
       this.arm(G, gl);
     }
   },
-  arm(G, gl) {
+  arm(G, gl, corr) {
     const R = G.T.rest, s = G.side, B = G.bones, Qb = _cRy;
     const hand = gl.getWorldPosition(new THREE.Vector3()), gq = gl.getWorldQuaternion(new THREE.Quaternion());
-    // faca: o centro do punho (não o pulso) fica no cabo, então o pulso recua ao longo dos dedos
-    if (gl.userData.hand !== 'knife') hand.addScaledVector(new THREE.Vector3(s === 'R' ? -1 : 1, 0, s === 'R' ? -0.3 : -0.2).normalize().applyQuaternion(gq), -0.04);
-    if (gl.userData.hand === 'knife') hand.addScaledVector(new THREE.Vector3(...(window.HK ? window.HK.d : [0, 1, 0])).normalize().applyQuaternion(gq), -(window.HKB ?? 0.03));
+    // o centro do punho (não o pulso) é que fica no cabo: na primeira passada mede onde o punho caiu e na segunda corrige a posição do pulso
+    const gripAt = hand.clone(); if (corr) hand.add(corr);
     // ombro: atrás e para fora da mão, a ~92% do comprimento do braço
     const L = (G.a + G.b) * 0.93, back = new THREE.Vector3(s === 'R' ? 0.45 : -0.55, -0.75, 0.75).normalize();
     const sh = hand.clone().addScaledVector(back, L);
@@ -3676,6 +3690,13 @@ const VMArms = {
     // por último, move o modelo inteiro para o ombro cair em "sh" (girar não depende de onde ele está)
     G.root.updateMatrixWorld(true);
     const ua0 = G.bones['UpperArm' + s].getWorldPosition(_cv3); G.root.position.subVectors(sh, ua0);
+    if (!corr) {
+      G.root.updateMatrixWorld(true);
+      const fc = new THREE.Vector3(), q = new THREE.Vector3();
+      for (const n of ['Index2', 'Middle2', 'Ring2', 'Pinky2']) fc.add(G.bones[n + s].getWorldPosition(q));
+      fc.multiplyScalar(0.25); const d = gripAt.clone().sub(fc); if (d.length() > 0.2) d.setLength(0.2);
+      this.arm(G, gl, d);
+    }
   },
 };
 const vmModels = [];
