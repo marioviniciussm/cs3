@@ -698,7 +698,7 @@ const ACTIONS = [
   ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
-  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true, charModels: true, charStyle: 'ps1', ps1: true },
+  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true, charModels: true, charStyle: 'base', ps1: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1, autoReload: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
@@ -716,6 +716,7 @@ try {
   // agachar passou a ser Ctrl: quem ainda estava com o C antigo (e sem Ctrl em outra ação) troca uma vez
   if (saved && !((saved.controls || {}).kv >= 1)) { if (KB_LOCK && S.keys.crouch === 'KeyC' && !Object.values(S.keys).includes('ControlLeft')) S.keys.crouch = 'ControlLeft'; S.controls.kv = 1; }
 } catch (e) { /* sem armazenamento: usa padrão */ }
+if (S.video.charStyle === 'ps1') S.video.charStyle = 'base';   // corpo-base novo vira o padrão
 if (S.ch.dyn === true) S.ch.dyn = 1; else if (S.ch.dyn === false) S.ch.dyn = 0;
 if (S.video.shadows === true) S.video.shadows = 1; else if (S.video.shadows === false) S.video.shadows = 0;
 function saveSettings() { try { localStorage.setItem('cs3.web.settings', JSON.stringify(S)); } catch (e) {} }
@@ -2665,7 +2666,9 @@ function sinkCorpse(c) {
 const corpses = []; let corpseFrame = -1;
 function leaveCorpse(c) {
   if (!c.rag || !c.ragGroup) { endRagdoll(c); return; }
+  const hadGlb = !!c.glbChar; if (hadGlb) { const G = c.glbChar; c.glbChar = null; for (const m of Object.values(G.mats)) c.mats = c.mats.filter(x => x !== m); }   // o modelo 3D fica com o corpo; o bot ganha outro ao renascer
   corpses.push({ g: c.ragGroup, t: now }); c.ragGroup = null; c.ragMeshes = null; c.rag = null; c.vis.visible = true;
+  if (hadGlb) CharGLB.attach(c);
   while (corpses.length > 14) { const o = corpses.shift(); if (o.g.parent) o.g.parent.remove(o.g); }
 }
 function updateCorpses() {
@@ -3515,7 +3518,7 @@ const GunGLB = {
 // ---- boneco 3D (Quaternius, CC0): segue os pontos do boneco de peças (que continua invisível servindo de hitbox)
 // Swat para o time 0, Soldier para o time 1. Os ossos apontam para ombro, cotovelo, mão, quadril, joelho e pé;
 // o mesmo vale para o ragdoll, que usa os pontos da física.
-const CHAR_GLB = [{ f: 'Swat', outfit: ['Swat'] }, { f: 'Soldier', outfit: ['Swat'] }];
+const CHAR_GLB = [{ f: 'Swat', outfit: ['Swat'] }, { f: 'Soldier', outfit: ['Swat'] }, { f: 'Humanoid', outfit: ['Uni'], base: true }];   // o 3º é o corpo-base (mapa único, cabeça do boneco de peças)
 const CHAR_INVIS = new THREE.MeshBasicMaterial({ visible: false });
 const _cq = new THREE.Quaternion(), _cq2 = new THREE.Quaternion(), _cqB = new THREE.Quaternion(), _cqH = new THREE.Quaternion(), _cm = new THREE.Matrix4(), _cm2 = new THREE.Matrix4();
 const _cv = new THREE.Vector3(), _cv2 = new THREE.Vector3(), _cv3 = new THREE.Vector3(), _cs = new THREE.Vector3(), _cRy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -3557,7 +3560,9 @@ function curlHand(bones, s, mode, k) {
 const CharGLB = {
   tpl: [], state: 'idle', all: new Set(),
   live() { for (const c of this.all) if (!c.group || !c.group.parent) this.all.delete(c); return [...this.all]; },
-  on() { return S.video.charModels !== false && S.video.charStyle === 'model'; },
+  on() { return S.video.charModels !== false && (S.video.charStyle === 'model' || S.video.charStyle === 'base'); },
+  base() { return S.video.charStyle === 'base' && !!this.tpl[2]; },
+  pick(c) { return this.base() ? this.tpl[2] : this.tpl[(c.team | 0) % 2] || this.tpl.find(Boolean); },
   load() {
     if (this.state !== 'idle' || !this.on()) return; this.state = 'loading';
     loadT3('loaders/GLTFLoader.js').then(() => {
@@ -3572,7 +3577,7 @@ const CharGLB = {
     scene.updateMatrixWorld(true);
     const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; });
     const rest = {}; for (const n in bones) { const b = bones[n]; rest[n] = { q: b.getWorldQuaternion(new THREE.Quaternion()), p: b.getWorldPosition(new THREE.Vector3()) }; }
-    const head = rest.Head.p.y, s = 1.64 / head * 1.12;   // altura da cabeça do boneco de peças ~1.64 (nuca)
+    const head = rest.Head.p.y, s = d.base ? (d.s || 1.0) : 1.64 / head * 1.12;   // altura da cabeça do boneco de peças ~1.64 (nuca)
     const mats = {}; scene.traverse(o => { if (o.isMesh) { const m = o.material; if (!mats[m.name]) { const c = m.color.clone().convertLinearToSRGB(), hsl = {}; c.getHSL(hsl); if (hsl.l < 0.1) c.setHSL(hsl.h, hsl.s, 0.08 + hsl.l * 0.6); mats[m.name] = c; } } });
     return { scene, d, rest, s, mats };
   },
@@ -3585,11 +3590,11 @@ const CharGLB = {
   attach(c) {
     this.detach(c);
     if (!this.on() || c.mdl || !c.kit) return;
-    const T = this.tpl[(c.team | 0) % 2] || this.tpl.find(Boolean); if (!T) return;
+    const T = this.pick(c); if (!T) return;
     const root = this.clone(T), bones = {}, mats = {}, cs = c.gunCs;
     root.traverse(o => {
       if (o.isBone) bones[o.name] = o;
-      if (o.isMesh) { const n = o.material.name; if (!mats[n]) mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); o.material = mats[n]; o.castShadow = cs; o.frustumCulled = false; }
+      if (o.isMesh) { const n = o.material.name; if (!mats[n]) { mats[n] = new THREE.MeshLambertMaterial({ color: T.mats[n].clone(), skinning: true }); if (o.material.map) { mats[n].map = o.material.map; o.material.map.magFilter = o.material.map.minFilter = THREE.NearestFilter; } } o.material = mats[n]; o.castShadow = cs; o.frustumCulled = false; }
     });
     // dedos fechados (segurando a arma)
     curlHand(bones, 'R', 'rifle'); curlHand(bones, 'L', 'support');
@@ -3603,7 +3608,7 @@ const CharGLB = {
     this.tint(c);
     c.group.add(root);
   },
-  keep(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun || (o.parent && o.parent.userData.cos === o)) return true; if (o === c.vis) return false; } return false; },
+  keep(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun || (this.base() && o === c.head) || (o.parent && o.parent.userData.cos === o)) return true; if (o === c.vis) return false; } return false; },
   detach(c) {
     const G = c.glbChar; if (!G) return;
     if (G.root.parent) G.root.parent.remove(G.root);
@@ -3621,7 +3626,8 @@ const CharGLB = {
     if (M.Skin) M.Skin.color.copy(tone);
     if (M.Hair_Brown) M.Hair_Brown.color.copy(hair); if (M.Brown) M.Brown.color.copy(hair).multiplyScalar(0.8);
     const outfit = T.d.outfit, dark = ['Swat_Black', 'Black'];
-    if (sk) {
+    if (T.d.base) { if (M.Uni) { const b = new THREE.Color(sk && sk.shirt || c.color); M.Uni.color.set(0xffffff).lerp(b, 0.4); } }
+    else if (sk) {
       const tex = skinTex(sk);
       for (const n of outfit) if (M[n]) { M[n].color.set(0xe6e6e6); skinProject(M[n], tex, sk.apply === 'shirt'); }
       for (const n of dark) if (M[n]) { if (sk.img && sk.apply === 'all') { M[n].color.set(0xa8a8a8); skinProject(M[n], tex); } else { skinProject(M[n], null); M[n].color.set(sk.vest || sk.gear || 0x2a2c30); } }
@@ -3647,7 +3653,7 @@ const CharGLB = {
     const rag = !c.alive && c.rag && c.ragGroup;
     const parent = rag ? c.ragGroup : c.group;
     if (G.root.parent !== parent) parent.add(G.root);
-    if (rag) { for (const k in c.ragMeshes) c.ragMeshes[k].traverse(m => { if (m.isMesh && !m.userData.mat0 && k !== 'gun') { m.userData.mat0 = m.material; m.material = CHAR_INVIS; } }); }
+    if (rag) { for (const k in c.ragMeshes) c.ragMeshes[k].traverse(m => { if (m.isMesh && !m.userData.mat0 && k !== 'gun' && !(this.base() && k === 'head')) { m.userData.mat0 = m.material; m.material = CHAR_INVIS; } }); }
     G.root.visible = rag ? true : c.vis.visible;
     if (!G.root.visible || !parent.visible) return;
     let P;
@@ -3730,7 +3736,7 @@ const CharGLB = {
   child(n) { return { UpperArmL: 'LowerArmL', LowerArmL: 'HandL', UpperArmR: 'LowerArmR', LowerArmR: 'HandR', UpperLegL: 'LowerLegL', LowerLegL: 'FootL', UpperLegR: 'LowerLegR', LowerLegR: 'FootR' }[n]; },
   refresh() { this.live().forEach(c => this.on() ? this.attach(c) : this.detach(c)); },
   // time ou skin mudou: troca de modelo se precisar, senão só a cor
-  sync(c) { if (this.state !== 'ready' || !c.kit) return; const T = this.tpl[(c.team | 0) % 2] || this.tpl.find(Boolean); if (!c.glbChar || c.glbChar.T !== T) this.attach(c); else this.tint(c); },
+  sync(c) { if (this.state !== 'ready' || !c.kit) return; const T = this.pick(c); if (!c.glbChar || c.glbChar.T !== T) this.attach(c); else this.tint(c); },
 };
 // ---- braços em primeira pessoa: os mesmos do boneco 3D (manga, luva e dedos). Um braço por cópia do modelo,
 // cada um com o ombro posto atrás da mão, e a mão virada para segurar o cabo (direita) ou o guarda-mão (esquerda)
