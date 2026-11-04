@@ -2738,11 +2738,13 @@ function animateModel0(c, dt) {
   c.gun.position.set(0.1, 1.38 + Math.sin(p) * 0.08, -0.32 * Math.cos(p) + c.recoilAnim * 0.07);
   c.gun.rotation.set(p + c.recoilAnim * 0.12, 0, 0);
   // o braço esquerdo precisa alcançar o guarda-mão: se a arma estiver longe demais, ela vem para perto do ombro (como se segura de verdade)
-  if (!c.oneHand && !c.scoped) { const fp = _ih.copy(c.fore).applyEuler(c.gun.rotation).add(c.gun.position), dx = fp.x + 0.25, dy = fp.y - 1.44, dd = Math.hypot(dx, dy, fp.z), reach = (ARM_A + ARM_B) * 0.9; if (dd > reach) c.gun.position.z += Math.min(0.3, (dd - reach) * 1.1); }
+  if (!c.oneHand && !c.scoped) { const fp = _ih.copy(c.fore).applyEuler(c.gun.rotation).add(c.gun.position), dx = fp.x + 0.25, dy = fp.y - 1.44, dd = Math.hypot(dx, dy, fp.z), reach = (ARM_A + ARM_B) * 0.9; if (dd > reach) c.gun.position.z += Math.min(0.08, (dd - reach) * 0.5); }
   c.head.rotation.x = p * 0.5; c.head.rotation.z = 0;
   if (c.isPlayer) c.scoped = !!pw.zoom;
   const A = c.anim; if (A) { A.t += dt; if (A.t >= A.dur) c.anim = null; }
   const k = A ? A.t / A.dur : 0;
+  // faca parada: braço baixo e meio dobrado, lâmina para a frente na altura do quadril (como no CS), em vez de erguida no peito
+  if (c.oneHand && c.weapon && c.weapon.w && c.weapon.w.melee && !A) { c.gun.position.set(0.2, 1.08 + Math.sin(p) * 0.05, -0.3); c.gun.rotation.set(p - 0.45, 0, 0); }
   _fore.copy(c.fore);
   let throwing = false;
   if (A && A.kind === 'melee') {
@@ -3556,7 +3558,9 @@ const CharGLB = {
         b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperArm' + s].q); b.updateMatrixWorld(true);
         const sh = b.getWorldPosition(new THREE.Vector3()), hand = P['ha' + s].clone(), pole = P['el' + s].clone().sub(P['sh' + s].clone().add(P['ha' + s]).multiplyScalar(0.5));
         if (c.gun && !G.rag) { const HG0 = window.HG || { rd: [0, -0.5, -1], ld: [0.25, 0.1, -1] }; hand.addScaledVector(new THREE.Vector3(...(s === 'R' ? HG0.rd : HG0.ld)).normalize().applyQuaternion(c.gun.getWorldQuaternion(new THREE.Quaternion())), -(window.HOFF ?? 0.06)); }   // o centro do punho (não o pulso) é que fica no cabo
-        const el = elbowPos(new THREE.Vector3(), sh, hand, a, bb, pole);
+        // braço curto para o alcance da arma: estica o osso (até 30%) em vez de deixar a mão para trás ou puxar a arma para dentro do peito
+        const as = clamp(sh.distanceTo(hand) / ((a + bb) * 0.97), 1, 1.3); b.scale.setScalar((G.armK || 1) * as); if (B['Hand' + s]) B['Hand' + s].scale.setScalar(1 / as);
+        const el = elbowPos(new THREE.Vector3(), sh, hand, a * as, bb * as, pole);
         aim('UpperArm' + s, sh, el, _cqB); aim('LowerArm' + s, el, hand, _cqB);
         want['Hand' + s] = want['LowerArm' + s].clone().multiply(R['LowerArm' + s].q.clone().invert()).multiply(R['Hand' + s].q);
         // mão virada para a arma: a direita abraça o cabo (palma para o corpo da arma), a esquerda segura por baixo do guarda-mão
