@@ -3607,10 +3607,31 @@ const CharGLB = {
     c.vis.traverse(m => { if (m.isMesh && !this.keep(c, m)) { m.userData.mat0 = m.material; m.material = CHAR_INVIS; } });
     this.tint(c);
     c.group.add(root);
+    if (this.base()) this.helmet(c, true);
+  },
+  // capacete na cabeça do boneco (acompanha a cabeça de foto ou a de desenho); o cabelo desenhado some embaixo dele
+  helmet(c, on) {
+    const hd = c.head, M = c.kit; if (!hd || !M) return;
+    if (on && !hd.userData.hm) {
+      const ph = !!M.photo, geo = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
+      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x3a3d2c }));
+      if (ph) { m.scale.set(0.115, 0.105, 0.14); m.position.set(0, -0.045, 0.005); } else { m.scale.set(0.135, 0.12, 0.155); m.position.set(0, 0.06, 0.005); }
+      hd.add(m); hd.userData.hm = m;
+      // pescoço preso na cabeça: sai de baixo do queixo e entra no colete
+      const nk = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.066, 0.3, 10), M.skin); nk.position.set(0, ph ? -0.36 : -0.27, 0.025); hd.add(nk); hd.userData.nk = nk;
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.035), m.material); br.position.set(0, ph ? -0.03 : 0.1, -0.12); hd.add(br); hd.userData.hb = br;
+    }
+    if (!M.photo) {   // cabeça desenhada fica mais alta que a de foto: desce para encostar no pescoço do corpo-base
+      const dy = on ? -0.085 : 0, d = dy - (hd.userData.dy || 0);
+      if (d) { for (const ch of hd.children) ch.position.y += d; hd.userData.dy = dy; }
+    }
+    if (hd.userData.hm) { hd.userData.hm.visible = on; hd.userData.hb.visible = on; hd.userData.nk.visible = on; }
+    if (M.hair && !M.photo) M.hair.visible = !on;
   },
   keep(c, m) { for (let o = m; o; o = o.parent) { if (o === c.gun || (this.base() && o === c.head) || (o.parent && o.parent.userData.cos === o)) return true; if (o === c.vis) return false; } return false; },
   detach(c) {
     const G = c.glbChar; if (!G) return;
+    this.helmet(c, false);
     if (G.root.parent) G.root.parent.remove(G.root);
     c.vis.traverse(m => { if (m.isMesh && m.userData.mat0) { m.material = m.userData.mat0; delete m.userData.mat0; } });
     if (c.ragMeshes) for (const k in c.ragMeshes) c.ragMeshes[k].traverse(m => { if (m.isMesh && m.userData.mat0) { m.material = m.userData.mat0; delete m.userData.mat0; } });
