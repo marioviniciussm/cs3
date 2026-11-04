@@ -2424,7 +2424,7 @@ const ARM_A = 0.27, ARM_B = 0.27, LEG_A = 0.44, LEG_B = 0.44, HIP_Y = 0.9;
 // peças do corpo, usadas tanto no boneco vivo quanto no ragdoll (mesma geometria e material)
 let kitN = 0;
 const faceTexCache = new Map(), dirtTexCache = new Map(), FACE_IMGS = [];
-// rostos de fotos (faces/f0.png...: já reduzidos para 128x64 no formato da cabeça); ficam só no artefato privado, não vão para o repositório público
+// rostos de fotos (faces/f0.png...: já reduzidos para 128x64 no formato da cabeça); vão junto no site (o Mário autorizou publicar)
 (() => { const im = new Image(); im.onload = () => { const t = new THREE.Texture(im); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true; try { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); const d = x.getImageData(im.width * 0.45, im.height * 0.5, im.width * 0.1, im.height * 0.12).data; let r = 0, g = 0, b = 0, n = d.length / 4; for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; } t.faceMean = [r / n / 255, g / n / 255, b / n / 255]; } catch (e) {} FACE_IMGS[0] = t; }; im.src = 'faces/head0.png'; })();
 // textura pintada (como nos jogos de PS1): rosto com olhos, sobrancelhas, barba por fazer e cabelo; pequena e sem filtro
 function faceTex(skin, hair, seed) {
@@ -2480,7 +2480,7 @@ const PART = {
     const h = new THREE.Mesh(M.photo ? HEAD_GEO_PH : HEAD_GEO, M.face); if (!M.photo) h.scale.set(0.255, 0.33, 0.28); else h.position.y = -0.095; g.add(h); g.userData.skull = h;
     const helmet = new THREE.Mesh(HELMET_GEO, M.hair); helmet.scale.set(0.325, 0.24, 0.335); helmet.position.set(0, 0.085, 0.012); g.add(helmet); helmet.userData.helm = 1;
     const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.001, 0.001, 0.001); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
-    const nose = new THREE.Mesh(LPS, M.skin); nose.visible = !M.photo; nose.scale.set(0.028, 0.05, 0.045); nose.position.set(0, -0.045, -0.15); g.add(nose);
+    const nose = new THREE.Mesh(LPS, M.skin); nose.visible = !M.photo; nose.scale.set(0.028, 0.05, 0.045); nose.position.set(0, -0.045, -0.15); g.add(nose); g.userData.nose = nose;
     // boca em 3 quadros: fechada, toda aberta (exagerada, com língua) e meio torta
     const mouth = new THREE.Mesh(BOX, M.photo ? mat(C.black) : M.eye); if (M.photo) { mouth.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 }); } mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
     const open = new THREE.Group(); open.position.set(0, -0.11, -0.128); g.add(open); open.visible = false;
@@ -3637,7 +3637,7 @@ const CharGLB = {
     if (on && !hd.userData.hm) {
       const ph = !!M.photo, geo = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
       const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x3a3d2c }));
-      if (ph) { m.scale.set(0.122, 0.122, 0.158); m.position.set(0, -0.03, 0.03); }   // a borda fica acima das sobrancelhas: olhos, óculos e visor aparecem else { m.scale.set(0.135, 0.12, 0.155); m.position.set(0, 0.06, 0.005); }
+      if (ph) { m.scale.set(0.122, 0.122, 0.158); m.position.set(0, -0.03, 0.03); /* a borda fica acima das sobrancelhas: olhos, óculos e visor aparecem */ } else { m.scale.set(0.135, 0.12, 0.155); m.position.set(0, 0.06, 0.005); }
       hd.add(m); hd.userData.hm = m;
       const br = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.035), m.material); br.position.set(0, ph ? -0.012 : 0.1, -0.12); hd.add(br); hd.userData.hb = br;
     }
@@ -6671,10 +6671,10 @@ const CONE = new THREE.ConeGeometry(0.5, 1, 14), TORUS = new THREE.TorusGeometry
 // map: como encaixar uma peça desenhada para uma esfera de raio 0,15 (escala x, y, z e deslocamento em z)
 const COS_HEAD = {
   ph: { hw: 0.097, top: 0.166, chin: -0.164, eyeY: 0.008, eyeX: 0.032, faceZ: -0.097, noseY: -0.037, noseZ: -0.146, mouthY: -0.085, earY: -0.005, earZ: 0.03, back: 0.159, map: [0.68, 1, 0.85, 0.025] },
-  dr: { hw: 0.127, top: 0.165, chin: -0.165, eyeY: -0.01, eyeX: 0.042, faceZ: -0.103, noseY: -0.045, noseZ: -0.118, mouthY: -0.085, earY: -0.02, earZ: 0.0, back: 0.14, map: [0.85, 1, 0.74, 0] },
+  dr: { hw: 0.127, top: 0.165, chin: -0.165, eyeY: 0.02, eyeX: 0.05, faceZ: -0.103, noseY: -0.045, noseZ: -0.118, mouthY: -0.085, earY: -0.02, earZ: 0.0, back: 0.14, map: [0.85, 1, 0.74, 0] },
 };
 // cópia da malha da cabeça um pouco inflada (veste justo, como tecido), só com os triângulos que keep(x, y, z) aceita
-function wrapHead(skull, off, keep, infl = 0.006) {
+function wrapHead(skull, off, keep, infl = 0.006, any = false) {
   const ph = skull.geometry === HEAD_GEO_PH, src = ph ? skull.geometry : (wrapHead.hi || (wrapHead.hi = headShape(new THREE.SphereGeometry(0.5, 48, 36))));   // desenhada: versão fina da mesma forma (borda da janela lisa)
   skull.updateMatrix(); const mx = skull.matrix, P = src.attributes.position, N = src.attributes.normal, pos = [], v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3().getNormalMatrix(mx);
   const raw = [];   // o corte usa a posição antes de inflar (a malha da foto tem linhas de altura constante: janela reta)
@@ -6682,8 +6682,10 @@ function wrapHead(skull, off, keep, infl = 0.006) {
   const I = src.index.array, idx = [];
   const st = ph ? 6 : 3;   // na malha da foto os triângulos vêm em pares (um quadrado): corta o quadrado inteiro, sem serrilhado
   for (let t = 0; t < I.length; t += st) {
-    let cx = 0, cy = 0, cz = 0; for (let k = 0; k < st; k++) { cx += raw[I[t + k] * 3]; cy += raw[I[t + k] * 3 + 1]; cz += raw[I[t + k] * 3 + 2]; } cx /= st; cy /= st; cz /= st;
-    if (!keep(cx, cy, cz)) continue;
+    if (ph) { let cx = 0, cy = 0, cz = 0; for (let k = 0; k < st; k++) { cx += raw[I[t + k] * 3]; cy += raw[I[t + k] * 3 + 1]; cz += raw[I[t + k] * 3 + 2]; } if (!keep(cx / st, cy / st, cz / st)) continue; }
+    else {   // esfera desenhada: decide pelos vértices (borda segue as linhas da malha, sem dente de serra)
+      let n = 0; for (let k = 0; k < 3; k++) { const j = I[t + k] * 3; if (keep(raw[j], raw[j + 1], raw[j + 2])) n++; }
+      if (any ? n === 0 : n < 3) continue; }
     for (let k = 0; k < st; k++) idx.push(I[t + k]);
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
@@ -6732,7 +6734,7 @@ function buildCos(cos, ph = false, skull = null, off = 0) {
       else { Q(CONE, 0xb3242a, 0.3, 0.13, 0.22, 0, -0.125, -0.06, 0, 0, Math.PI); Q(CYL, 0xb3242a, 0.31, 0.035, 0.31, 0, -0.068, 0); }
       break; }
     case 'ski': {   // balaclava justa na cabeça, com uma janela só nos olhos
-      const win = (x, y, z) => z < -0.02 && Math.abs(x) < H.eyeX + 0.034 && y > H.eyeY - 0.024 && y < H.eyeY + 0.026, wg = skull && wrapHead(skull, off, (x, y, z) => !win(x, y, z));
+      const win = (x, y, z) => z < -0.02 && Math.abs(x) < H.eyeX + 0.034 && y > H.eyeY - 0.024 && y < H.eyeY + 0.026, wg = skull && wrapHead(skull, off, (x, y, z) => !win(x, y, z), 0.006, true);
       if (wg) g.add(new THREE.Mesh(wg, mat(0x1c1d21))); else Q(SPHERE, 0x1c1d21, 0.31, 0.33, 0.31, 0, 0, 0);
       break; }
     case 'skull': if (skull && facePlate(0xf2f0ea)) { for (const x of [-1, 1]) P(SPHERE, 0x0d0d10, 0.044, 0.04, 0.014, x * H.eyeX, H.eyeY - 0.002, H.faceZ - 0.012);
@@ -6755,8 +6757,11 @@ function cosOnHead(head, cos) {
   const hide = cos.hat !== 'none';
   head.children.forEach(m => { if (m.userData.helm) m.visible = !hide; });
   if (!hide && head.userData.hm && !head.userData.hm.userData.helm) head.userData.hm.visible = false;
-  if (cos.hat === 'none' && cos.mask === 'none') return;
+  if (cos.hat === 'none' && cos.mask === 'none') { head.userData.covered = false; if (head.userData.nose) head.userData.nose.visible = !(head.userData.skull && head.userData.skull.geometry === HEAD_GEO_PH); return; }
   const sk = head.userData.skull, ph = !!sk && sk.geometry === HEAD_GEO_PH, off = ph ? -0.095 : 0;
+  // máscaras que cobrem o rosto escondem o nariz e a boca da cabeça desenhada (senão furam o pano)
+  const cov = ['ski', 'bandit', 'hockey', 'skull', 'gas'].includes(cos.mask); head.userData.covered = cov;
+  if (head.userData.nose) head.userData.nose.visible = !ph && !cov; if (cov && head.userData.mouth) head.userData.mouth.forEach(m => m.visible = false);
   const g = buildCos(cos, ph, sk, off); g.traverse(m => { if (m.isMesh) m.castShadow = S.video.shadows === 2; });
   g.position.y = off;   // cabeça de foto fica mais baixa no grupo: chapéu e máscara descem junto
   head.add(g); head.userData.cos = g;
@@ -9112,6 +9117,7 @@ function updateMouth(c, dt) {
     if (c.mouthT <= 0) { c.mouthT = 0.07 + Math.random() * 0.06; const L = c.talkLevel; c.mouthF = L > 0.06 ? (Math.random() < 0.65 ? 1 : 2) : L > 0.03 ? (Math.random() < 0.5 ? 2 : 1) : (Math.random() < 0.6 ? 0 : 2); }
     f = c.mouthF || 0;
   } else c.mouthT = 0;
+  if (c.head.userData.covered) f = -1;   // máscara cobrindo a boca
   if (c.mouthShown !== f) { c.mouthShown = f; M.forEach((m, i) => m.visible = i === f); }
 }
 // ---- sala online
