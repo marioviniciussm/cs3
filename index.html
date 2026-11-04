@@ -3572,7 +3572,10 @@ const CharGLB = {
         const s = ml[1], k = T.s * sz, a = R['UpperLeg' + s].p.distanceTo(R['LowerLeg' + s].p) * k, bb = R['LowerLeg' + s].p.distanceTo(R['Foot' + s].p) * k;
         b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperLeg' + s].q); b.updateMatrixWorld(true);
         const hp = b.getWorldPosition(new THREE.Vector3()), ft = P['ft' + s].clone(), pole = P['kn' + s].clone().sub(P['hip' + s].clone().add(P['ft' + s]).multiplyScalar(0.5));
-        const kn = elbowPos(new THREE.Vector3(), hp, ft, a, bb, pole);
+        pole.addScaledVector(back, -0.08);   // joelho dobra sempre para a frente (sem isso, perna esticada reta e pé afundando no chão)
+        const ls = Math.max(1, hp.distanceTo(ft) / ((a + bb) * 0.985));   // perna curta demais para o passo: estica o osso para o pé não ficar para trás
+        b.scale.setScalar(ls);
+        const kn = elbowPos(new THREE.Vector3(), hp, ft, a * ls, bb * ls, pole);
         aim('UpperLeg' + s, hp, kn, _cqB); aim('LowerLeg' + s, kn, ft, _cqB);
       }
       const w = want[b.name];
@@ -3635,6 +3638,8 @@ const VMArms = {
   arm(G, gl) {
     const R = G.T.rest, s = G.side, B = G.bones, Qb = _cRy;
     const hand = gl.getWorldPosition(new THREE.Vector3()), gq = gl.getWorldQuaternion(new THREE.Quaternion());
+    // faca: o centro do punho (não o pulso) fica no cabo, então o pulso recua ao longo dos dedos
+    if (gl.userData.hand === 'knife') hand.addScaledVector(new THREE.Vector3(...(window.HK ? window.HK.d : [0, 0, -1])).normalize().applyQuaternion(gq), -(window.HKB ?? 0.06));
     // ombro: atrás e para fora da mão, a ~92% do comprimento do braço
     const L = (G.a + G.b) * 0.93, back = new THREE.Vector3(s === 'R' ? 0.45 : -0.55, -0.75, 0.75).normalize();
     const sh = hand.clone().addScaledVector(back, L);
@@ -3648,8 +3653,9 @@ const VMArms = {
     // mão: dedos para a frente da arma, palma virada para o cabo (direita) ou para cima, no guarda-mão (esquerda)
     const d0 = R['Middle2' + s].p.clone().sub(R['Hand' + s].p).normalize().applyQuaternion(Qb), p0 = new THREE.Vector3(0, -1, 0);
     p0.addScaledVector(d0, -p0.dot(d0)).normalize();
-    const d1 = (s === 'R' ? new THREE.Vector3(-0.1, 0.25, -1) : new THREE.Vector3(0.25, 0.1, -1)).normalize().applyQuaternion(gq);
-    const p1 = (s === 'R' ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(0.45, 1, 0)).normalize().applyQuaternion(gq); p1.addScaledVector(d1, -p1.dot(d1)).normalize();
+    const kn = gl.userData.hand === 'knife', HK = window.HK || { d: [0, 0, -1], p: [0, -1, 0] };
+    const d1 = (kn ? new THREE.Vector3(...HK.d) : s === 'R' ? new THREE.Vector3(-0.1, 0.25, -1) : new THREE.Vector3(0.25, 0.1, -1)).normalize().applyQuaternion(gq);
+    const p1 = (kn ? new THREE.Vector3(...HK.p) : s === 'R' ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(0.45, 1, 0)).normalize().applyQuaternion(gq); p1.addScaledVector(d1, -p1.dot(d1)).normalize();
     const M0 = new THREE.Matrix4().makeBasis(d0, p0, new THREE.Vector3().crossVectors(d0, p0)), M1 = new THREE.Matrix4().makeBasis(d1, p1, new THREE.Vector3().crossVectors(d1, p1));
     const qh = new THREE.Quaternion().setFromRotationMatrix(M1).multiply(new THREE.Quaternion().setFromRotationMatrix(M0).invert());
     want['Hand' + s] = qh.multiply(Qb).multiply(R['Hand' + s].q);
