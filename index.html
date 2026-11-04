@@ -2484,13 +2484,13 @@ const PART = {
     const ear = new THREE.Mesh(LPS, M.skin); ear.scale.set(0.022, 0.058, 0.04); ear.position.set(0.128, -0.015, 0.01); ear.visible = !M.photo; g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.128; g.add(ear2);
     return g;
   },
-  shoulder: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.11); return m; },
-  upArm: (M) => new THREE.Mesh(limbGeo(ARM_A, 0.066, 0.052, 0.12, 0.3), M.shirt),
+  shoulder: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.098); return m; },
+  upArm: (M) => new THREE.Mesh(limbGeo(ARM_A, 0.074, 0.058, 0.12, 0.3), M.shirt),
   foreArm: (M) => new THREE.Mesh(limbGeo(ARM_B, 0.054, 0.036, 0.1, 0.25), M.skin),
   elbow: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.07); return m; },
   hand: (M) => { const m = new THREE.Mesh(MITT, M.shoe); m.scale.set(0.085, 0.1, 0.11); return m; },
-  thigh: (M) => new THREE.Mesh(limbGeo(LEG_A, 0.092, 0.062, 0.14, 0.25), M.pants),
-  shin: (M) => new THREE.Mesh(limbGeo(LEG_B, 0.062, 0.042, 0.28, 0.22), M.pants),
+  thigh: (M) => new THREE.Mesh(limbGeo(LEG_A, 0.108, 0.07, 0.14, 0.25), M.pants),
+  shin: (M) => new THREE.Mesh(limbGeo(LEG_B, 0.07, 0.05, 0.28, 0.22), M.pants),
   knee: (M) => { const m = new THREE.Mesh(LPS, M.pants); m.scale.set(0.1, 0.11, 0.1); return m; },
   boot: (M) => { const m = new THREE.Mesh(BOOT_GEO, M.shoe); m.scale.set(0.1, 0.12, 0.27); return m; },
 };
@@ -6560,8 +6560,9 @@ function uniTex(kind) {
   const sd = kind === 'pants' ? 7 : kind === 'vest' ? 3 : 11, tones = kind === 'pants' ? [0.62, 0.95, 1.3, 0.3] : [0.68, 1.0, 1.4, 0.32];
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const n = vn(x / 32, y / 32, sd, 4) * 0.6 + vn(x / 16, y / 16, sd + 1, 8) * 0.4, n2 = vn(x / 21.3 + 3, y / 16, sd + 2, 6);
-    const t = n > 0.62 ? tones[2] : n > 0.47 ? tones[1] : n2 > 0.66 ? tones[3] : tones[0], v = Math.round(t * 255 * (0.96 + 0.08 * rnd(x, y, 5)));
-    const k = (y * S + x) * 4; d[k] = d[k + 1] = d[k + 2] = Math.min(255, v); d[k + 3] = 255; }
+    const pal = kind === 'vest' ? [[84, 86, 76], [112, 114, 100], [140, 140, 124], [58, 60, 54]] : kind === 'pants' ? [[104, 96, 66], [132, 120, 84], [88, 82, 60], [52, 48, 36]] : [[116, 118, 78], [152, 140, 96], [90, 86, 60], [48, 52, 38]],
+      c = n > 0.62 ? pal[1] : n > 0.47 ? pal[2] : n2 > 0.66 ? pal[3] : pal[0], f = 0.96 + 0.08 * rnd(x, y, 5);
+    const k = (y * S + x) * 4; d[k] = Math.min(255, c[0] * f * 1.5); d[k + 1] = Math.min(255, c[1] * f * 1.5); d[k + 2] = Math.min(255, c[2] * f * 1.5); d[k + 3] = 255; }
   g.putImageData(im, 0, 0);
   const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
   if (kind === 'shirt') { rect(0, 0, S, 7, '#555'); rect(0, S - 5, S, 5, '#666'); for (let x = 0; x < S; x += 32) rect(x, 10, 1, S - 20, 'rgba(0,0,0,0.25)'); }
@@ -6578,7 +6579,7 @@ function applySkin0(c, sk) {
   c.skin = sk || null;
   if (!sk || !sk.model) detachModel(c);
   if (sk && sk.model) { attachModel(c, sk); sk = null; }
-  if (!sk) { { const tm = (base, k, mul) => new THREE.Color(base).lerp(new THREE.Color(c.color), k).multiplyScalar(mul); set(M.shirt, tm(0x8f8a5c, 0.3, 1.2), uniTex('shirt')); set(M.pants, tm(0x756b4a, 0.18, 1.1), uniTex('pants')); set(M.vest, tm(0x55584a, 0.28, 1.1), uniTex('vest')); } set(M.gear, 0x34373d); return; }
+  if (!sk) { { const tm = (base, k, mul) => new THREE.Color(base).lerp(new THREE.Color(c.color), k).multiplyScalar(mul); set(M.shirt, tm(0xdddddd, 0.4, 0.95), uniTex('shirt')); set(M.pants, tm(0xdddddd, 0.15, 0.85), uniTex('pants')); set(M.vest, tm(0xcccccc, 0.35, 0.9), uniTex('vest')); } set(M.gear, 0x34373d); return; }
   const tex = skinTex(sk);
   if (sk.img) {
     set(M.shirt, 0xffffff, tex);
