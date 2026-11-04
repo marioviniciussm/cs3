@@ -52,5 +52,14 @@
  "rlPRack": "rl_prack.ogg",
  "rlShell": "rl_shell.ogg",
  "kill": "kill.ogg",
- "head": "head.ogg"
+ "head": "head.ogg",
+ "knife0": "knife0.ogg",
+ "knife1": "knife1.ogg",
+ "knife2": "knife2.ogg",
+ "knifeHit0": "knifeHit0.ogg",
+ "knifeHit1": "knifeHit1.ogg",
+ "knifeHit2": "knifeHit2.ogg",
+ "knifeWall0": "knifeWall0.ogg",
+ "knifeWall1": "knifeWall1.ogg",
+ "knifeWall2": "knifeWall2.ogg"
 }

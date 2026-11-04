@@ -36,3 +36,7 @@ v90: tiros sem camadas sintéticas. Cada tiro é a gravação real (FreeFirearms
 ## v101 (2026-11-04)
 - Tiros refeitos com timbre próprio por arma (altura, equalização e cauda de ambiente diferentes), sniper e escopeta mais fortes. Origem: FreeFirearmsSFXLibrary (CC0), processado por script.
 - `kill.ogg` e `head.ogg` (som de abate e de headshot, no lugar do sino): sintetizados por script, sem amostras de terceiros.
+
+## v102
+- revolver.ogg (Colt M1917) e deagle.ogg (1911): gravações reais da FreeFirearmsSFXLibrary (CC0), sem camadas sintéticas; só corte, filtro de graves e limitador suave.
+- knife0-2 (ar cortado): ruído de sala de uma gravação CC0 da mesma biblioteca, filtrado por banda que varre de grave a agudo. knifeHit0-2 e knifeWall0-2: impactos do Kenney "Impact Sounds" (CC0).
