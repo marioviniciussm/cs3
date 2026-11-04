@@ -50,5 +50,7 @@
  "rlPOut": "rl_pout.ogg",
  "rlPIn": "rl_pin.ogg",
  "rlPRack": "rl_prack.ogg",
- "rlShell": "rl_shell.ogg"
+ "rlShell": "rl_shell.ogg",
+ "kill": "kill.ogg",
+ "head": "head.ogg"
 }
