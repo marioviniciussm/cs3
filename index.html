@@ -3637,9 +3637,9 @@ const CharGLB = {
     if (on && !hd.userData.hm) {
       const ph = !!M.photo, geo = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
       const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x3a3d2c }));
-      if (ph) { m.scale.set(0.122, 0.122, 0.158); m.position.set(0, -0.05, 0.03); } else { m.scale.set(0.135, 0.12, 0.155); m.position.set(0, 0.06, 0.005); }
+      if (ph) { m.scale.set(0.122, 0.122, 0.158); m.position.set(0, -0.03, 0.03); }   // a borda fica acima das sobrancelhas: olhos, óculos e visor aparecem else { m.scale.set(0.135, 0.12, 0.155); m.position.set(0, 0.06, 0.005); }
       hd.add(m); hd.userData.hm = m;
-      const br = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.035), m.material); br.position.set(0, ph ? -0.03 : 0.1, -0.12); hd.add(br); hd.userData.hb = br;
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.035), m.material); br.position.set(0, ph ? -0.012 : 0.1, -0.12); hd.add(br); hd.userData.hb = br;
     }
     if (hd.userData.hm) { const v = on && !(c.cos && c.cos.hat && c.cos.hat !== 'none'); hd.userData.hm.visible = v; hd.userData.hb.visible = v; hd.userData.hm.userData.helm = hd.userData.hb.userData.helm = on ? 1 : 0; }
     if (M.hair && !M.photo) M.hair.visible = !on;
@@ -6666,10 +6666,41 @@ const myCos = () => cleanCos(SKINS.cos);
 function randomCos() { const r = a => a[Math.floor(Math.random() * a.length)].id; return { hat: Math.random() < 0.6 ? r(HATS) : 'none', mask: Math.random() < 0.5 ? r(MASKS) : 'none' }; }
 const CONE = new THREE.ConeGeometry(0.5, 1, 14), TORUS = new THREE.TorusGeometry(0.5, 0.12, 8, 20);
 // monta o acessório num grupo no espaço da cabeça (centro da cabeça na origem, rosto para -z, raio ~0.15)
-function buildCos(cos) {
-  const g = new THREE.Group(), P = (geo, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = mesh(geo, col, sx, sy, sz, x, y, z, g); m.rotation.set(rx, ry, rz); return m; };
+// medidas da cabeça no espaço dos acessórios: a de foto (malha medida) e a desenhada (esfera deformada).
+// hw meia largura, top/chin alto e baixo, eye/ear/nose: posições do rosto; faceZ: frente do rosto na altura dos olhos;
+// map: como encaixar uma peça desenhada para uma esfera de raio 0,15 (escala x, y, z e deslocamento em z)
+const COS_HEAD = {
+  ph: { hw: 0.097, top: 0.166, chin: -0.164, eyeY: 0.008, eyeX: 0.032, faceZ: -0.097, noseY: -0.037, noseZ: -0.146, mouthY: -0.085, earY: -0.005, earZ: 0.03, back: 0.159, map: [0.68, 1, 0.85, 0.025] },
+  dr: { hw: 0.127, top: 0.165, chin: -0.165, eyeY: -0.01, eyeX: 0.042, faceZ: -0.103, noseY: -0.045, noseZ: -0.118, mouthY: -0.085, earY: -0.02, earZ: 0.0, back: 0.14, map: [0.85, 1, 0.74, 0] },
+};
+// cópia da malha da cabeça um pouco inflada (veste justo, como tecido), só com os triângulos que keep(x, y, z) aceita
+function wrapHead(skull, off, keep, infl = 0.006) {
+  const ph = skull.geometry === HEAD_GEO_PH, src = ph ? skull.geometry : (wrapHead.hi || (wrapHead.hi = headShape(new THREE.SphereGeometry(0.5, 48, 36))));   // desenhada: versão fina da mesma forma (borda da janela lisa)
+  skull.updateMatrix(); const mx = skull.matrix, P = src.attributes.position, N = src.attributes.normal, pos = [], v = new THREE.Vector3(), n = new THREE.Vector3(), nm = new THREE.Matrix3().getNormalMatrix(mx);
+  const raw = [];   // o corte usa a posição antes de inflar (a malha da foto tem linhas de altura constante: janela reta)
+  for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(mx); v.y -= off; raw.push(v.x, v.y, v.z); n.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); v.addScaledVector(n, infl); pos.push(v.x, v.y, v.z); }
+  const I = src.index.array, idx = [];
+  const st = ph ? 6 : 3;   // na malha da foto os triângulos vêm em pares (um quadrado): corta o quadrado inteiro, sem serrilhado
+  for (let t = 0; t < I.length; t += st) {
+    let cx = 0, cy = 0, cz = 0; for (let k = 0; k < st; k++) { cx += raw[I[t + k] * 3]; cy += raw[I[t + k] * 3 + 1]; cz += raw[I[t + k] * 3 + 2]; } cx /= st; cy /= st; cz /= st;
+    if (!keep(cx, cy, cz)) continue;
+    for (let k = 0; k < st; k++) idx.push(I[t + k]);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+}
+// monta o acessório num grupo no espaço da cabeça (rosto para -z). Chapéus foram feitos para uma esfera de raio ~0.15;
+// fone, óculos, visor e balaclava são medidos na cabeça de verdade; as outras máscaras entram por "map".
+function buildCos(cos, ph = false, skull = null, off = 0) {
+  const H = ph ? COS_HEAD.ph : COS_HEAD.dr;
+  const g = new THREE.Group(), P = (geo, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0, par = g) => { const m = mesh(geo, col, sx, sy, sz, x, y, z, par); m.rotation.set(rx, ry, rz); return m; };
   const glow = col => new THREE.MeshBasicMaterial({ color: col });
+  const facePlate = col => { const wg = wrapHead(skull, off, (x, y, z) => z < H.earZ - 0.035 && y > H.eyeY - 0.07 + 0.04 && y < H.eyeY + 0.06 && Math.abs(x) < H.hw * 0.98 || z < H.faceZ * 0.25 && y > H.chin + 0.015 && y < H.eyeY + 0.06, 0.007); if (!wg) return false; g.add(new THREE.Mesh(wg, mat(col))); return true; };
+  const seg = (col, r, a, b2) => { const m = mesh(CYL, col, r, 1, r, 0, 0, 0, g); aimSeg(m, a, b2); m.scale.y = a.distanceTo(b2); m.position.lerp(b2, 0.5); return m; };
   switch (cos.hat) {
+    case 'headset': {   // arco por cima da cabeça, de orelha a orelha, conchas nas orelhas e microfone até a boca
+      const ex = H.hw + 0.014, arc = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 6, 18, Math.PI), mat(0x202226)); arc.scale.set(ex + 0.004, H.top - H.earY + 0.016, 0.16); arc.position.set(0, H.earY, H.earZ); g.add(arc);
+      for (const s of [-1, 1]) { P(CYL, 0x202226, 0.085, 0.03, 0.085, s * ex, H.earY, H.earZ, 0, 0, Math.PI / 2); P(CYL, 0x39ff8f, 0.05, 0.006, 0.05, s * (ex + 0.016), H.earY, H.earZ, 0, 0, Math.PI / 2); }
+      seg(0x202226, 0.012, new THREE.Vector3(ex, H.earY - 0.01, H.earZ - 0.01), new THREE.Vector3(H.hw * 0.55, H.mouthY, H.faceZ - 0.01)); P(SPHERE, 0x111214, 0.022, 0.018, 0.022, H.hw * 0.5, H.mouthY, H.faceZ - 0.012); break; }
     case 'cap': P(HELMET_GEO, 0xc8302c, 0.32, 0.26, 0.33, 0, 0.03, 0.005); P(BOX, 0xc8302c, 0.24, 0.018, 0.16, 0, 0.035, -0.2); P(SPHERE, 0xffffff, 0.03, 0.02, 0.03, 0, 0.16, 0); break;
     case 'top': P(CYL, 0x1a1a1d, 0.4, 0.02, 0.4, 0, 0.09, 0); P(CYL, 0x1a1a1d, 0.26, 0.28, 0.26, 0, 0.23, 0); P(CYL, 0xb3242a, 0.265, 0.05, 0.265, 0, 0.125, 0); break;
     case 'cowboy': P(CYL, 0x7a4e2a, 0.5, 0.02, 0.5, 0, 0.085, 0, 0.08); P(CYL, 0x7a4e2a, 0.27, 0.14, 0.29, 0, 0.16, 0); P(CYL, 0x3b2414, 0.275, 0.03, 0.295, 0, 0.11, 0); P(BOX, 0x6a4224, 0.04, 0.03, 0.2, 0, 0.235, 0); break;
@@ -6679,24 +6710,42 @@ function buildCos(cos) {
     case 'viking': P(HELMET_GEO, 0x8a8f96, 0.33, 0.3, 0.34, 0, 0.025, 0.008); P(CYL, 0x6b5030, 0.335, 0.035, 0.345, 0, 0.035, 0.008);
       for (const s of [-1, 1]) { P(CONE, 0xefe6d2, 0.06, 0.2, 0.06, s * 0.19, 0.13, 0, 0, 0, -s * 0.7); } break;
     case 'party': { P(CONE, 0x8e44ad, 0.2, 0.3, 0.2, 0.02, 0.24, 0, 0, 0, -0.15); P(CYL, 0xf1c40f, 0.17, 0.025, 0.17, 0.0, 0.14, 0, 0, 0, -0.15); P(SPHERE, 0xf1c40f, 0.06, 0.06, 0.06, 0.045, 0.39, 0); break; }
-    case 'headset': P(TORUS, 0x202226, 0.33, 0.33, 0.25, 0, 0.0, 0, 0, Math.PI / 2, 0); for (const s of [-1, 1]) { P(CYL, 0x202226, 0.1, 0.06, 0.1, s * 0.16, -0.02, 0, 0, 0, Math.PI / 2); P(CYL, 0x39ff8f, 0.06, 0.01, 0.06, s * 0.19, -0.02, 0, 0, 0, Math.PI / 2); }
-      P(CYL, 0x202226, 0.015, 0.14, 0.015, 0.15, -0.08, -0.07, 1.2); break;
     case 'ninja': P(CYL, 0xc0262d, 0.31, 0.05, 0.31, 0, 0.05, 0); P(BOX, 0xc0262d, 0.03, 0.12, 0.02, 0.03, 0.0, 0.16, 0.5); P(BOX, 0xc0262d, 0.03, 0.12, 0.02, -0.02, -0.01, 0.16, 0.3); break;
   }
+  const mg = new THREE.Group(), [mx, my, mz, mo] = H.map; mg.scale.set(mx, my, mz); mg.position.z = mo; g.add(mg);
+  const Q = (geo, col, sx, sy, sz, x, y, z, rx = 0, ry = 0, rz = 0) => P(geo, col, sx, sy, sz, x, y, z, rx, ry, rz, mg);
   switch (cos.mask) {
-    case 'shades': for (const x of [-0.055, 0.055]) P(BOX, 0x0d0d10, 0.085, 0.045, 0.02, x, -0.005, -0.155); P(BOX, 0x0d0d10, 0.32, 0.015, 0.015, 0, 0.012, -0.12); break;
-    case 'hockey': { P(SPHERE, 0xf0ede4, 0.27, 0.29, 0.14, 0, -0.03, -0.1); for (const x of [-0.055, 0.055]) P(SPHERE, 0x141416, 0.05, 0.035, 0.03, x, -0.005, -0.168);
-      for (const [x, y] of [[-0.03, -0.09], [0, -0.1], [0.03, -0.09], [-0.09, 0.03], [0.09, 0.03]]) P(SPHERE, 0x141416, 0.012, 0.012, 0.01, x, y, -0.165);
-      P(BOX, 0xc0262d, 0.02, 0.07, 0.01, -0.09, -0.07, -0.155, 0, 0, 0.4); P(BOX, 0xc0262d, 0.02, 0.07, 0.01, 0.09, -0.07, -0.155, 0, 0, -0.4); break; }
-    case 'gas': P(SPHERE, 0x2e3328, 0.29, 0.3, 0.16, 0, -0.03, -0.09); for (const x of [-0.06, 0.06]) { P(CYL, 0xa9d6e5, 0.07, 0.015, 0.07, x, 0.0, -0.163, Math.PI / 2); P(TORUS, 0x111111, 0.075, 0.075, 0.06, x, 0, -0.163); }
-      P(CYL, 0x444a3d, 0.09, 0.1, 0.09, 0, -0.1, -0.19, Math.PI / 2 - 0.3); P(CYL, 0x222222, 0.095, 0.02, 0.095, 0, -0.115, -0.24, Math.PI / 2 - 0.3); break;
-    case 'bandit': P(CONE, 0xb3242a, 0.3, 0.13, 0.22, 0, -0.125, -0.06, 0, 0, Math.PI); P(CYL, 0xb3242a, 0.31, 0.035, 0.31, 0, -0.068, 0); break;
-    case 'ski': P(SPHERE, 0x1c1d21, 0.31, 0.33, 0.31, 0, 0, 0); P(BOX, C.skin, 0.17, 0.05, 0.03, 0, -0.008, -0.145); for (const x of [-0.055, 0.055]) P(SPHERE, C.black, 0.04, 0.05, 0.03, x, -0.01, -0.152); break;
-    case 'skull': P(SPHERE, 0xf2f0ea, 0.28, 0.3, 0.15, 0, -0.02, -0.095); for (const x of [-0.055, 0.055]) P(SPHERE, 0x0d0d10, 0.06, 0.065, 0.03, x, -0.005, -0.165);
-      P(CONE, 0x0d0d10, 0.03, 0.035, 0.02, 0, -0.06, -0.168, 0, 0, Math.PI); for (let x = -0.04; x <= 0.041; x += 0.02) P(BOX, 0x0d0d10, 0.006, 0.03, 0.01, x, -0.1, -0.16); break;
-    case 'visor': { const v = new THREE.Mesh(new THREE.CylinderGeometry(0.162, 0.162, 0.05, 20, 1, true, Math.PI * 0.62, Math.PI * 0.76), glow(0x2de1ff)); v.material.side = THREE.DoubleSide; v.position.y = -0.005; v.rotation.y = Math.PI; g.add(v);
-      P(BOX, 0x222428, 0.33, 0.02, 0.02, 0, 0.022, -0.04); break; }
-    case 'clown': P(SPHERE, 0xe0202c, 0.065, 0.065, 0.065, 0, -0.05, -0.17); break;
+    case 'shades': {   // lentes na frente dos olhos, ponte no nariz e hastes até as orelhas
+      const z = H.faceZ - 0.012, lx = H.eyeX + 0.004;
+      for (const s of [-1, 1]) { P(BOX, 0x0d0d10, 0.052, 0.032, 0.008, s * lx, H.eyeY, z); P(BOX, 0x1a1a1e, 0.012, 0.01, 0.01, s * (lx + 0.03), H.eyeY + 0.008, z + 0.004);
+        const hx = s * (H.hw + 0.004); P(BOX, 0x1a1a1e, 0.008, 0.008, H.earZ - z, hx, H.eyeY + 0.008, (z + H.earZ) / 2); seg(0x1a1a1e, 0.008, new THREE.Vector3(s * (lx + 0.034), H.eyeY + 0.008, z + 0.004), new THREE.Vector3(hx, H.eyeY + 0.008, z + 0.02)); }
+      P(BOX, 0x0d0d10, 0.018, 0.008, 0.008, 0, H.eyeY + 0.008, z - 0.002); break; }
+    case 'hockey': { const fp = skull && facePlate(0xf0ede4); if (fp) { for (const x of [-1, 1]) P(SPHERE, 0x141416, 0.034, 0.022, 0.012, x * H.eyeX, H.eyeY, H.faceZ - 0.012); for (const [x, y] of [[-0.02, 0], [0, -0.008], [0.02, 0], [-0.06, 0.06], [0.06, 0.06]]) P(SPHERE, 0x141416, 0.008, 0.008, 0.006, x * H.hw / 0.097, H.mouthY + y, H.faceZ - 0.006 - (y > 0.03 ? 0 : 0.012)); for (const x of [-1, 1]) P(BOX, 0xc0262d, 0.012, 0.05, 0.006, x * H.hw * 0.62, H.noseY - 0.02, H.faceZ - 0.002, 0, 0, -x * 0.4); break; }
+      Q(SPHERE, 0xf0ede4, 0.27, 0.29, 0.14, 0, -0.03, -0.1); for (const x of [-0.055, 0.055]) Q(SPHERE, 0x141416, 0.05, 0.035, 0.03, x, -0.005, -0.168);
+      for (const [x, y] of [[-0.03, -0.09], [0, -0.1], [0.03, -0.09], [-0.09, 0.03], [0.09, 0.03]]) Q(SPHERE, 0x141416, 0.012, 0.012, 0.01, x, y, -0.165);
+      Q(BOX, 0xc0262d, 0.02, 0.07, 0.01, -0.09, -0.07, -0.155, 0, 0, 0.4); Q(BOX, 0xc0262d, 0.02, 0.07, 0.01, 0.09, -0.07, -0.155, 0, 0, -0.4); break; }
+    case 'gas': Q(SPHERE, 0x2e3328, 0.29, 0.3, 0.16, 0, -0.03, -0.09); for (const x of [-0.06, 0.06]) { Q(CYL, 0xa9d6e5, 0.07, 0.015, 0.07, x, 0.0, -0.163, Math.PI / 2); Q(TORUS, 0x111111, 0.075, 0.075, 0.06, x, 0, -0.163); }
+      Q(CYL, 0x444a3d, 0.09, 0.1, 0.09, 0, -0.1, -0.19, Math.PI / 2 - 0.3); Q(CYL, 0x222222, 0.095, 0.02, 0.095, 0, -0.115, -0.24, Math.PI / 2 - 0.3); break;
+    case 'bandit': {   // lenço do nariz para baixo, justo no rosto, com a ponta caindo sob o queixo
+      const wg = skull && wrapHead(skull, off, (x, y, z) => y < H.noseY + 0.022 && (z < H.earZ - 0.01 || y < H.noseY - 0.01) && y > H.chin + 0.03, 0.008);
+      if (wg) { g.add(new THREE.Mesh(wg, mat(0xb3242a))); P(CONE, 0xb3242a, 0.09, 0.07, 0.03, 0, H.chin + 0.01, H.faceZ * 0.75, 0.25, 0, Math.PI); P(CYL, 0x8e1c21, H.hw * 2.12, 0.012, (H.back - H.faceZ) * 1.02, 0, H.noseY + 0.022, (H.back + H.faceZ) / 2); }
+      else { Q(CONE, 0xb3242a, 0.3, 0.13, 0.22, 0, -0.125, -0.06, 0, 0, Math.PI); Q(CYL, 0xb3242a, 0.31, 0.035, 0.31, 0, -0.068, 0); }
+      break; }
+    case 'ski': {   // balaclava justa na cabeça, com uma janela só nos olhos
+      const win = (x, y, z) => z < -0.02 && Math.abs(x) < H.eyeX + 0.034 && y > H.eyeY - 0.024 && y < H.eyeY + 0.026, wg = skull && wrapHead(skull, off, (x, y, z) => !win(x, y, z));
+      if (wg) g.add(new THREE.Mesh(wg, mat(0x1c1d21))); else Q(SPHERE, 0x1c1d21, 0.31, 0.33, 0.31, 0, 0, 0);
+      break; }
+    case 'skull': if (skull && facePlate(0xf2f0ea)) { for (const x of [-1, 1]) P(SPHERE, 0x0d0d10, 0.044, 0.04, 0.014, x * H.eyeX, H.eyeY - 0.002, H.faceZ - 0.012);
+        P(CONE, 0x0d0d10, 0.022, 0.026, 0.012, 0, H.noseY + 0.004, H.noseZ + 0.002, 0, 0, Math.PI); for (let x = -0.03; x <= 0.031; x += 0.015) P(BOX, 0x0d0d10, 0.004, 0.022, 0.008, x, H.mouthY, H.faceZ - 0.01); break; }
+      Q(SPHERE, 0xf2f0ea, 0.28, 0.3, 0.15, 0, -0.02, -0.095); for (const x of [-0.055, 0.055]) Q(SPHERE, 0x0d0d10, 0.06, 0.065, 0.03, x, -0.005, -0.165);
+      Q(CONE, 0x0d0d10, 0.03, 0.035, 0.02, 0, -0.06, -0.168, 0, 0, Math.PI); for (let x = -0.04; x <= 0.041; x += 0.02) Q(BOX, 0x0d0d10, 0.006, 0.03, 0.01, x, -0.1, -0.16); break;
+    case 'visor': {   // faixa de luz na frente dos olhos, presa por uma tira que dá a volta na cabeça
+      const rz = Math.max(H.back - H.earZ, H.earZ - H.faceZ) + 0.012, rx = H.hw + 0.012;
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true, Math.PI * 0.68, Math.PI * 0.64), glow(0x2de1ff)); v.material.side = THREE.DoubleSide;
+      v.scale.set(rx + 0.004, 0.036, H.earZ - H.faceZ + 0.016); v.position.set(0, H.eyeY, H.earZ); g.add(v);
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true), mat(0x222428)); st.material.side = THREE.DoubleSide; st.scale.set(rx, 0.014, rz); st.position.set(0, H.eyeY + 0.004, H.earZ); g.add(st);
+      break; }
+    case 'clown': P(SPHERE, 0xe0202c, 0.05, 0.05, 0.05, 0, H.noseY, H.noseZ - 0.012); break;
   }
   return g;
 }
@@ -6707,8 +6756,9 @@ function cosOnHead(head, cos) {
   head.children.forEach(m => { if (m.userData.helm) m.visible = !hide; });
   if (!hide && head.userData.hm && !head.userData.hm.userData.helm) head.userData.hm.visible = false;
   if (cos.hat === 'none' && cos.mask === 'none') return;
-  const g = buildCos(cos); g.traverse(m => { if (m.isMesh) m.castShadow = S.video.shadows === 2; });
-  if (head.userData.skull && head.userData.skull.geometry === HEAD_GEO_PH) g.position.y = -0.095;   // cabeça de foto fica mais baixa no grupo: chapéu e máscara descem junto
+  const sk = head.userData.skull, ph = !!sk && sk.geometry === HEAD_GEO_PH, off = ph ? -0.095 : 0;
+  const g = buildCos(cos, ph, sk, off); g.traverse(m => { if (m.isMesh) m.castShadow = S.video.shadows === 2; });
+  g.position.y = off;   // cabeça de foto fica mais baixa no grupo: chapéu e máscara descem junto
   head.add(g); head.userData.cos = g;
 }
 function applyCos(c, cos) {
@@ -7149,7 +7199,7 @@ function renderArms() {
   const locked = [...KNIVES.map(k => k[2]), ...WSKINS.map(k => k[3])].filter(a => a && !Arms.open(a));
   h += `<p class="note" style="margin:4px 0 0">Facas e pinturas trancadas abrem com as conquistas dos modos de jogo (passe o mouse no cadeado para ver qual). ${locked.length ? '' : 'Você já liberou tudo.'} Por enquanto só você vê a sua faca e a sua pintura; os outros jogadores veem a arma original.</p><p class="note" id="skMsg" style="margin:0"></p>`;
   $('#skinBody').innerHTML = h;
-  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { if (skinFor !== b.dataset.for) svReset(); skinFor = b.dataset.for; renderSkins(); });
   const msg = t => { const m = $('#skMsg'); if (m) m.textContent = t; };
   const apply = () => { Prof.save(); pvVm.built = false; if (GunGLB.state === 'ready' && player) GunGLB.refresh(); renderArms(); };
   $('#skinBody').querySelectorAll('[data-kn]').forEach(b => b.onclick = () => { const k = KNIVES.find(x => x[0] === b.dataset.kn); if (!Arms.open(k[2])) { msg('Trancada. Libera com: ' + achTxt(k[2])); return; } A.knife = k[0]; armsView = 'knife'; apply(); });
@@ -7164,7 +7214,7 @@ function renderSpray() {
     `<input type="file" id="spFile" accept="image/png,image/jpeg,image/webp" hidden><p class="note" id="skMsg" style="margin:0"></p>`;
   h += `<p class="note" style="margin:4px 0 0">Na partida, olhe para uma parede ou para o chão e aperte <kbd>${keyLabel(S.keys.spray)}</kbd> (no celular, o botão Spray). PNG com fundo transparente fica melhor. No x1 online, o seu amigo vê o seu spray.</p>`;
   $('#skinBody').innerHTML = h;
-  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { if (skinFor !== b.dataset.for) svReset(); skinFor = b.dataset.for; renderSkins(); });
   $('#skinBody').querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { SPRAY.cur = b.dataset.sp; saveSpray(); renderSpray(); });
   $('#spUp').onclick = () => $('#spFile').click();
   $('#spFile').onchange = async e => {
@@ -7203,7 +7253,7 @@ function renderCos() {
   $('#skinBody').innerHTML = skinTabs() + `<div class="formh">Chapéu</div>${grid('hat', HATS)}<div class="formh">Máscara</div>${grid('mask', MASKS)}` +
     `<div class="btnrow"><button class="btn small" id="cosRand">Sortear</button></div>` +
     `<p class="note" style="margin:4px 0 0">Os acessórios não mudam a hitbox: um chapéu alto não faz você levar tiro na cabeça. No online, todo mundo vê os seus. Com a skin dos bots em "Sorteada", eles também usam.</p>`;
-  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { if (skinFor !== b.dataset.for) svReset(); skinFor = b.dataset.for; renderSkins(); });
   const set = c => { SKINS.cos = c; saveSkins(); skinChanged(); renderCos(); };
   $('#skinBody').querySelectorAll('[data-cos]').forEach(b => b.onclick = () => set(Object.assign(myCos(), { [b.dataset.cos]: b.dataset.id })));
   $('#cosRand').onclick = () => set(randomCos());
@@ -7241,7 +7291,7 @@ function renderSkins() {
   }
   h += `<p class="note" style="margin:4px 0 0">As ombreiras continuam na cor do time, para não confundir aliado e inimigo. No x1 online, o seu amigo vê a sua skin.</p>`;
   $('#skinBody').innerHTML = h;
-  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { skinFor = b.dataset.for; renderSkins(); });
+  $('#skinBody').querySelectorAll('[data-for]').forEach(b => b.onclick = () => { if (skinFor !== b.dataset.for) svReset(); skinFor = b.dataset.for; renderSkins(); });
   $('#skinBody').querySelectorAll('[data-sk]').forEach(b => b.onclick = () => { SKINS[skinFor] = b.dataset.sk; saveSkins(); skinChanged(); renderSkins(); });
   $('#skUp').onclick = () => $('#skFile').click();
   $('#skFile').onchange = async e => {
@@ -7303,17 +7353,21 @@ async function sendMySkin(t) {
 }
 // controles da prévia: arrastar gira e inclina, rodinha ou pinça dá zoom, duplo clique volta ao início
 const SV = { yaw: Math.PI * 0.85, pitch: 0, dist: 1, idle: 99, ptr: new Map(), pd: 0, drag: false };
+// trocar de aba volta a prévia para o começo (giro, inclinação e zoom)
+function svReset() { SV.yaw = Math.PI * 0.85; SV.pitch = 0; SV.dist = 1; SV.idle = 99; SV.ptr.clear(); SV.pd = 0; SV.drag = false; if (skinView) skinView.zoom = skinFor === 'cos' ? 1 : 0; }
 {
   const m = $('#menu'), ok = e => skinView && !e.target.closest('.side, button, a, input, select');
-  m.addEventListener('pointerdown', e => { if (!ok(e)) return; SV.ptr.set(e.pointerId, [e.clientX, e.clientY]); SV.idle = 0; SV.drag = true; if (SV.ptr.size === 2) { const [a, b] = [...SV.ptr.values()]; SV.pd = Math.hypot(a[0] - b[0], a[1] - b[1]); } try { m.setPointerCapture(e.pointerId); } catch (_) {} });
+  m.addEventListener('pointerdown', e => { if (!ok(e)) return; if (e.pointerType !== 'touch' || e.isPrimary) SV.ptr.clear(); /* ponteiro antigo que ficou preso (soltou fora) não vira pinça */ SV.ptr.set(e.pointerId, [e.clientX, e.clientY]); SV.idle = 0; SV.drag = true; if (SV.ptr.size === 2) { const [a, b] = [...SV.ptr.values()]; SV.pd = Math.hypot(a[0] - b[0], a[1] - b[1]); } try { m.setPointerCapture(e.pointerId); } catch (_) {} });
   m.addEventListener('pointermove', e => {
     const p = SV.ptr.get(e.pointerId); if (!p || !skinView) return; SV.idle = 0;
-    if (SV.ptr.size === 2) { SV.ptr.set(e.pointerId, [e.clientX, e.clientY]); const [a, b] = [...SV.ptr.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (SV.pd) SV.dist = clamp(SV.dist * SV.pd / d, 0.35, 1.8); SV.pd = d; return; }
-    SV.yaw += (e.clientX - p[0]) * 0.01; SV.pitch = clamp(SV.pitch + (e.clientY - p[1]) * 0.004, -0.5, 0.6); p[0] = e.clientX; p[1] = e.clientY;
+    if (e.pointerType === 'mouse' && !e.buttons) { up(e); return; }   // soltou fora da janela: o arrasto não fica preso
+    if (SV.ptr.size === 2) { SV.ptr.set(e.pointerId, [e.clientX, e.clientY]); const [a, b] = [...SV.ptr.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (SV.pd) SV.dist = clamp(SV.dist * clamp(SV.pd / d, 0.9, 1.1), 0.5, 1.4); SV.pd = d; return; }
+    const dx = clamp(e.clientX - p[0], -60, 60), dy = clamp(e.clientY - p[1], -60, 60);   // salto de ponteiro não joga o boneco longe
+    SV.yaw += dx * 0.01; SV.pitch = clamp(SV.pitch + dy * 0.004, -0.3, 0.45); p[0] = e.clientX; p[1] = e.clientY;
   });
   const up = e => { SV.ptr.delete(e.pointerId); SV.pd = 0; if (!SV.ptr.size) SV.drag = false; };
   m.addEventListener('pointerup', up); m.addEventListener('pointercancel', up);
-  m.addEventListener('wheel', e => { if (!ok(e)) return; e.preventDefault(); SV.idle = 0; SV.dist = clamp(SV.dist * (1 + Math.sign(e.deltaY) * 0.1), 0.35, 1.8); }, { passive: false });
+  m.addEventListener('wheel', e => { if (!ok(e)) return; e.preventDefault(); SV.idle = 0; SV.dist = clamp(SV.dist * (1 + Math.sign(e.deltaY) * 0.1), 0.5, 1.4); }, { passive: false });
   m.addEventListener('dblclick', e => { if (ok(e)) { SV.yaw = Math.PI * 0.85; SV.pitch = 0; SV.dist = 1; SV.idle = 99; } });
 }
 const pvVm = { pivot: new THREE.Group(), root: new THREE.Group(), models: [], built: false, key: '' };
@@ -7346,7 +7400,7 @@ function updateSkinView(dt) {
   // na aba de acessórios a câmera chega perto da cabeça
   v.zoom = lerp(v.zoom || 0, skinFor === 'cos' ? 1 : 0, Math.min(1, dt * 4)); const z = v.zoom;
   const w = (innerWidth > innerHeight * 1.1 ? 1.25 : 0) * (1 - z * 0.62), D = SV.dist;
-  const dist = lerp(4.8, 2.0, z) * D, cy = lerp(1.2, 1.68, z) * (0.6 + 0.4 * D) + SV.pitch * -1.8 * dist * 0.4, ly = lerp(0.95, 1.5, z);
+  const dist = lerp(4.8, 2.0, z) * D, cy = clamp(lerp(1.2, 1.68, z) * (0.6 + 0.4 * D) + SV.pitch * -1.8 * dist * 0.4, 0.5, 1.4 + dist * 0.5), ly = lerp(0.95, 1.5, z);
   camera.position.set(c.pos.x, c.pos.y + cy, c.pos.z + dist); camera.lookAt(c.pos.x - w * Math.min(1, D + 0.2), c.pos.y + ly, c.pos.z);
   v.pvWi = arms ? (armsView === 'gun' ? WI(armsFor) : WI('knife')) : -1;
 }
@@ -8688,8 +8742,8 @@ function renderHelp() {
     <p class="note" style="margin:10px 0 0"><b>Bunny hop:</b> pule, aperte ${k('crouch')} no ar e caia agachado para deslizar com impulso; pule de novo durante o deslize para manter e somar velocidade. Mexer o mouse para os lados no ar (strafe) também acelera.</p>
     <p class="note" style="margin:6px 0 0">Todas as teclas podem ser trocadas em Configurações &gt; Controles.</p>`;
 }
-$('#heroSkinBtn').onclick = () => { initAudio(); if (skinFor === 'cos') skinFor = 'me'; openSkins(); };
-$('#heroCosBtn').onclick = () => { initAudio(); skinFor = 'cos'; openSkins(); };
+$('#heroSkinBtn').onclick = () => { initAudio(); svReset(); if (skinFor === 'cos') skinFor = 'me'; openSkins(); };
+$('#heroCosBtn').onclick = () => { initAudio(); svReset(); skinFor = 'cos'; openSkins(); };
 $('#bHelp').onclick = () => { $('#mainButtons').hidden = true; $('#helpPanel').hidden = false; renderHelp(); };
 $('#bHelpBack').onclick = () => { $('#helpPanel').hidden = true; $('#mainButtons').hidden = false; };
 // painéis do menu: botão de voltar no título e Esc para voltar; o logo encolhe para sobrar espaço
@@ -8724,8 +8778,8 @@ $('#bDmStart').onclick = () => startDeathmatch({ bots: +$('#dmBots').value, diff
 $('#bAim').onclick = () => { initAudio(); $('#mainButtons').hidden = true; $('#aimSetup').hidden = false; renderAimSetup(); };
 $('#bAimBack').onclick = () => { $('#aimSetup').hidden = true; $('#mainButtons').hidden = false; };
 $('#bAimStart').onclick = () => startAim();
-$('#bSkins').onclick = () => { if (skinFor === 'arms') skinFor = 'me'; openSkins(); };
-$('#bArms').onclick = () => { skinFor = 'arms'; openSkins(); };
+$('#bSkins').onclick = () => { svReset(); if (skinFor === 'arms') skinFor = 'me'; openSkins(); };
+$('#bArms').onclick = () => { svReset(); skinFor = 'arms'; openSkins(); };
 $('#bSkinBack').onclick = () => closeSkins();
 function renderHist() {
   const h = loadHist(), t = histTotals(h.matches);
@@ -9457,15 +9511,19 @@ const HERO_SHOTS = [
 ];
 let menuHero = null, menuHeroT = 0, heroShot = 0, heroShotT = 0, heroSw = 1;
 function heroFade(v) { const cv = renderer.domElement, f = v >= 0.999 ? '' : `brightness(${v.toFixed(2)})`; if (cv.style.filter !== f) cv.style.filter = f; }
+function vidSettings() { return S.video; }   // dentro de updateMenuHero o nome S é o plano da câmera
 function updateMenuHero(dt) {
   const sideW = $('#menu .side').getBoundingClientRect().width;
   const on = state === 'menu' && !$('#menu').hidden && mapInfo && mapInfo.name === 'Arena' && innerWidth - sideW > 300 && !edState;
   const tag = $('#heroTag'); if (tag.hidden === on) tag.hidden = !on;
   if (!on) { heroFade(1); return false; }
+  // o boneco do menu é o mesmo do jogador: refaz quando o estilo muda ou quando as fotos de rosto terminam de carregar
+  const VS = vidSettings(), hk = VS.charStyle + '|' + VS.charModels + '|' + FACE_IMGS.filter(Boolean).length;
+  if (menuHero && menuHero._hk !== hk) { if (menuHero.group.parent) menuHero.group.parent.remove(menuHero.group); menuHero = null; }
   if (!menuHero || menuHero.group.parent !== world) {
     const c = createCombatant('Você', TEAM_COLORS[0], { pos: new THREE.Vector3(15, 0, 25), yaw: Math.PI }, false);
     const i = combatants.indexOf(c); if (i >= 0) combatants.splice(i, 1);
-    setGunShape(c, WEAPONS[WI('rifle')]); menuHero = c; c._sk = undefined;
+    setGunShape(c, WEAPONS[WI('rifle')]); menuHero = c; c._sk = undefined; c._hk = hk;
   }
   const c = menuHero, sk = mySkin();
   const ck = JSON.stringify(myCos());
