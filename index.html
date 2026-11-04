@@ -5765,7 +5765,7 @@ function endX1(team) {
 // ---- jogador remoto (online)
 function netState() {
   const p = player;
-  return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp), r: pw.reloadT > 0 ? 1 : 0, z: pw.zoom ? 1 : 0 };
+  return { t: 's', p: v3a(p.pos), v: v3a(p.vel), y: +p.yaw.toFixed(3), x: +p.pitch.toFixed(3), c: +p.crouch.toFixed(2), w: active().wi, a: p.alive ? 1 : 0, h: Math.ceil(p.hp), r: pw.reloadT > 0 ? 1 : 0, z: pw.zoom ? 1 : 0, q: (isHeld('walk') || p.crouching) ? 1 : 0 };
 }
 const a2v = a => new THREE.Vector3(a[0], a[1], a[2]);
 const remoteOf = id => (id && mode && ((mode.remotes && mode.remotes.get(id)) || (mode.netBots && mode.netBots.get(id)))) || null;
@@ -5792,7 +5792,7 @@ function onRemoteState(r, m) {
   if (m.a && !r.alive) { respawn(r, { pos: r.net.tp.clone(), yaw: m.y }); }
   if (r.alive) r.hp = m.h;
   if (m.r && !r._rl && WEAPONS[r.wi]) startAnim(r, 'reload', WEAPONS[r.wi].reload);
-  r._rl = !!m.r; r.scoped = !!m.z;
+  r._rl = !!m.r; r.scoped = !!m.z; r._quiet = !!m.q;   // andando com Shift ou agachado: sem passos para os outros
 }
 // passos (correndo; andando com Shift é silencioso, como no CS) e barulho de queda dos outros jogadores
 function updateOtherSounds(dt) {
@@ -5800,7 +5800,7 @@ function updateOtherSounds(dt) {
     if (c.isPlayer || !c.alive) { c._airV = 0; continue; }
     if (c.remote) {
       const hs = Math.hypot(c.vel.x, c.vel.z), air = Math.abs(c.vel.y) > 0.6;
-      if (!air && hs > 3) { c._step = (c._step || 0) + hs * dt; if (c._step > 2.3) { c._step = 0; playStep(c, stepVol(c), c.pos); } }
+      if (!air && hs > 3 && !c._quiet) { c._step = (c._step || 0) + hs * dt; if (c._step > 2.3) { c._step = 0; playStep(c, stepVol(c), c.pos); } }
     }
     const air = c.remote ? Math.abs(c.vel.y) > 0.6 : !c.grounded;
     if (air) c._airV = Math.min(c._airV || 0, c.vel.y);
