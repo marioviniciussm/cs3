@@ -1315,7 +1315,7 @@ function playStep(c, vol, pos, land) {
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
 // volume de cada tiro: arma grande soa maior que arma pequena (o arquivo vem todo no mesmo nível)
-const GUN_VOL = { pistol: 2.5, deagle: 3.1, revolver: 3.9, smg: 2.2, rifle: 2.8, lmg: 3.4, semi: 3.1, sniper: 7.5, shotgun: 6.5, musket: 3.9, blunder: 3.9, minigun: 2.4 };
+const GUN_VOL = { pistol: 2.5, deagle: 3.1, revolver: 4.6, smg: 2.2, rifle: 2.8, lmg: 3.4, semi: 3.1, sniper: 7.5, shotgun: 6.5, musket: 3.9, blunder: 3.9, minigun: 2.4 };
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
   if (GUN_VOL[name]) vol *= GUN_VOL[name];
