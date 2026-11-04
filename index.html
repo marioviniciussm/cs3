@@ -394,6 +394,14 @@ button.clscard.on, button.clscard:hover { border-color: var(--accent); box-shado
 </head>
 <body>
 
+<style>
+#game{image-rendering:pixelated;image-rendering:crisp-edges}
+html.ps1 #game{filter:saturate(.72) contrast(1.12) brightness(.92) sepia(.18)}
+#ps1fx{position:fixed;inset:0;pointer-events:none;z-index:3;display:none;mix-blend-mode:soft-light;opacity:.55;image-rendering:pixelated}
+#ps1vig{position:fixed;inset:0;pointer-events:none;z-index:3;display:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(8,6,4,.55) 100%)}
+html.ps1 #ps1fx,html.ps1 #ps1vig{display:block}
+</style>
+<div id="ps1fx"></div><div id="ps1vig"></div>
 <canvas id="game" aria-label="Visão do jogo"></canvas>
 
 <div id="hud" hidden>
@@ -690,7 +698,7 @@ const ACTIONS = [
   ['talk', 'Falar no voice chat (com "apertar para falar")', 'KeyV'], ['score', 'Placar', 'Tab'], ['dev', 'Painel do desenvolvedor', 'KeyP'], ['devAdd', 'Dev: adicionar bot na mira', 'KeyN'], ['devRemove', 'Dev: remover bot na mira', 'KeyX'],
 ];
 const DEFAULTS = {
-  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true, charModels: true },
+  video: { fov: 74, showFps: true, bob: true, res: 1, shadows: 1, tex: true, blood: true, gunModels: true, charModels: true, charStyle: 'ps1', ps1: true },
   audio: { master: 0.6, sfx: 1, hit: true, hrtf: true, voice: true, voiceVol: 1, micId: '', outId: '', ptt: false },
   controls: { sens: 2, zoomSens: 1, invertY: false, rawMouse: true, fullscreen: false, leaveGuard: true, kv: 1, autoReload: true },
   move: { autoHop: true, showSpeed: true, manualPick: false },
@@ -1399,7 +1407,7 @@ const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
     SKY.copy(sky); scene.background = SKY; scene.fog.color.copy(sky);
     // neblina deixa ver ~1/3 do normal (antes era ~1/8 e não dava para ver nada); chuva e neve tiram pouco
     const fogK = w === 'neblina' ? 0.35 : w === 'chuva' ? 0.8 : w === 'neve' ? 0.75 : 1;
-    scene.fog.near = T.fog[0] * fogK; scene.fog.far = T.fog[1] * fogK;
+    const pk = S.video.ps1 !== false ? 0.42 : 1; scene.fog.near = T.fog[0] * fogK * pk; scene.fog.far = T.fog[1] * fogK * pk;
     hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2] * (w === 'limpo' ? 1 : 0.9);
     sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1] * (w === 'limpo' ? 1 : 0.55); sun.position.set(...T.pos);
     vmHemi.intensity = T.vm[0]; vmSun.intensity = T.vm[1];
@@ -1446,9 +1454,14 @@ const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
   },
 };
 
+(() => { try { const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], cv = document.createElement('canvas'); cv.width = cv.height = 4; const x = cv.getContext('2d'), im = x.createImageData(4, 4);
+  for (let i = 0; i < 16; i++) { const v = 128 + (B[i] - 7.5) * 16; im.data.set([v, v, v, 255], i * 4); } x.putImageData(im, 0, 0);
+  const el = document.getElementById('ps1fx'); el.style.backgroundImage = 'url(' + cv.toDataURL() + ')'; el.style.backgroundSize = '8px 8px'; } catch (e) {} })();
 function resize() {
   const w = innerWidth, h = innerHeight;
-  const pr = [0.7, 1, Math.min(2, devicePixelRatio || 1)][S.video.res] || 1;
+  let pr = [0.7, 1, Math.min(2, devicePixelRatio || 1)][S.video.res] || 1;
+  if (S.video.ps1 !== false) pr = Math.min(1, 330 / h);   // visual PS1: imagem pequena (~330 linhas) esticada, com pixels grandes
+  document.documentElement.classList.toggle('ps1', S.video.ps1 !== false);
   renderer.setPixelRatio(pr);
   renderer.setSize(w, h, false);
   camera.aspect = vmCam.aspect = w / h;
@@ -2326,25 +2339,46 @@ let player = null;
 // braços com cotovelo que seguram a arma de verdade (mão direita no cabo, esquerda na frente).
 // Ao morrer o corpo vira um ragdoll (pontos ligados por varetas, com gravidade, chão e caixas do mapa).
 const capCache = new Map();
+// estilo PS1: poucas faces, cada uma com a própria normal (aparência facetada)
+const facet = g => { g.computeVertexNormals(); return g; };   // sombreado suave (Gouraud), como nos jogos de PS1 com personagens texturizados
+const LPS = facet(new THREE.SphereGeometry(0.5, 10, 8)), LPC = facet(new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
+// luva grossa: punho em bloco + polegar em cunha, sem dedos individuais
+const BOOT_GEO = (() => { const g = new THREE.SphereGeometry(0.5, 8, 6); const p = g.attributes.position; for (let i = 0; i < p.count; i++) { if (p.getY(i) < 0) p.setY(i, p.getY(i) * 0.45); if (p.getZ(i) < 0) p.setZ(i, p.getZ(i) * 0.9 - 0.05); } g.computeVertexNormals(); return g; })();
+const MITT = (() => { const bx = (sx, sy, sz, x, y, z) => { const g = new THREE.BoxGeometry(sx, sy, sz).toNonIndexed(); g.translate(x, y, z); return g; };
+  const parts = [bx(1, 1, 1, 0, 0, 0), bx(0.34, 0.5, 0.62, 0.62, 0.08, -0.1), bx(0.9, 0.3, 0.2, 0, -0.62, 0.2)];
+  let n = 0; parts.forEach(p => n += p.attributes.position.count); const pos = new Float32Array(n * 3); let o = 0; parts.forEach(p => { pos.set(p.attributes.position.array, o); o += p.attributes.position.array.length; });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeVertexNormals(); return g; })();
+// membro humano: raio r0 na base (ombro/quadril) e r1 na ponta, com barriga de músculo; 0 -> len ao longo de Y
+const limbCache = new Map();
+function limbGeo(len, r0, r1, bulge, at) {
+  const key = [len, r0, r1, bulge, at].join('_'); if (limbCache.has(key)) return limbCache.get(key);
+  const pts = [new THREE.Vector2(0.0001, 0)], n = 7;
+  for (let i = 0; i <= n; i++) { const t = i / n, y = len * t, r = (r0 + (r1 - r0) * t) * (1 + bulge * Math.exp(-Math.pow((t - (at || 0.35)) / 0.25, 2))); pts.push(new THREE.Vector2(r * (i === 0 ? 0.8 : i === n ? 0.82 : 1), y)); }
+  pts.push(new THREE.Vector2(0.0001, len));
+  const g = new THREE.LatheGeometry(pts, 9); g.computeVertexNormals(); limbCache.set(key, g); return g;
+}
 function capsuleGeo(r, len) {
   // cápsula ao longo de Y, de 0 até len (a base fica na origem); r128 ainda não tem CapsuleGeometry
   const key = r.toFixed(3) + '_' + len.toFixed(3);
   if (capCache.has(key)) return capCache.get(key);
-  const pts = [], n = 6;
+  const pts = [], n = 1;
   for (let i = 0; i <= n; i++) { const a = -Math.PI / 2 + (i / n) * Math.PI / 2; pts.push(new THREE.Vector2(Math.cos(a) * r, r + Math.sin(a) * r)); }
   for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI / 2; pts.push(new THREE.Vector2(Math.cos(a) * r, len - r + Math.sin(a) * r)); }
   pts[0].x = 0.0001; pts[pts.length - 1].x = 0.0001;
-  const g = new THREE.LatheGeometry(pts, 12); g.computeVertexNormals(); capCache.set(key, g); return g;
+  const g = facet(new THREE.LatheGeometry(pts, 6)); capCache.set(key, g); return g;
 }
 // tronco: cintura fina, peito largo e ombros arredondados
 // tronco: quadril, cintura fina, peito largo e ombros arredondados (sem caixa no peito)
 const TORSO_PROF = [[0.0001, 0], [0.15, 0.01], [0.172, 0.08], [0.162, 0.17], [0.17, 0.26], [0.198, 0.36], [0.222, 0.45], [0.23, 0.52], [0.214, 0.575], [0.165, 0.62], [0.08, 0.645], [0.0001, 0.65]];
-const TORSO_GEO = (() => { const g = new THREE.LatheGeometry(TORSO_PROF.map(([x, y]) => new THREE.Vector2(x, y)), 20); g.computeVertexNormals(); return g; })();
+const TORSO_GEO = (() => { return facet(new THREE.LatheGeometry(TORSO_PROF.map(([x, y]) => new THREE.Vector2(x, y)), 8)); })();
 // colete ajustado ao corpo: placa da frente e de trás seguindo a curva do peito
 const vestPlate = front => { const pr = TORSO_PROF.filter(([, y]) => y >= 0.2 && y <= 0.54).map(([x, y]) => new THREE.Vector2(x + 0.022, y));
-  const g = new THREE.LatheGeometry(pr, 9, front ? Math.PI - 0.95 : -0.95, 1.9); g.computeVertexNormals(); return g; };
+  return facet(new THREE.LatheGeometry(pr, 4, front ? Math.PI - 0.95 : -0.95, 1.9)); };
 const VEST_F = vestPlate(true), VEST_B = vestPlate(false);
-const HELMET_GEO = new THREE.SphereGeometry(0.5, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.5);
+const HEAD_GEO = (() => { const g = new THREE.SphereGeometry(0.5, 14, 11); const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y < 0) { const k = 1 + y * 0.55; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * (1 + y * 0.35)); } }   // maxilar mais estreito que o crânio
+  g.computeVertexNormals(); return g; })();
+const HELMET_GEO = facet(new THREE.SphereGeometry(0.5, 8, 3, 0, Math.PI * 2, 0, Math.PI * 0.5));
 const UP = new THREE.Vector3(0, 1, 0), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q1 = new THREE.Quaternion();
 function aimSeg(m, from, to) { m.position.copy(from); _v1.subVectors(to, from).normalize(); m.quaternion.setFromUnitVectors(UP, _v1); }
 // IK de dois ossos: devolve o cotovelo entre o ombro e a mão, dobrando para o lado de "pole"
@@ -2358,12 +2392,41 @@ function elbowPos(out, sh, hand, a, b, pole) {
 const ARM_A = 0.27, ARM_B = 0.27, LEG_A = 0.44, LEG_B = 0.44, HIP_Y = 0.9;
 
 // peças do corpo, usadas tanto no boneco vivo quanto no ragdoll (mesma geometria e material)
+const faceTexCache = new Map(), dirtTexCache = new Map();
+// textura pintada (como nos jogos de PS1): rosto com olhos, sobrancelhas, barba por fazer e cabelo; pequena e sem filtro
+function faceTex(skin, hair, seed) {
+  const key = skin + '_' + hair + '_' + seed; if (faceTexCache.has(key)) return faceTexCache.get(key);
+  const W = 128, H = 64, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d'), sk = '#' + skin.toString(16).padStart(6, '0'), hr = '#' + hair.toString(16).padStart(6, '0');
+  let r = seed * 9301 + 49297; const rnd = () => (r = (r * 9301 + 49297) % 233280) / 233280;
+  x.fillStyle = sk; x.fillRect(0, 0, W, H);
+  for (let i = 0; i < 160; i++) { x.fillStyle = `rgba(${rnd() < 0.5 ? '90,50,30' : '255,220,190'},${0.05 + rnd() * 0.08})`; x.fillRect(rnd() * W, rnd() * H, 2 + rnd() * 4, 2 + rnd() * 3); }
+  x.fillStyle = hr; x.fillRect(0, 0, W, 11); x.fillRect(0, 0, W * 0.6, H * 0.62); x.fillRect(W * 0.9, 0, W * 0.1, H * 0.62);   // cabelo no topo, laterais e nuca
+  x.beginPath(); x.moveTo(W * 0.62, 12); x.lineTo(W * 0.88, 12); x.lineTo(W * 0.86, 19); x.lineTo(W * 0.64, 19); x.fill();   // franja
+  const fx = W * 0.75;   // a frente do rosto fica em u = 0.75
+  x.fillStyle = 'rgba(40,20,15,0.9)'; x.fillRect(fx - 12, 26, 8, 2); x.fillRect(fx + 4, 26, 8, 2);   // sobrancelhas
+  x.fillStyle = '#e8e2d6'; x.fillRect(fx - 11, 30, 6, 3); x.fillRect(fx + 5, 30, 6, 3);   // olhos
+  x.fillStyle = '#2a1c14'; x.fillRect(fx - 9, 30, 3, 3); x.fillRect(fx + 7, 30, 3, 3);
+  x.fillStyle = 'rgba(60,30,25,0.35)'; x.fillRect(fx - 11, 33, 6, 1); x.fillRect(fx + 5, 33, 6, 1);   // olheiras
+  x.fillStyle = 'rgba(120,50,45,0.85)'; x.fillRect(fx - 6, 47, 12, 2);   // boca
+  x.fillStyle = 'rgba(30,20,15,0.14)'; x.fillRect(fx - 10, 41, 20, 10);   // barba por fazer
+  const t = new THREE.CanvasTexture(cv); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; faceTexCache.set(key, t); return t;
+}
+// sujeira e dobras de pano: mapa cinza que escurece a cor do material
+function dirtTex(seed) {
+  if (dirtTexCache.has(seed)) return dirtTexCache.get(seed);
+  const W = 64, cv = document.createElement('canvas'); cv.width = cv.height = W; const x = cv.getContext('2d'); let r = seed * 7919 + 13; const rnd = () => (r = (r * 9301 + 49297) % 233280) / 233280;
+  x.fillStyle = '#b9b9b9'; x.fillRect(0, 0, W, W);
+  for (let i = 0; i < 260; i++) { const v = 90 + rnd() * 140 | 0; x.fillStyle = `rgba(${v},${v},${v},${0.2 + rnd() * 0.3})`; x.fillRect(rnd() * W, rnd() * W, 1 + rnd() * 6, 1 + rnd() * 3); }
+  for (let i = 0; i < 7; i++) { x.strokeStyle = 'rgba(40,40,40,0.35)'; x.beginPath(); const y0 = rnd() * W; x.moveTo(0, y0); x.lineTo(W, y0 + (rnd() - 0.5) * 14); x.stroke(); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; dirtTexCache.set(seed, t); return t;
+}
 function bodyKit(c) {
-  const own = col => new THREE.MeshLambertMaterial({ color: col });
-  const tc = new THREE.Color(c.color);
-  const M = { shirt: own(c.color), pants: own(tc.clone().multiplyScalar(0.35).getHex()), vest: own(tc.clone().multiplyScalar(0.62).getHex()),
-    gear: own(0x34373d), skin: own(C.skin), shoe: own(0x222225), eye: mat(C.black), team: own(c.color) };
-  c.mats = [M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team];
+  const own = (col, map) => new THREE.MeshLambertMaterial({ color: col, map: map || null });
+  const seed = (c.id != null ? String(c.id) : c.name || 'x').split('').reduce((a, ch) => a + ch.charCodeAt(0), 0) % 997, dt = dirtTex(1 + seed % 3);
+  const tc = new THREE.Color(c.color); const skinHex = new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex(); { const h = {}; tc.getHSL(h); tc.setHSL(h.h, h.s * 0.55, h.l * 0.62); }   // paleta suja e escura (PS1 dark fantasy)
+  const M = { shirt: own(tc.getHex(), dt), pants: own(tc.clone().multiplyScalar(0.38).getHex(), dt), vest: own(tc.clone().multiplyScalar(0.62).getHex(), dt),
+    gear: own(0x2a2a2e, dt), skin: own(new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex()), shoe: own(0x1c1a1a), eye: mat(C.black), team: own(tc.getHex()) };
+  const hairHex = [0x1c1410, 0x3a2a1c, 0x5a4026, 0x2a2420][seed % 4]; M.hair = own(hairHex); M.face = own(0xffffff, faceTex(skinHex, hairHex, seed % 5)); c.mats = [M.hair, M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team, M.face];
   return M;
 }
 const PART = {
@@ -2375,36 +2438,35 @@ const PART = {
     for (const x of [-0.075, 0.075]) { const pc = new THREE.Mesh(BOX, M.gear); pc.scale.set(0.085, 0.09, 0.04); pc.position.set(x, -0.06, -0.19); g.add(pc); }   // bolsos
     return g;
   },
-  belt: (M) => { const m = new THREE.Mesh(CYL, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
-  pelvis: (M) => { const m = new THREE.Mesh(SPHERE, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
+  belt: (M) => { const m = new THREE.Mesh(LPC, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
+  pelvis: (M) => { const m = new THREE.Mesh(LPS, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
   head: (M) => {
     const g = new THREE.Group();
-    const h = new THREE.Mesh(SPHERE, M.skin); h.scale.set(0.3, 0.32, 0.3); g.add(h); g.userData.skull = h;
-    const helmet = new THREE.Mesh(HELMET_GEO, M.gear); helmet.scale.set(0.33, 0.3, 0.34); helmet.position.set(0, 0.025, 0.008); g.add(helmet); helmet.userData.helm = 1;
-    const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.3, 0.025, 0.08); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
-    for (const x of [-0.055, 0.055]) { const e = new THREE.Mesh(SPHERE, M.eye); e.scale.set(0.04, 0.05, 0.03); e.position.set(x, -0.01, -0.14); g.add(e); }
-    const nose = new THREE.Mesh(SPHERE, M.skin); nose.scale.set(0.045, 0.06, 0.05); nose.position.set(0, -0.05, -0.15); g.add(nose);
+    const h = new THREE.Mesh(HEAD_GEO, M.face); h.scale.set(0.3, 0.36, 0.31); g.add(h); g.userData.skull = h;
+    const helmet = new THREE.Mesh(HELMET_GEO, M.hair); helmet.scale.set(0.325, 0.24, 0.335); helmet.position.set(0, 0.085, 0.012); g.add(helmet); helmet.userData.helm = 1;
+    const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.001, 0.001, 0.001); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
+    const nose = new THREE.Mesh(LPS, M.skin); nose.scale.set(0.028, 0.05, 0.045); nose.position.set(0, -0.045, -0.15); g.add(nose);
     // boca em 3 quadros: fechada, toda aberta (exagerada, com língua) e meio torta
     const mouth = new THREE.Mesh(BOX, M.eye); mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
     const open = new THREE.Group(); open.position.set(0, -0.11, -0.128); g.add(open); open.visible = false;
-    const om = new THREE.Mesh(SPHERE, M.eye); om.scale.set(0.085, 0.085, 0.03); open.add(om);
-    const tongue = new THREE.Mesh(SPHERE, mat(0xd2475a)); tongue.scale.set(0.05, 0.03, 0.02); tongue.position.set(0, -0.022, -0.008); open.add(tongue);
+    const om = new THREE.Mesh(LPS, M.eye); om.scale.set(0.085, 0.085, 0.03); open.add(om);
+    const tongue = new THREE.Mesh(LPS, mat(0xd2475a)); tongue.scale.set(0.05, 0.03, 0.02); tongue.position.set(0, -0.022, -0.008); open.add(tongue);
     const half = new THREE.Group(); half.position.set(0.022, -0.105, -0.132); half.rotation.z = 0.38; g.add(half); half.visible = false;
-    const hm = new THREE.Mesh(SPHERE, M.eye); hm.scale.set(0.062, 0.028, 0.025); half.add(hm);
+    const hm = new THREE.Mesh(LPS, M.eye); hm.scale.set(0.062, 0.028, 0.025); half.add(hm);
     const teeth = new THREE.Mesh(BOX, mat(0xf4f1e6)); teeth.scale.set(0.05, 0.012, 0.01); teeth.position.set(0, 0.009, -0.012); half.add(teeth);
     g.userData.mouth = [mouth, open, half];
-    const ear = new THREE.Mesh(SPHERE, M.skin); ear.scale.set(0.05, 0.08, 0.06); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
+    const ear = new THREE.Mesh(LPS, M.skin); ear.scale.set(0.025, 0.06, 0.045); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
     return g;
   },
-  shoulder: (M) => { const m = new THREE.Mesh(SPHERE, M.team); m.scale.setScalar(0.17); return m; },
-  upArm: (M) => new THREE.Mesh(capsuleGeo(0.068, ARM_A), M.shirt),
-  foreArm: (M) => new THREE.Mesh(capsuleGeo(0.058, ARM_B), M.skin),
-  elbow: (M) => { const m = new THREE.Mesh(SPHERE, M.gear); m.scale.setScalar(0.13); return m; },
-  hand: (M) => { const m = new THREE.Mesh(BOX, M.shoe); m.scale.set(0.09, 0.1, 0.11); return m; },
-  thigh: (M) => new THREE.Mesh(capsuleGeo(0.1, LEG_A), M.pants),
-  shin: (M) => new THREE.Mesh(capsuleGeo(0.085, LEG_B), M.pants),
-  knee: (M) => { const m = new THREE.Mesh(BOX, M.gear); m.scale.set(0.15, 0.15, 0.1); return m; },
-  boot: (M) => { const m = new THREE.Mesh(BOX, M.shoe); m.scale.set(0.15, 0.13, 0.28); return m; },
+  shoulder: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.13); return m; },
+  upArm: (M) => new THREE.Mesh(limbGeo(ARM_A, 0.066, 0.052, 0.12, 0.3), M.shirt),
+  foreArm: (M) => new THREE.Mesh(limbGeo(ARM_B, 0.054, 0.036, 0.1, 0.25), M.skin),
+  elbow: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.07); return m; },
+  hand: (M) => { const m = new THREE.Mesh(MITT, M.shoe); m.scale.set(0.085, 0.1, 0.11); return m; },
+  thigh: (M) => new THREE.Mesh(limbGeo(LEG_A, 0.092, 0.062, 0.14, 0.25), M.pants),
+  shin: (M) => new THREE.Mesh(limbGeo(LEG_B, 0.062, 0.042, 0.28, 0.22), M.pants),
+  knee: (M) => { const m = new THREE.Mesh(LPS, M.pants); m.scale.set(0.1, 0.11, 0.1); return m; },
+  boot: (M) => { const m = new THREE.Mesh(BOOT_GEO, M.shoe); m.scale.set(0.1, 0.12, 0.27); return m; },
 };
 
 function buildModel(c) {
@@ -2431,9 +2493,9 @@ function buildModel(c) {
   add(PART.pelvis(M), upper, 'body', 0, HIP_Y + 0.02, 0);
   const torso = add(PART.torso(M), upper, 'body', 0, 0.9, 0);
   add(PART.vest(M), upper, null, 0, 1.22, 0);
-  const trap = add(new THREE.Mesh(SPHERE, M.shirt), upper, null, 0, 1.5, 0.01); trap.scale.set(0.3, 0.09, 0.19);   // trapézio liga ombros e pescoço
+  const trap = add(new THREE.Mesh(LPS, M.shirt), upper, null, 0, 1.5, 0.01); trap.scale.set(0.3, 0.09, 0.19);   // trapézio liga ombros e pescoço
   add(PART.belt(M), upper, null, 0, 0.95, 0);
-  const neck = add(new THREE.Mesh(CYL, M.skin), upper, null, 0, 1.54, 0); neck.scale.set(0.1, 0.08, 0.1);
+  const neck = add(new THREE.Mesh(LPC, M.skin), upper, null, 0, 1.54, 0); neck.scale.set(0.1, 0.08, 0.1);
   const head = add(PART.head(M), upper, 'head', 0, 1.69, 0);
   const arm = side => ({ sh: add(PART.shoulder(M), upper, 'body', side * 0.25, 1.44, 0), up: add(PART.upArm(M), upper, 'body'), fo: add(PART.foreArm(M), upper, 'body'),
     el: add(PART.elbow(M), upper), hand: add(PART.hand(M), upper) });
@@ -3436,7 +3498,7 @@ function curlHand(bones, s, mode, k) {
 const CharGLB = {
   tpl: [], state: 'idle', all: new Set(),
   live() { for (const c of this.all) if (!c.group || !c.group.parent) this.all.delete(c); return [...this.all]; },
-  on() { return S.video.charModels !== false; },
+  on() { return S.video.charModels !== false && S.video.charStyle === 'model'; },
   load() {
     if (this.state !== 'idle' || !this.on()) return; this.state = 'loading';
     loadT3('loaders/GLTFLoader.js').then(() => {
@@ -6446,7 +6508,7 @@ function skinTex(sk) {
 function applySkin(c, sk) { applySkin0(c, sk); CharGLB.sync(c); }
 function applySkin0(c, sk) {
   const M = c.kit; if (!M) return;
-  const tc = new THREE.Color(c.color);
+  const tc = new THREE.Color(c.color); { const h = {}; tc.getHSL(h); tc.setHSL(h.h, h.s * 0.55, h.l * 0.62); }   // paleta suja e escura (PS1 dark fantasy)
   const set = (m, col, map = null) => { m.color.set(col); if (m.map !== map) { m.map = map; m.needsUpdate = true; } };
   c.skin = sk || null;
   if (!sk || !sk.model) detachModel(c);
@@ -8909,7 +8971,7 @@ function renderSettings() {
   let h = '';
   if (setTab === 0) {
     h = R_('video', 'fov', 'Campo de visão (vertical)', 60, 100, 1) + `<p class="note" id="hfov"></p>` + Sel('video', 'res', 'Resolução interna', ['Baixa (70%)', 'Normal (100%)', 'Alta (tela retina)']) +
-      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'gunModels', 'Armas detalhadas (modelos 3D; desligue se o celular pesar)') + T_('video', 'charModels', 'Bonecos detalhados (modelos 3D; desligue se o celular pesar)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
+      Sel('video', 'shadows', 'Sombras', ['Desligadas', 'Só do cenário (rápido)', 'Completas (personagens também)']) + T_('video', 'tex', 'Texturas no cenário e nas armas (vale na próxima partida)') + T_('video', 'blood', 'Sangue (respingo, manchas e poça embaixo dos corpos)') + T_('video', 'gunModels', 'Armas detalhadas (modelos 3D; desligue se o celular pesar)') + T_('video', 'ps1', 'Visual PS1 (pixels grandes, névoa e cores sujas)') + T_('video', 'charModels', 'Bonecos detalhados (modelos 3D; desligue se o celular pesar)') + T_('video', 'bob', 'Balanço da câmera ao andar') + T_('video', 'showFps', 'Mostrar FPS') + `<p class="note">Placa de vídeo em uso: ${esc(GPU.name)}${GPU.soft ? ' <b style="color:var(--danger)">(sem aceleração: veja o aviso no menu)</b>' : ''}</p>` +
 ''; 
   } else if (setTab === 1) {
     h = R_('audio', 'master', 'Volume geral', 0, 1, 0.01, 2) + R_('audio', 'sfx', 'Efeitos', 0, 1, 0.01, 2) + T_('audio', 'hit', 'Som ao acertar') + T_('audio', 'hrtf', 'Som 3D (frente, trás e paredes)') + T_('audio', 'voice', 'Voice chat no online (microfone aberto)') + R_('audio', 'voiceVol', 'Volume das vozes', 0, 2, 0.05, 2) +
