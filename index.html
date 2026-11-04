@@ -6750,13 +6750,19 @@ function openSkins() {
     const sp = { pos: new THREE.Vector3(0, 0.3, 400), yaw: Math.PI };
     const c = createCombatant('Prévia', TEAM_COLORS[0], sp, false); setGunShape(c, WEAPONS[WI('rifle')]);
     const base = mesh(CYL, 0x2a2f36, 2.2, 0.3, 2.2, 0, 0.15, 400, world);
-    skinView = { c, base, spin: Math.PI * 0.85 };
+    // fundo de estúdio: cúpula escura com degradê e chão escuro, para a pedra e a arma aparecerem
+    const cv = document.createElement('canvas'); cv.width = 4; cv.height = 256; const g = cv.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#0c1016'); gr.addColorStop(0.55, '#1c2530'); gr.addColorStop(1, '#2f3b48'); g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(40, 24, 16), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), side: THREE.BackSide, fog: false }));
+    dome.position.set(0, 0, 400); world.add(dome);
+    const floor = mesh(CYL, 0x1a2028, 60, 0.1, 60, 0, 0.02, 400, world);
+    skinView = { c, base, dome, floor, spin: Math.PI * 0.85 };
   }
   renderSkins();
 }
 function closeSkins() {
   $('#skinPanel').hidden = true; $('#mainButtons').hidden = false;
-  if (skinView) { world.remove(skinView.c.group); world.remove(skinView.base); const i = combatants.indexOf(skinView.c); if (i >= 0) combatants.splice(i, 1); skinView = null; }
+  if (skinView) { world.remove(skinView.c.group); world.remove(skinView.base); world.remove(skinView.dome); world.remove(skinView.floor); const i = combatants.indexOf(skinView.c); if (i >= 0) combatants.splice(i, 1); skinView = null; }
 }
 function skinThumb(sk) {
   if (!sk) return `<i class="skt" style="background:linear-gradient(135deg, ${hex(TEAM_COLORS[0])} 50%, ${hex(TEAM_COLORS[1])} 50%)"></i>`;

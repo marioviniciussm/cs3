@@ -28,3 +28,5 @@ Todos **CC0 (domínio público)**: pode usar, mudar e vender sem pedir nem dar c
 Baixados dos espelhos em https://github.com/petroulacl/fps-asset-kit, https://github.com/Boyquotes/kenney-impact-sounds-for-godot, https://github.com/VtCasagrande/warcats-web e https://github.com/DeathByDenim/openspades-free-pak (só os arquivos marcados CC0 lá).
 
 **Tiros com peso (2026-11-03):** os tiros de arma de fogo foram refeitos a partir das faixas brutas da mesma biblioteca (CC0, em https://github.com/buddingmonkey/FreeFirearmsSFXLibrary): corte do primeiro disparo gravado atrás do atirador, tom ajustado por arma, camada grave sintetizada por baixo (o soco), estalo do gatilho/martelo logo antes do tiro e uma saturação leve. A camada grave e o estalo são gerados por código, sem amostra de terceiros.
+
+Atualização (v87): os tiros foram refeitos com camada de estrondo grave (80–350 Hz), reverberação curta, compressão forte e saturação, para ficarem bem mais altos e pesados. Mesmas gravações-base CC0 da FreeFirearmsSFXLibrary.
