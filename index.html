@@ -1404,12 +1404,13 @@ const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
     const T = TOD[tod], sky = new THREE.Color(T.sky);
     if (w === 'chuva' || w === 'neblina') sky.lerp(new THREE.Color(tod === 'noite' ? 0x10141a : 0x8a9198), tod === 'noite' ? 0.4 : 0.7);
     if (w === 'neve') sky.lerp(new THREE.Color(tod === 'noite' ? 0x1a2030 : 0xd5dde6), 0.6);
+    if (S.video.ps1 !== false) sky.lerp(new THREE.Color(tod === 'noite' ? 0x14161a : 0x6e6558), 0.72);   // céu sujo e fechado (PS1 dark fantasy)
     SKY.copy(sky); scene.background = SKY; scene.fog.color.copy(sky);
     // neblina deixa ver ~1/3 do normal (antes era ~1/8 e não dava para ver nada); chuva e neve tiram pouco
     const fogK = w === 'neblina' ? 0.35 : w === 'chuva' ? 0.8 : w === 'neve' ? 0.75 : 1;
     const pk = S.video.ps1 !== false ? 0.42 : 1; scene.fog.near = T.fog[0] * fogK * pk; scene.fog.far = T.fog[1] * fogK * pk;
-    hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2] * (w === 'limpo' ? 1 : 0.9);
-    sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1] * (w === 'limpo' ? 1 : 0.55); sun.position.set(...T.pos);
+    hemi.color.setHex(T.hemi[0]); hemi.groundColor.setHex(T.hemi[1]); hemi.intensity = T.hemi[2] * (w === 'limpo' ? 1 : 0.9) * (S.video.ps1 !== false ? 0.8 : 1);
+    sun.color.setHex(T.sun[0]); sun.intensity = T.sun[1] * (w === 'limpo' ? 1 : 0.55) * (S.video.ps1 !== false ? 0.7 : 1); sun.position.set(...T.pos);
     vmHemi.intensity = T.vm[0]; vmSun.intensity = T.vm[1];
     // lampião na noite: luz quente em volta de você (o chão é iluminado por vértice, então luz pontual funciona melhor que lanterna)
     if (T.lamp && !this.lamp) { this.lamp = new THREE.PointLight(0xffdcae, 1.25, 26, 1); scene.add(this.lamp); }
@@ -1580,14 +1581,20 @@ const RealTex = {
   bump: { paving: 1.1, ground: 0.9, grass: 0.6, concrete: 0.8, block: 1.1, crate: 1, metal: 0.9, plain: 0.6, tile: 0.8 },
   shine: { metal: [0x3a3a3a, 40], tile: [0x2a2a2a, 30], concrete: [0x101010, 10] },
   on() { return S.video.tex !== false && location.protocol !== 'file:'; },
-  ready(kind) { return this.col.has(kind) && this.nrm.has(kind); },
+  ps1() { return S.video.ps1 !== false; },
+  ready(kind) { return this.col.has(kind) && (this.ps1() || this.nrm.has(kind)); },
   load() {
     if (this.started || !this.on()) return; this.started = true;
     const L = new THREE.TextureLoader(), an = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    const get = (kind, suf, map) => L.load(`textures/${kind}${suf}.jpg`, t => {
+    const get = (kind, suf, map) => { if (this.ps1() && suf) return; L.load(`textures/${kind}${suf}.jpg`, t => {
+      if (this.ps1()) {   // PS1: reduz a foto para 64x64, escurece, suja e reduz as cores; sem filtro suave
+        const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'); x.drawImage(t.image, 0, 0, 64, 64);
+        const im = x.getImageData(0, 0, 64, 64), d = im.data; for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 18; for (let k = 0; k < 3; k++) d[i + k] = Math.round(Math.max(0, Math.min(255, (d[i + k] * 0.82 + n))) / 24) * 24; } x.putImageData(im, 0, 0);
+        t = new THREE.CanvasTexture(cv); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapNearestFilter;
+      }
       t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = an; map.set(kind, t);
       if (this.ready(kind)) this.upgrade(kind);
-    }, undefined, () => {});
+    }, undefined, () => {}); };
     for (const k of this.kinds) { get(k, '', this.col); get(k, '_n', this.nrm); }
   },
   // põe a foto nos materiais que já existem (mapa montado antes de terminar de baixar)
@@ -1596,7 +1603,7 @@ const RealTex = {
     renderer.shadowMap.needsUpdate = true;
   },
   apply(m, kind) {
-    m.map = this.col.get(kind); m.normalMap = this.nrm.get(kind);
+    m.map = this.col.get(kind); m.normalMap = this.ps1() ? null : this.nrm.get(kind);
     const b = this.bump[kind] || 1; m.normalScale.set(b, b); m.needsUpdate = true;
   },
 };
@@ -1882,7 +1889,7 @@ function tileFloor(px1, py1, px2, py2, color, y = 0.006) {
   const rep = real ? 5.4 : 0.9, t = (real ? RealTex.col.get('tile') : tileTex).clone(); t.needsUpdate = true; t.repeat.set(w / rep, d / rep);
   // Phong: no Lambert a sombra do sol apaga também a luz das lâmpadas (o teto faz sombra na sala toda)
   const fm = new THREE.MeshPhongMaterial({ color, map: t, specular: real ? 0x2a2a2a : 0x181818, shininess: real ? 30 : 12 });
-  if (real) { const n = RealTex.nrm.get('tile').clone(); n.needsUpdate = true; n.repeat.copy(t.repeat); fm.normalMap = n; fm.normalScale.set(0.8, 0.8); }
+  if (real && RealTex.nrm.get('tile')) { const n = RealTex.nrm.get('tile').clone(); n.needsUpdate = true; n.repeat.copy(t.repeat); fm.normalMap = n; fm.normalScale.set(0.8, 0.8); }
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), fm);
   m.rotation.x = -Math.PI / 2; m.position.set(pxX((px1 + px2) / 2), y, pxZ((py1 + py2) / 2)); m.receiveShadow = true; world.add(m);
 }
@@ -10264,7 +10271,7 @@ function buildFountain() {
   const inner = texCyl(mesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 40, 1, true), 0x8fc6dc, 6.3, 0.6, 6.3, 0, 0.32, 0, world), 'tile', 0.8); inner.material.side = THREE.BackSide;
   const floor = mesh(CYL, 0x8fc6dc, 6.3, 0.02, 6.3, 0, 0.06, 0, world); if (tex) floor.material = texMatRep(0x8fc6dc, 'tile', 3, 3);
   const waterM = new THREE.MeshPhongMaterial({ color: 0x3f8fc4, transparent: true, opacity: 0.72, specular: 0x9ab8cc, shininess: 90, depthWrite: false });
-  if (tex && RealTex.ready('ground')) { const n = RealTex.nrm.get('ground').clone(); n.needsUpdate = true; n.repeat.set(2, 2); waterM.normalMap = n; waterM.normalScale.set(0.25, 0.25); }
+  if (tex && RealTex.ready('ground') && RealTex.nrm.get('ground')) { const n = RealTex.nrm.get('ground').clone(); n.needsUpdate = true; n.repeat.set(2, 2); waterM.normalMap = n; waterM.normalScale.set(0.25, 0.25); }
   const water = new THREE.Mesh(new THREE.CircleGeometry(3.15, 40), waterM); water.rotation.x = -Math.PI / 2; water.position.y = 0.5; world.add(water);
   // coluna e taça torneadas (perfil girado)
   const prof = [[0.5, 0], [0.55, 0.12], [0.36, 0.3], [0.3, 1.2], [0.34, 1.5], [0.26, 1.75], [0.3, 1.95], [1.25, 2.1], [1.4, 2.28], [1.3, 2.36], [0.2, 2.36], [0.2, 2.6], [0.3, 2.7], [0, 2.75]];
