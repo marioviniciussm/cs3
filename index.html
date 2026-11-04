@@ -2399,7 +2399,10 @@ function elbowPos(out, sh, hand, a, b, pole) {
 const ARM_A = 0.27, ARM_B = 0.27, LEG_A = 0.44, LEG_B = 0.44, HIP_Y = 0.9;
 
 // peças do corpo, usadas tanto no boneco vivo quanto no ragdoll (mesma geometria e material)
-const faceTexCache = new Map(), dirtTexCache = new Map();
+let kitN = 0;
+const faceTexCache = new Map(), dirtTexCache = new Map(), FACE_IMGS = [];
+// rostos de fotos (faces/f0.png...: já reduzidos para 128x64 no formato da cabeça); ficam só no artefato privado, não vão para o repositório público
+(() => { for (let i = 0; i < 6; i++) { const im = new Image(); im.onload = () => { const t = new THREE.Texture(im); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true; FACE_IMGS[i] = t; }; im.src = 'faces/f' + i + '.png'; } })();
 // textura pintada (como nos jogos de PS1): rosto com olhos, sobrancelhas, barba por fazer e cabelo; pequena e sem filtro
 function faceTex(skin, hair, seed) {
   const key = skin + '_' + hair + '_' + seed; if (faceTexCache.has(key)) return faceTexCache.get(key);
@@ -2433,7 +2436,9 @@ function bodyKit(c) {
   const tc = new THREE.Color(c.color); const skinHex = new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex(); { const h = {}; tc.getHSL(h); tc.setHSL(h.h, h.s * 0.55, h.l * 0.62); }   // paleta suja e escura (PS1 dark fantasy)
   const M = { shirt: own(tc.getHex(), dt), pants: own(tc.clone().multiplyScalar(0.38).getHex(), dt), vest: own(tc.clone().multiplyScalar(0.62).getHex(), dt),
     gear: own(0x2a2a2e, dt), skin: own(new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex()), shoe: own(0x1c1a1a), eye: mat(C.black), team: own(tc.getHex()) };
-  const hairHex = [0x1c1410, 0x3a2a1c, 0x5a4026, 0x2a2420][seed % 4]; M.hair = own(hairHex); M.face = own(0xffffff, faceTex(skinHex, hairHex, seed % 5)); c.mats = [M.hair, M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team, M.face];
+  const hairHex = [0x1c1410, 0x3a2a1c, 0x5a4026, 0x2a2420][seed % 4]; M.hair = own(hairHex); const photos = FACE_IMGS.filter(Boolean), pick = (kitN++) % (photos.length + 2), isPh = pick < photos.length; M.photo = isPh; M.face = own(isPh ? 0x999999 : 0xffffff, isPh ? photos[pick] : faceTex(skinHex, hairHex, seed % 5));
+  if (isPh) { M.face.color.setScalar(1.45); M.hair.transparent = true; M.hair.opacity = 0; M.hair.depthWrite = false; }
+  /* o cabelo já está na textura da foto */ c.mats = [M.hair, M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team, M.face];
   return M;
 }
 const PART = {
@@ -2448,13 +2453,13 @@ const PART = {
   belt: (M) => { const m = new THREE.Mesh(LPC, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
   pelvis: (M) => { const m = new THREE.Mesh(LPS, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
   head: (M) => {
-    const g = new THREE.Group();
+    const g = new THREE.Group(); g.scale.setScalar(0.8);   // cabeça em proporção humana
     const h = new THREE.Mesh(HEAD_GEO, M.face); h.scale.set(0.3, 0.36, 0.31); g.add(h); g.userData.skull = h;
     const helmet = new THREE.Mesh(HELMET_GEO, M.hair); helmet.scale.set(0.325, 0.24, 0.335); helmet.position.set(0, 0.085, 0.012); g.add(helmet); helmet.userData.helm = 1;
     const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.001, 0.001, 0.001); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
-    const nose = new THREE.Mesh(LPS, M.skin); nose.scale.set(0.028, 0.05, 0.045); nose.position.set(0, -0.045, -0.15); g.add(nose);
+    const nose = new THREE.Mesh(LPS, M.skin); nose.visible = !M.photo; nose.scale.set(0.028, 0.05, 0.045); nose.position.set(0, -0.045, -0.15); g.add(nose);
     // boca em 3 quadros: fechada, toda aberta (exagerada, com língua) e meio torta
-    const mouth = new THREE.Mesh(BOX, M.eye); mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
+    const mouth = new THREE.Mesh(BOX, M.photo ? mat(C.black) : M.eye); if (M.photo) { mouth.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 }); } mouth.scale.set(0.07, 0.012, 0.01); mouth.position.set(0, -0.105, -0.138); g.add(mouth);
     const open = new THREE.Group(); open.position.set(0, -0.11, -0.128); g.add(open); open.visible = false;
     const om = new THREE.Mesh(LPS, M.eye); om.scale.set(0.085, 0.085, 0.03); open.add(om);
     const tongue = new THREE.Mesh(LPS, mat(0xd2475a)); tongue.scale.set(0.05, 0.03, 0.02); tongue.position.set(0, -0.022, -0.008); open.add(tongue);
@@ -2502,8 +2507,8 @@ function buildModel(c) {
   add(PART.vest(M), upper, null, 0, 1.22, 0);
   const trap = add(new THREE.Mesh(LPS, M.shirt), upper, null, 0, 1.5, 0.01); trap.scale.set(0.3, 0.09, 0.19);   // trapézio liga ombros e pescoço
   add(PART.belt(M), upper, null, 0, 0.95, 0);
-  const neck = add(new THREE.Mesh(LPC, M.skin), upper, null, 0, 1.54, 0); neck.scale.set(0.1, 0.08, 0.1);
-  const head = add(PART.head(M), upper, 'head', 0, 1.69, 0);
+  const neck = add(new THREE.Mesh(LPC, M.skin), upper, null, 0, 1.57, 0); neck.scale.set(0.085, 0.14, 0.085);
+  const head = add(PART.head(M), upper, 'head', 0, 1.675, 0);
   const arm = side => ({ sh: add(PART.shoulder(M), upper, 'body', side * 0.25, 1.44, 0), up: add(PART.upArm(M), upper, 'body'), fo: add(PART.foreArm(M), upper, 'body'),
     el: add(PART.elbow(M), upper), hand: add(PART.hand(M), upper) });
   const armL = arm(-1), armR = arm(1);
