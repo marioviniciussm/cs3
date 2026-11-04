@@ -1697,7 +1697,7 @@ function bakeWorld() {
 }
 const ground = { items: [], nades: [], proj: [], seq: 0 }, boomFx = [], sprays = new Map();
 let chatOpen = false;
-function newWorld() {
+function newWorld() { if (typeof clearCorpses === "function") try { clearCorpses(); } catch (e) {}
   if (world) scene.remove(world);
   if (Atmos.tod !== 'dia' || Atmos.w !== 'limpo') Atmos.apply('dia', 'limpo');
   ground.items.length = 0; ground.nades.length = 0; boomFx.length = 0; sprays.clear();
@@ -2467,7 +2467,7 @@ const PART = {
   belt: (M) => { const m = new THREE.Mesh(LPC, M.gear); m.scale.set(0.4, 0.07, 0.29); return m; },
   pelvis: (M) => { const m = new THREE.Mesh(LPS, M.pants); m.scale.set(0.37, 0.22, 0.25); return m; },
   head: (M) => {
-    const g = new THREE.Group(); g.scale.setScalar(0.8);   // cabeça em proporção humana
+    const g = new THREE.Group(); g.scale.setScalar(M.photo ? 1.0 : 0.8);   // cabeça em proporção humana (a de foto é um pouco maior)
     const h = new THREE.Mesh(M.photo ? HEAD_GEO_PH : HEAD_GEO, M.face); if (!M.photo) h.scale.set(0.255, 0.33, 0.28); g.add(h); g.userData.skull = h;
     const helmet = new THREE.Mesh(HELMET_GEO, M.hair); helmet.scale.set(0.325, 0.24, 0.335); helmet.position.set(0, 0.085, 0.012); g.add(helmet); helmet.userData.helm = 1;
     const brim = new THREE.Mesh(BOX, M.gear); brim.scale.set(0.001, 0.001, 0.001); brim.position.set(0, 0.03, -0.16); g.add(brim); brim.userData.helm = 1;
@@ -2653,6 +2653,19 @@ function sinkCorpse(c) {
   if (k >= 1) { c.ragGroup.visible = false; return; }
   c.ragGroup.position.y = -0.45 * k * k;
 }
+// ao renascer, o corpo antigo fica no chão (mesmo ragdoll) até afundar; o bot ganha um novo grupo na próxima morte
+const corpses = []; let corpseFrame = -1;
+function leaveCorpse(c) {
+  if (!c.rag || !c.ragGroup) { endRagdoll(c); return; }
+  corpses.push({ g: c.ragGroup, t: now }); c.ragGroup = null; c.ragMeshes = null; c.rag = null; c.vis.visible = true;
+  while (corpses.length > 14) { const o = corpses.shift(); if (o.g.parent) o.g.parent.remove(o.g); }
+}
+function updateCorpses() {
+  if (corpseFrame === now) return; corpseFrame = now;
+  for (let i = corpses.length - 1; i >= 0; i--) { const o = corpses[i], k = (now - o.t - 12) / CORPSE_SINK;
+    if (k >= 1) { if (o.g.parent) o.g.parent.remove(o.g); corpses.splice(i, 1); } else if (k > 0) o.g.position.y = -0.45 * k * k; }
+}
+function clearCorpses() { for (const o of corpses) if (o.g.parent) o.g.parent.remove(o.g); corpses.length = 0; }
 function ragCollide(q) {
   const x = q.x;
   if (x.y < RAG_R) { x.y = RAG_R; q.p.x += (x.x - q.p.x) * 0.35; q.p.z += (x.z - q.p.z) * 0.35; }
@@ -2803,7 +2816,7 @@ function animateModel0(c, dt) {
     if (!c.rag) startRagdoll(c);
     if (stepRagdoll(c, dt)) poseRagdoll(c);
     if (c.rag && c.rag.still > 1 && !c.rag.pool) { c.rag.pool = true; const P = c.rag.pts; Blood.pool(P[RI.back].x.clone().add(P[RI.pelvis].x).multiplyScalar(0.5)); }
-    sinkCorpse(c);
+    sinkCorpse(c); updateCorpses();
     return;
   }
   if (c.rag) endRagdoll(c);
@@ -2905,7 +2918,7 @@ function damage(victim, amount, attacker, weapon, zone, dir) {
 
 function respawn(c, sp) {
   c.pos.copy(sp.pos); c.yaw = sp.yaw; c.pitch = 0; c.vel.set(0, 0, 0); c.hp = c.maxHp; c.alive = true; c.deathT = -1; c.lastAttacker = null; c.respawnAt = -1; c.crouch = 0; c.h = 1.8;
-  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) endRagdoll(c); c.spawnAt = now;
+  c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) leaveCorpse(c); c.spawnAt = now;
   if (c.isPlayer && classesOn()) { applyClassStats(c, myClass); c.hp = c.maxHp; }
   if (c.isPlayer) resetPlayerWeapons(); else if (c.bot) { c.weapon.magNow = c.weapon.w.mag; c.bot.target = null; c.bot.hasWp = false; }
 }
@@ -6536,6 +6549,27 @@ function skinTex(sk) {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; const rep = sk.rep || 2; tex.repeat.set(rep, rep);
   texCache.set(sk.id, tex); return tex;
 }
+// uniforme de combate em mapa único: camuflado + costuras + bolsos pintados na própria textura (tom cinza, tingido pela cor do time)
+const uniTexCache = {};
+function uniTex(kind) {
+  if (uniTexCache[kind]) return uniTexCache[kind];
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d'), im = g.createImageData(S, S), d = im.data;
+  const rnd = (i, j, sd) => { let h = (i * 374761393 + j * 668265263 + sd * 2147483647) | 0; h = (h ^ (h >> 13)) * 1274126177 | 0; return ((h ^ (h >> 16)) >>> 0) / 4294967295; };
+  const vn = (x, y, sd, per) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), a = (i, j) => rnd(((i % per) + per) % per, j, sd);
+    return (a(xi, yi) * (1 - sx) + a(xi + 1, yi) * sx) * (1 - sy) + (a(xi, yi + 1) * (1 - sx) + a(xi + 1, yi + 1) * sx) * sy; };
+  const sd = kind === 'pants' ? 7 : kind === 'vest' ? 3 : 11, tones = kind === 'pants' ? [0.62, 0.95, 1.3, 0.3] : [0.68, 1.0, 1.4, 0.32];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const n = vn(x / 32, y / 32, sd, 4) * 0.6 + vn(x / 16, y / 16, sd + 1, 8) * 0.4, n2 = vn(x / 21.3 + 3, y / 16, sd + 2, 6);
+    const t = n > 0.62 ? tones[2] : n > 0.47 ? tones[1] : n2 > 0.66 ? tones[3] : tones[0], v = Math.round(t * 255 * (0.96 + 0.08 * rnd(x, y, 5)));
+    const k = (y * S + x) * 4; d[k] = d[k + 1] = d[k + 2] = Math.min(255, v); d[k + 3] = 255; }
+  g.putImageData(im, 0, 0);
+  const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  if (kind === 'shirt') { rect(0, 0, S, 7, '#555'); rect(0, S - 5, S, 5, '#666'); for (let x = 0; x < S; x += 32) rect(x, 10, 1, S - 20, 'rgba(0,0,0,0.25)'); }
+  if (kind === 'pants') { rect(0, 0, S, 6, '#4a4a4a'); rect(0, S - 6, S, 6, '#4a4a4a'); for (const x of [10, 74]) { rect(x, 36, 42, 34, 'rgba(0,0,0,0.38)'); rect(x + 2, 38, 38, 4, 'rgba(255,255,255,0.18)'); rect(x + 18, 36, 4, 8, '#333'); } rect(0, 20, S, 1, 'rgba(0,0,0,0.3)'); }
+  if (kind === 'vest') { g.fillStyle = '#777'; g.fillRect(0, 0, S, S); for (let y = 0; y < S; y += 6) rect(0, y, S, 1, 'rgba(0,0,0,0.28)');   // trilhos MOLLE
+    for (const [px, py, pw, ph] of [[8, 10, 34, 40], [47, 10, 34, 40], [86, 10, 34, 40], [10, 66, 50, 44], [68, 66, 50, 44]]) { rect(px, py, pw, ph, '#bdbdbd'); rect(px, py, pw, 5, '#d8d8d8'); rect(px + pw / 2 - 3, py + 8, 6, 8, '#555'); rect(px, py + ph - 3, pw, 3, 'rgba(0,0,0,0.4)'); } }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; uniTexCache[kind] = t; return t;
+}
 function applySkin(c, sk) { applySkin0(c, sk); CharGLB.sync(c); }
 function applySkin0(c, sk) {
   const M = c.kit; if (!M) return;
@@ -6544,7 +6578,7 @@ function applySkin0(c, sk) {
   c.skin = sk || null;
   if (!sk || !sk.model) detachModel(c);
   if (sk && sk.model) { attachModel(c, sk); sk = null; }
-  if (!sk) { set(M.shirt, c.color); set(M.pants, tc.clone().multiplyScalar(0.35)); set(M.vest, tc.clone().multiplyScalar(0.62)); set(M.gear, 0x34373d); return; }
+  if (!sk) { { const tm = (base, k, mul) => new THREE.Color(base).lerp(new THREE.Color(c.color), k).multiplyScalar(mul); set(M.shirt, tm(0x8f8a5c, 0.3, 1.2), uniTex('shirt')); set(M.pants, tm(0x756b4a, 0.18, 1.1), uniTex('pants')); set(M.vest, tm(0x55584a, 0.28, 1.1), uniTex('vest')); } set(M.gear, 0x34373d); return; }
   const tex = skinTex(sk);
   if (sk.img) {
     set(M.shirt, 0xffffff, tex);
@@ -10659,7 +10693,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { tryFire, SKIN_PRESETS, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { get corpses() { return corpses; }, tryFire, SKIN_PRESETS, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
