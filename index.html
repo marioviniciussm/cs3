@@ -1741,11 +1741,13 @@ function pillar(x, z, h, color) {
   colliders.push({ min: new THREE.Vector3(x - 0.6, 0, z - 0.6), max: new THREE.Vector3(x + 0.6, h, z + 0.6) });
 }
 function label(text, x, y, z, size = 1) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 96;
-  const g = c.getContext('2d'); g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 256, 96);
-  g.fillStyle = '#fff'; g.font = 'bold 54px "Chakra Petch", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 50);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c) }));
-  sp.position.set(x, y, z); sp.scale.set(2.4 * size, 0.9 * size, 1); world.add(sp);
+  const c = document.createElement('canvas'); c.height = 96; const g = c.getContext('2d'), font = 'bold 54px "Chakra Petch", sans-serif';
+  g.font = font; const tw = Math.ceil(g.measureText(text).width) + 40; c.width = Math.max(256, tw); g.font = font;   // largura acompanha o texto (antes cortava "Arena de bots")
+  g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, c.width, 96);
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, c.width / 2, 50);
+  const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t }));
+  sp.position.set(x, y, z); sp.scale.set(2.4 * size * c.width / 256, 0.9 * size, 1); world.add(sp);
 }
 function facing(x, z, tx = 0, tz = 0) { return Math.atan2(-(tx - x), -(tz - z)); }
 
@@ -2390,11 +2392,22 @@ const headShape = g => { const p = g.attributes.position;
     p.setXYZ(i, x, y, z); }
   g.computeVertexNormals(); return g; };
 const HEAD_GEO = headShape(new THREE.SphereGeometry(0.5, 16, 14));
-const HEAD_GEO_PH = (() => { const g = headShape(new THREE.SphereGeometry(0.5, 16, 14)), p = g.attributes.position, uv = g.attributes.uv, v0 = 16 / 144;
+const HEAD_GEO_PH = (() => { const g = new THREE.SphereGeometry(0.5, 28, 24), p = g.attributes.position, uv = g.attributes.uv;
   const ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = ss(-0.04, 0.16, z);   // costas da cabeça: faixa de cor de cabelo
-    const fu = 0.5 - x / 0.3 * 0.5, fv = v0 + (y * 0.88 + 0.45) * (1 - v0); uv.setXY(i, fu + (0.5 - fu) * t, fv + (v0 * 0.4 - fv) * t); }
-  return g; })();
+  // relevo do rosto (nariz, sobrancelha, órbitas, maçãs, lábios, queixo) no mesmo layout que a textura alinhada por pontos de referência
+  const bump = (x, y, cx, cy, sx, sy, a) => a * Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
+  const pre = [];
+  for (let i = 0; i < p.count; i++) pre.push([p.getX(i), p.getY(i), p.getZ(i)]);
+  headShape(g);
+  for (let i = 0; i < p.count; i++) { const [x0, y0, z0] = pre[i], ax = Math.abs(x0), t = ss(-0.04, 0.16, z0);
+    if (z0 > 0) { const f = ss(0.0, 0.25, z0);
+      const d = bump(ax, y0, 0, -0.03, 0.05, 0.11, 0.07) + bump(ax, y0, 0, -0.10, 0.05, 0.035, 0.05) + bump(ax, y0, 0.07, -0.10, 0.03, 0.03, 0.02)
+        + bump(ax, y0, 0, 0.14, 0.32, 0.035, 0.03) - bump(ax, y0, 0.15, 0.065, 0.07, 0.04, 0.03) + bump(ax, y0, 0.26, -0.04, 0.09, 0.07, 0.025)
+        + bump(ax, y0, 0, -0.176, 0.09, 0.025, 0.035) - bump(ax, y0, 0, -0.235, 0.07, 0.02, 0.02) + bump(ax, y0, 0, -0.33, 0.08, 0.05, 0.05) - bump(ax, y0, 0.45, 0.1, 0.05, 0.12, 0.02);
+      p.setZ(i, p.getZ(i) + d * f); }
+    const fu = 0.5 - x0, fv = 1 - (0.42 - y0) * 165 / 160;   // layout canônico 128x160: linhas 0-143 foto, 144-159 faixa de cabelo
+    uv.setXY(i, fu + (0.5 - fu) * t, fv + (0.04 - fv) * t); }
+  g.computeVertexNormals(); return g; })();
 const HELMET_GEO = facet(new THREE.SphereGeometry(0.5, 8, 3, 0, Math.PI * 2, 0, Math.PI * 0.5));
 const UP = new THREE.Vector3(0, 1, 0), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q1 = new THREE.Quaternion();
 function aimSeg(m, from, to) { m.position.copy(from); _v1.subVectors(to, from).normalize(); m.quaternion.setFromUnitVectors(UP, _v1); }
