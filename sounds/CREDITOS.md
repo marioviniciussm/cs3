@@ -40,3 +40,11 @@ v90: tiros sem camadas sintéticas. Cada tiro é a gravação real (FreeFirearms
 ## v102
 - revolver.ogg (Colt M1917) e deagle.ogg (1911): gravações reais da FreeFirearmsSFXLibrary (CC0), sem camadas sintéticas; só corte, filtro de graves e limitador suave.
 - knife0-2 (ar cortado): ruído de sala de uma gravação CC0 da mesma biblioteca, filtrado por banda que varre de grave a agudo. knifeHit0-2 e knifeWall0-2: impactos do Kenney "Impact Sounds" (CC0).
+
+## v109 — pacote de gravações em `sounds2/` (armas, passos, pouso, dano, facas)
+Arquivos enviados pelo dono do projeto (Mário), que informou que o pacote é CC0. Os nomes dos arquivos originais
+(ak47, awp, glock18, negev, nova etc.) sugerem gravações do tipo CS:GO; a licença não foi verificada de forma
+independente. O dono assumiu a responsabilidade pelo uso, informando que o jogo é um projeto pessoal, sem fins
+lucrativos, jogado só por ele e poucos amigos. Convertidos para .ogg, mistura do tiro com a cauda distante e
+volume ajustado ao dos sons anteriores (script de conversão fora do repositório). Se `sounds2/` for removida, o
+jogo volta sozinho aos sons de `sounds/`.

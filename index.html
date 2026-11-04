@@ -1269,14 +1269,20 @@ function initAudio() {
 // sons gravados (opcional): se o site tiver a pasta sounds/ com um sons.json, cada arquivo listado ali troca o som
 // sintetizado de mesmo nome (ex.: { "pistol": "pistol.ogg", "step0": "passo1.ogg" }). Use só sons de licença
 // livre (CC0 / domínio público). Sem a pasta, fica tudo sintetizado como antes. Ver sounds/LEIAME.md
+const VARN = {}, VARLAST = {};
 async function loadSoundPack() {
   if (location.protocol === 'file:') return;   // no arquivo local o navegador bloqueia; no site e na prévia jogável funciona
-  let list; try { const r = await fetch('sounds/sons.json', { cache: 'no-cache' }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
-  if (!list || typeof list !== 'object') return;
-  await Promise.all(Object.entries(list).map(async ([name, file]) => {
-    if (!/^[a-zA-Z0-9]+$/.test(name) || typeof file !== 'string' || !/^[\w.\-\/]+$/.test(file) || file.includes('..')) return;
-    try { const r = await fetch('sounds/' + file); if (!r.ok) return; buffers[name] = await actx.decodeAudioData(await r.arrayBuffer()); } catch (e) {}
-  }));
+  const load = async dir => {
+    let list; try { const r = await fetch(dir + '/sons.json', { cache: 'no-cache' }); if (!r.ok) return; list = await r.json(); } catch (e) { return; }
+    if (!list || typeof list !== 'object') return;
+    await Promise.all(Object.entries(list).map(async ([name, file]) => {
+      if (!/^[a-zA-Z0-9]+$/.test(name) || typeof file !== 'string' || !/^[\w.\-\/]+$/.test(file) || file.includes('..')) return;
+      try { const r = await fetch(dir + '/' + file); if (!r.ok) return; buffers[name] = await actx.decodeAudioData(await r.arrayBuffer()); } catch (e) {}
+    }));
+  };
+  await load('sounds');
+  await load('sounds2');   // pacote opcional de gravações (fora do git): sobrescreve os sons e traz variações (nome0, nome1...)
+  for (const n of Object.keys(buffers)) { if (/\d$/.test(n)) continue; let k = 0; while (buffers[n + k]) k++; if (k > 1) VARN[n] = k; }
 }
 function applyVolume() { if (master) master.gain.value = S.audio.master; }
 // som 3D: cada som de outro jogador sai de onde ele está (frente/trás/lados, com fones fica bem claro),
@@ -1318,9 +1324,11 @@ const STEPPY = { step: 1, land: 1 };
 const GUN_VOL = { pistol: 2.5, deagle: 3.0, revolver: 3.4, smg: 2.2, rifle: 2.8, lmg: 3.4, semi: 3.1, sniper: 7.5, shotgun: 6.5, musket: 3.9, blunder: 3.9, minigun: 2.4 };
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
-  if ((name === 'knife' || name === 'knifeHit' || name === 'knifeWall') && buffers[name + '0']) name += (Math.random() * 3 | 0);   // variações gravadas, para não repetir sempre o mesmo som
-  if (GUN_VOL[name]) vol *= GUN_VOL[name];
-  const stepLike = name.startsWith('step') || /^st[A-Z]/.test(name) || STEPPY[name];
+  const base0 = name;
+  if (VARN[name]) { const n0 = VARN[name]; let k = Math.random() * n0 | 0; if (k === VARLAST[name]) k = (k + 1) % n0; VARLAST[name] = k; name += k; }   // variações gravadas, sem repetir a mesma duas vezes seguidas
+  else if ((name === 'knife' || name === 'knifeHit' || name === 'knifeWall') && buffers[name + '0']) name += (Math.random() * 3 | 0);
+  if (GUN_VOL[base0]) vol *= GUN_VOL[base0];
+  const stepLike = name.startsWith('step') || /^st[A-Z]/.test(name) || STEPPY[base0];
   if (!actx || !buffers[name]) return;
   const src = actx.createBufferSource(); src.buffer = buffers[name];
   const g = actx.createGain(); let v = vol * S.audio.sfx;
@@ -10694,7 +10702,7 @@ $('#chLevel').onchange = e => { Chess.level = clamp(+e.target.value | 0, 0, 2); 
 $('#chDuel').onclick = () => { const m = Chess.pending; if (m && m.from != null) { Chess.pending = null; Chess.startDuel(m); } };
 $('#bNetChess').onclick = () => Chess.startOnline();
 
-window.__cs3 = { get corpses() { return corpses; }, tryFire, SKIN_PRESETS, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
+window.__cs3 = { get snd() { return { VARN, n: Object.keys(buffers).length, ac: !!actx }; }, get corpses() { return corpses; }, tryFire, SKIN_PRESETS, RealTex, texMatCache, GunGLB, CharGLB, VMArms, surfaceAt, selectWeapon, buildSlots, tryReload, Prof, Friends, ACH, renderProfile, ME, ED, edRebuild, vmModels, vmRoot, Horde, Rol, ROL, damage, get GRAV() { return GRAV; }, get SPEED() { return SPEED_MULT; }, Chess, Ab, Plaza, startPlaza, chNew, chApply, chLegal, chAllLegal, chBotMove, chResult, computeSpread, acceptMove, mouseFilter, look, startAnim, setGunShape, Admin, runCommand, openAdmin, thirdAim, shotEye, trace, scene,  get combatants() { return combatants; }, Voice, updateMouth, get nBuilds() { return [...builds.values()].map(b => b.id + ':' + Math.round(b.hp)).join(',') || 0; }, renderer, camera, heroAt(i, t) { heroShot = i; heroShotT = t; }, get menuHero() { return menuHero; }, sprays, get SPRAY() { return SPRAY; }, tMove, tLook, assist, touchOn, startDeathmatch, startDev, startX1, startAim, loadAim, ground, applySkin, get SKINS() { return SKINS; }, openSkins, modelTemplate, modelBufs, Net, onNetMsg, get mode() { return mode; }, pw, pv, get X1() { return X1; }, WEAPONS, MAPS,
   held, pressed, step(dt) { now += dt; updatePlayer(dt); updateCamera(dt); updateWeapons(dt); for (const c of combatants) if (c.bot) updateBot(c, dt); if (mode) mode.update(dt); for (const c of combatants) animateModel(c, dt); updateFx(dt); updateGround(dt); updateBoomFx(dt); kcRecord(); pressed.clear(); }, get state() { return { state, paused, players: combatants.length, alive: combatants.filter(c => c.alive).length, mode: mode && mode.type, kills: combatants.reduce((a, c) => a + c.kills, 0) }; },
   sim(seconds) { const steps = Math.round(seconds / 0.02); for (let i = 0; i < steps; i++) { now += 0.02; for (const c of combatants) if (c.bot) updateBot(c, 0.02); for (const c of combatants) animateModel(c, 0.02); mode.update(0.02); updateFx(0.02); } },
   setGunShape, occluded, play, actx: () => actx, S, ggLv, buffers, get colliders() { return colliders; }, get mapInfo() { return mapInfo; }, chState: () => ({ chK, chD, chKey }), fire() { updateCamera(0); pw.drawT = 0; pw.nextFire = 0; tryFire(true); return { mag: active().mag }; }, player: () => player, combatants };
