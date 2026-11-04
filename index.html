@@ -3901,7 +3901,7 @@ var CAMO_REP = 450;   // o modelo dos braços está em unidades de 100 m: ~1 lad
 const VMArms = {
   rigs: null, team: -1,
   build(side) {
-    const T = CharGLB.tpl[(player.team | 0) % 2] || CharGLB.tpl.find(Boolean); if (!T) return null;   // braços com dedos (o corpo-base só tem luva inteiriça)
+    const okT = t => t && t.rest && t.rest['Hand' + side] && t.rest['Middle4' + side], T = okT(CharGLB.tpl[(player.team | 0) % 2]) ? CharGLB.tpl[(player.team | 0) % 2] : CharGLB.tpl.find(okT); if (!T) return null;   // braços com dedos (o corpo-base só tem luva inteiriça)
     const root = CharGLB.clone(T), bones = {}, mats = {}, order = [];
     root.traverse(o => {
       if (o.isBone) { bones[o.name] = o; order.push(o); }
@@ -3933,6 +3933,11 @@ const VMArms = {
   update(m, show) {
     const ok = show && m && CharGLB.on() && CharGLB.state === 'ready' && player;
     if (!ok) { VMHands.hide(); if (this.rigs) this.rigs.forEach(r => r.root.visible = false); vmModels.forEach(v => this.hideOld(v, false)); return; }
+    if (CharGLB.base()) {   // corpo-base: mãos procedurais, nada de montar o braço do Swat (no time 2 o modelo não tem esses ossos e travava o jogo do convidado)
+      vmModels.forEach(v => this.hideOld(v, v === m)); if (this.rigs) this.rigs.forEach(r => r.root.visible = false);
+      if (!m.gloves) { m.gloves = {}; m.g.traverse(o => { if (o.isMesh && o.userData.glove) m.gloves[o.userData.glove] = o; }); if (m.kLeft) m.gloves.L = m.kLeft; }
+      VMHands.update(m, m.gloves); return;
+    }
     if (!this.rigs || this.team !== (player.team | 0)) {
       if (this.rigs) this.rigs.forEach(r => vmScene.remove(r.root));
       this.rigs = [this.build('R'), this.build('L')]; this.team = player.team | 0; if (!this.rigs[0]) { this.rigs = null; return; }
