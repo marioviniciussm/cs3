@@ -3576,11 +3576,11 @@ const CharGLB = {
       }
       const ml = /^UpperLeg([LR])$/.exec(b.name);
       if (ml && R['LowerLeg' + ml[1]] && R['Foot' + ml[1]]) {   // perna: mesma ideia, o pé cai no chão onde o boneco simples pisa
-        const s = ml[1], k = T.s * sz, a = R['UpperLeg' + s].p.distanceTo(R['LowerLeg' + s].p) * k, bb = R['LowerLeg' + s].p.distanceTo(R['Foot' + s].p) * k;
+        const s = ml[1], o = s, k = T.s * sz, a = R['UpperLeg' + s].p.distanceTo(R['LowerLeg' + s].p) * k, bb = R['LowerLeg' + s].p.distanceTo(R['Foot' + s].p) * k;
         b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperLeg' + s].q); b.updateMatrixWorld(true);
-        const hp = b.getWorldPosition(new THREE.Vector3()), ft = P['ft' + s].clone(), pole = P['kn' + s].clone().sub(P['hip' + s].clone().add(P['ft' + s]).multiplyScalar(0.5));
+        const hp = b.getWorldPosition(new THREE.Vector3()), ft = P['ft' + o].clone().addScaledVector(right, o === 'R' ? 0.09 : -0.09), pole = P['kn' + o].clone().sub(P['hip' + o].clone().add(P['ft' + o]).multiplyScalar(0.5));
         pole.addScaledVector(back, -0.08);   // joelho dobra sempre para a frente (sem isso, perna esticada reta e pé afundando no chão)
-        const ls = (P['hip' + s].distanceTo(P['kn' + s]) + P['kn' + s].distanceTo(P['ft' + s])) / (a + bb);   // osso da perna com o mesmo comprimento da perna do boneco simples (a do modelo é bem mais longa e agachava o boneco)
+        const ls = (P['hip' + o].distanceTo(P['kn' + o]) + P['kn' + o].distanceTo(P['ft' + o])) / (a + bb);   // osso da perna com o mesmo comprimento da perna do boneco simples (a do modelo é bem mais longa e agachava o boneco)
         b.scale.setScalar(ls); if (B['Foot' + s]) B['Foot' + s].scale.setScalar(1 / ls);
         const kn = elbowPos(new THREE.Vector3(), hp, ft, a * ls, bb * ls, pole);
         aim('UpperLeg' + s, hp, kn, _cqB); aim('LowerLeg' + s, kn, ft, _cqB);
