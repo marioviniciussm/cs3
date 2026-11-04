@@ -2392,21 +2392,20 @@ const headShape = g => { const p = g.attributes.position;
     p.setXYZ(i, x, y, z); }
   g.computeVertexNormals(); return g; };
 const HEAD_GEO = headShape(new THREE.SphereGeometry(0.5, 16, 14));
-const HEAD_GEO_PH = (() => { const g = new THREE.SphereGeometry(0.5, 28, 24), p = g.attributes.position, uv = g.attributes.uv;
-  const ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  // relevo do rosto (nariz, sobrancelha, órbitas, maçãs, lábios, queixo) no mesmo layout que a textura alinhada por pontos de referência
+// cabeça em bloco arredondado (estilo low poly) com atlas de 6 faces (topo, baixo, direita, frente, esquerda, nuca) como skin de Minecraft.
+// No espaço local a frente do rosto é -z. Grade do atlas: linha 0 = [vazio, topo, baixo, vazio], linha 1 = [direita, frente, esquerda, nuca].
+const HEAD_GEO_PH = (() => { const g = new THREE.BoxGeometry(1, 1, 1, 8, 8, 8), p = g.attributes.position, uv = g.attributes.uv, nr = g.attributes.normal;
+  const cell = (nx, ny, nz) => nz < -0.5 ? [1, 1] : nz > 0.5 ? [3, 1] : nx > 0.5 ? [0, 1] : nx < -0.5 ? [2, 1] : ny > 0.5 ? [1, 0] : [2, 0];
   const bump = (x, y, cx, cy, sx, sy, a) => a * Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
-  const pre = [];
-  for (let i = 0; i < p.count; i++) pre.push([p.getX(i), p.getY(i), p.getZ(i)]);
-  headShape(g);
-  for (let i = 0; i < p.count; i++) { const [x0, y0, z0] = pre[i], ax = Math.abs(x0), t = ss(-0.04, 0.16, z0);
-    if (z0 > 0) { const f = ss(0.0, 0.25, z0);
-      const d = bump(ax, y0, 0, -0.03, 0.05, 0.11, 0.07) + bump(ax, y0, 0, -0.10, 0.05, 0.035, 0.05) + bump(ax, y0, 0.07, -0.10, 0.03, 0.03, 0.02)
-        + bump(ax, y0, 0, 0.14, 0.32, 0.035, 0.03) - bump(ax, y0, 0.15, 0.065, 0.07, 0.04, 0.03) + bump(ax, y0, 0.26, -0.04, 0.09, 0.07, 0.025)
-        + bump(ax, y0, 0, -0.176, 0.09, 0.025, 0.035) - bump(ax, y0, 0, -0.235, 0.07, 0.02, 0.02) + bump(ax, y0, 0, -0.33, 0.08, 0.05, 0.05) - bump(ax, y0, 0.45, 0.1, 0.05, 0.12, 0.02);
-      p.setZ(i, p.getZ(i) + d * f); }
-    const fu = 0.5 - x0, fv = 1 - (0.42 - y0) * 165 / 160;   // layout canônico 128x160: linhas 0-143 foto, 144-159 faixa de cabelo
-    uv.setXY(i, fu + (0.5 - fu) * t, fv + (0.04 - fv) * t); }
+  for (let i = 0; i < p.count; i++) {
+    const [c, r] = cell(nr.getX(i), nr.getY(i), nr.getZ(i)); uv.setXY(i, (c + uv.getX(i)) / 4, 1 - (r + 1 - uv.getY(i)) / 2);
+    let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const L = Math.hypot(x, y, z), k = 0.6; const sx = x / L * 0.5, sy = y / L * 0.5, sz = z / L * 0.5;   // arredonda os cantos do bloco
+    x += (sx - x) * k; y += (sy - y) * k; z += (sz - z) * k;
+    const jaw = Math.max(0, -y / 0.5); x *= 1 - 0.16 * jaw * jaw; z *= 1 - 0.1 * jaw;                    // maxilar mais estreito
+    if (nr.getZ(i) < -0.5) { const ax = Math.abs(x), yy = y;                                              // relevo da frente: nariz, sobrancelha, lábios, queixo
+      z -= bump(ax, yy, 0, -0.03, 0.05, 0.12, 0.06) + bump(ax, yy, 0, -0.11, 0.06, 0.04, 0.045) + bump(ax, yy, 0, 0.1, 0.3, 0.035, 0.02) + bump(ax, yy, 0, -0.2, 0.08, 0.03, 0.025) + bump(ax, yy, 0, -0.34, 0.08, 0.05, 0.03); }
+    p.setXYZ(i, x, y, z); }
   g.computeVertexNormals(); return g; })();
 const HELMET_GEO = facet(new THREE.SphereGeometry(0.5, 8, 3, 0, Math.PI * 2, 0, Math.PI * 0.5));
 const UP = new THREE.Vector3(0, 1, 0), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _m4 = new THREE.Matrix4(), _q1 = new THREE.Quaternion();
@@ -2425,7 +2424,7 @@ const ARM_A = 0.27, ARM_B = 0.27, LEG_A = 0.44, LEG_B = 0.44, HIP_Y = 0.9;
 let kitN = 0;
 const faceTexCache = new Map(), dirtTexCache = new Map(), FACE_IMGS = [];
 // rostos de fotos (faces/f0.png...: já reduzidos para 128x64 no formato da cabeça); ficam só no artefato privado, não vão para o repositório público
-(() => { for (let i = 0; i < 6; i++) { const im = new Image(); im.onload = () => { const t = new THREE.Texture(im); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true; try { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.drawImage(im, 0, 0); const d = x.getImageData(40, 58, 48, 32).data; let r = 0, g = 0, b = 0, n = d.length / 4; for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; } t.faceMean = [r / n / 255, g / n / 255, b / n / 255]; } catch (e) {} FACE_IMGS[i] = t; }; im.src = 'faces/f' + i + '.png'; } })();
+(() => { const im = new Image(); im.onload = () => { const t = new THREE.Texture(im); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.needsUpdate = true; try { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0); const cw = im.width / 4, chh = im.height / 2, d = x.getImageData(cw + cw * 0.3, chh + chh * 0.42, cw * 0.4, chh * 0.2).data; let r = 0, g = 0, b = 0, n = d.length / 4; for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; } t.faceMean = [r / n / 255, g / n / 255, b / n / 255]; } catch (e) {} FACE_IMGS[0] = t; }; im.src = 'faces/atlas0.png'; })();
 // textura pintada (como nos jogos de PS1): rosto com olhos, sobrancelhas, barba por fazer e cabelo; pequena e sem filtro
 function faceTex(skin, hair, seed) {
   const key = skin + '_' + hair + '_' + seed; if (faceTexCache.has(key)) return faceTexCache.get(key);
@@ -2459,7 +2458,7 @@ function bodyKit(c) {
   const tc = new THREE.Color(c.color); const skinHex = new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex(); { const h = {}; tc.getHSL(h); tc.setHSL(h.h, h.s * 0.55, h.l * 0.62); }   // paleta suja e escura (PS1 dark fantasy)
   const M = { shirt: own(tc.getHex(), dt), pants: own(tc.clone().multiplyScalar(0.38).getHex(), dt), vest: own(tc.clone().multiplyScalar(0.62).getHex(), dt),
     gear: own(0x2a2a2e, dt), skin: own(new THREE.Color(C.skin).lerp(new THREE.Color(0x8a7060), 0.4).getHex()), shoe: own(0x1c1a1a), eye: mat(C.black), team: own(tc.getHex()) };
-  const hairHex = [0x1c1410, 0x3a2a1c, 0x5a4026, 0x2a2420][seed % 4]; M.hair = own(hairHex); const photos = FACE_IMGS.filter(Boolean), pick = (kitN++) % (photos.length + 2), isPh = pick < photos.length; M.photo = isPh; M.face = own(isPh ? 0x999999 : 0xffffff, isPh ? photos[pick] : faceTex(skinHex, hairHex, seed % 5));
+  const hairHex = [0x1c1410, 0x3a2a1c, 0x5a4026, 0x2a2420][seed % 4]; M.hair = own(hairHex); const photos = FACE_IMGS.filter(Boolean), pick = window.__phForce && photos.length ? 0 : (kitN++) % (photos.length + 2), isPh = pick < photos.length; M.photo = isPh; M.face = own(isPh ? 0xcfcfcf : 0xffffff, isPh ? photos[pick] : faceTex(skinHex, hairHex, seed % 5));
   if (isPh) { M.face.color.setScalar(1.45); const mn = photos[pick].faceMean; if (mn) M.skin.color.setRGB(mn[0] * 1.45, mn[1] * 1.45, mn[2] * 1.45); M.hair.transparent = true; M.hair.opacity = 0; M.hair.depthWrite = false; }
   /* o cabelo já está na textura da foto */ c.mats = [M.hair, M.shirt, M.pants, M.vest, M.gear, M.skin, M.shoe, M.team, M.face];
   return M;
@@ -2490,7 +2489,7 @@ const PART = {
     const hm = new THREE.Mesh(LPS, M.eye); hm.scale.set(0.062, 0.028, 0.025); half.add(hm);
     const teeth = new THREE.Mesh(BOX, mat(0xf4f1e6)); teeth.scale.set(0.05, 0.012, 0.01); teeth.position.set(0, 0.009, -0.012); half.add(teeth);
     g.userData.mouth = [mouth, open, half];
-    const ear = new THREE.Mesh(LPS, M.skin); ear.scale.set(0.025, 0.06, 0.045); ear.position.set(0.15, -0.02, 0.01); g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.15; g.add(ear2);
+    const ear = new THREE.Mesh(LPS, M.skin); ear.scale.set(0.022, 0.058, 0.04); ear.position.set(0.128, -0.015, 0.01); ear.visible = !M.photo; g.add(ear); const ear2 = ear.clone(); ear2.position.x = -0.128; g.add(ear2);
     return g;
   },
   shoulder: (M) => { const m = new THREE.Mesh(LPS, M.shirt); m.scale.setScalar(0.11); return m; },
