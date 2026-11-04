@@ -1321,7 +1321,7 @@ function playStep(c, vol, pos, land) {
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
 // volume de cada tiro: arma grande soa maior que arma pequena (o arquivo vem todo no mesmo nível)
-const GUN_VOL = { pistol: 2.5, deagle: 3.0, revolver: 3.4, smg: 2.2, rifle: 2.8, lmg: 3.4, semi: 3.1, sniper: 7.5, shotgun: 6.5, musket: 3.9, blunder: 3.9, minigun: 2.4 };
+const GUN_VOL = { pistol: 2.2, deagle: 2.64, revolver: 2.99, smg: 1.94, rifle: 2.46, lmg: 2.99, semi: 2.73, sniper: 6.6, shotgun: 5.72, musket: 3.43, blunder: 3.43, minigun: 2.11 };   // -12% (pedido do Mário)
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
   const base0 = name;
@@ -3017,7 +3017,19 @@ function tracer(a, b) {
 }
 const impactMat = new THREE.MeshBasicMaterial({ color: 0x151515, transparent: true });
 const HOLE_LIFE = 14, HOLE_FADE = 4;   // o buraco de bala some depois de ~14 s (nos últimos 4 s vai esmaecendo)
+let _impSndT = 0;
+function impactSound(p, n) {
+  if (!actx || !buffers.impStone0 || now - _impSndT < 0.05) return; _impSndT = now;
+  _occA.copy(p).addScaledVector(n, 0.1); _stRay.set(_occA, _occB.copy(n).negate()); _stRay.far = 0.4;
+  const h = worldMeshes.length ? _stRay.intersectObjects(worldMeshes, false)[0] : null;
+  let mt = h && h.object.material; if (Array.isArray(mt)) mt = mt[0];
+  const k = mt ? mt.userData.texKind || (mt.color && texKind(mt.color.getHex())) : 'ground', sf = STEP_SURF[k] || 'Stone';
+  const kind = sf === 'Wood' ? 'impWood' : sf === 'Metal' ? 'impMetal' : 'impStone', nn = { impWood: 5, impMetal: 6, impStone: 4 }[kind];
+  play(kind + (Math.random() * nn | 0), 0.7, p, rand(0.94, 1.06));
+  if ((kind !== 'impWood') && Math.random() < 0.22 && buffers.ric0) setTimeout(() => play('ric' + (Math.random() * 5 | 0), 0.45, p, rand(0.9, 1.1)), 40);
+}
 function impact(p, n) {
+  impactSound(p, n);
   const m = new THREE.Mesh(BOX, impactMat.clone()); m.scale.set(0.06, 0.06, 0.008); m.userData.age = 0;
   m.position.copy(p).addScaledVector(n, 0.005); m.lookAt(p.clone().add(n)); world.add(m);
   impacts.push(m); if (impacts.length > 150) { const o = impacts.shift(); world.remove(o); o.material.dispose(); }
