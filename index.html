@@ -3648,6 +3648,7 @@ const CharGLB = {
   // com o queixo encostado no fim do pescoço, para nunca descolar (o capacete e o acerto na cabeça vão junto)
   headOnNeck(c, G, rag) {
     const obj = rag ? c.ragMeshes && c.ragMeshes.head : c.head, hb = G.bones.Head; if (!obj || !hb || !obj.parent) return;
+    const hs = (c.kit && c.kit.photo ? 0.82 : 0.8) * 1.15; if (obj.scale.x !== hs) obj.scale.setScalar(hs);   // no corpo-base a cabeça fica um pouco maior (Mário: estava pequena)
     G.root.updateMatrixWorld(true); const p = hb.getWorldPosition(new THREE.Vector3());
     obj.parent.updateMatrixWorld(true); obj.updateMatrixWorld(true);
     const q = obj.getWorldQuaternion(new THREE.Quaternion()), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q), back = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
