@@ -4196,7 +4196,7 @@ function computeSpread() {
   if (w.melee) return 0;
   // como no CS: parado ou andando devagar (Shift / contra-strafe) é preciso; correndo, pulando ou logo depois de cair, não
   const sf = clamp((Math.hypot(p.vel.x, p.vel.z) / RUN - 0.3) / 0.7, 0, 1);
-  const mv = w.move * sf * Math.sqrt(sf), air = p.grounded ? w.air * (pw.landT / 0.35) * 0.6 : Ab.on && Ab.pc === 'Q' ? w.air * 0.1 : w.air;
+  const mv = w.move * sf * Math.sqrt(sf), air = pv.noclip ? 0 : p.grounded ? w.air * (pw.landT / 0.35) * 0.6 : Ab.on && Ab.pc === 'Q' ? w.air * 0.1 : w.air;
   let s = w.scope ? (pw.zoom ? w.scoped : w.base + w.unscoped) + mv + air : w.base + mv + air + pw.shotSpread;
   if (w.scope && pw.zoom) {
     // AWP como no CS: a mira só assenta ~0,35 s depois de dar zoom (quickscope instantâneo erra), andando
@@ -4204,7 +4204,7 @@ function computeSpread() {
     const settle = clamp((now - pw.zoomAt) / (w.scopeIn || 0.35), 0, 1);
     s += w.unscoped * 0.55 * (1 - settle) * (1 - settle);
   }
-  if (w.scope && p.grounded) {
+  if (w.scope && (p.grounded || pv.noclip)) {
     // sniper no CS só é precisa quase parada: andando no Shift ela já abre bastante; agachado andando continua precisa
     const rel = Math.hypot(p.vel.x, p.vel.z) / (RUN * SPEED_MULT * w.speed * (p.spd || 1));
     s += w.move * 0.5 * clamp((rel - 0.28) / 0.13, 0, 1);
@@ -4304,6 +4304,11 @@ function tryFire(pressedNow, charge = 1) {
     .addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion), 0.18)
     .addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), -0.14)
     .addScaledVector(dir, 0.6);
+  // primeira pessoa: o rastro sai de onde o cano aparece na tela (e não de um ponto fixo à direita, que fazia a linha sair torta ao mirar)
+  if (!thirdOn()) { const mm = vmModels[s.wi]; if (mm && mm.muzzle && mm.g && vmRoot.visible) { try {
+    vmRoot.updateMatrixWorld(true); vmCam.updateMatrixWorld(true); camera.updateMatrixWorld(true);
+    const nd = mm.muzzle.clone().applyMatrix4(mm.g.matrixWorld).project(vmCam), rd = new THREE.Vector3(nd.x, nd.y, 0.5).unproject(camera).sub(camera.position).normalize();
+    if (isFinite(rd.x + rd.y + rd.z)) muzzleWorld.copy(camera.position).addScaledVector(rd, 0.6); } catch (e) {} } }
   let res, pv0 = null;
   if (w.proj) {
     // besta e foguete: o projétil sai um pouco à frente do olho, na direção da mira, e voa de verdade (acerto contado quando chega)
