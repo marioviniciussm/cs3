@@ -30,3 +30,5 @@ Baixados dos espelhos em https://github.com/petroulacl/fps-asset-kit, https://gi
 **Tiros com peso (2026-11-03):** os tiros de arma de fogo foram refeitos a partir das faixas brutas da mesma biblioteca (CC0, em https://github.com/buddingmonkey/FreeFirearmsSFXLibrary): corte do primeiro disparo gravado atrás do atirador, tom ajustado por arma, camada grave sintetizada por baixo (o soco), estalo do gatilho/martelo logo antes do tiro e uma saturação leve. A camada grave e o estalo são gerados por código, sem amostra de terceiros.
 
 Atualização (v87): os tiros foram refeitos com camada de estrondo grave (80–350 Hz), reverberação curta, compressão forte e saturação, para ficarem bem mais altos e pesados. Mesmas gravações-base CC0 da FreeFirearmsSFXLibrary.
+
+v90: tiros sem camadas sintéticas. Cada tiro é a gravação real (FreeFirearmsSFXLibrary, CC0) com a cauda natural, mais o grave de outra gravação real da mesma biblioteca (AR-15, Tikka, Walther) por baixo, compressão e limite suave. Nenhum som de jogo comercial é usado.

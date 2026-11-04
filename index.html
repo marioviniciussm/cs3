@@ -1307,7 +1307,7 @@ function playStep(c, vol, pos, land) {
 const stepVol = c => mode && mode.enemies && player && c && !mode.enemies(player, c) ? 0.35 : 0.8;
 const STEPPY = { step: 1, land: 1 };
 // volume de cada tiro: arma grande soa maior que arma pequena (o arquivo vem todo no mesmo nível)
-const GUN_VOL = { pistol: 1.2, deagle: 1.45, revolver: 1.8, smg: 1.05, rifle: 1.3, lmg: 1.6, semi: 1.45, sniper: 2.2, shotgun: 1.8, musket: 1.8, blunder: 1.8, minigun: 1.1 };
+const GUN_VOL = { pistol: 2.5, deagle: 3.1, revolver: 3.9, smg: 2.2, rifle: 2.8, lmg: 3.4, semi: 3.1, sniper: 4.8, shotgun: 3.9, musket: 3.9, blunder: 3.9, minigun: 2.4 };
 function play(name, vol = 1, pos = null, rate = 0) {
   if (name === 'step') name = 'step' + (Math.random() * 4 | 0);
   if (GUN_VOL[name]) vol *= GUN_VOL[name];
@@ -2737,6 +2737,8 @@ function animateModel0(c, dt) {
   // a arma acompanha a mira na altura do ombro direito; o tranco do tiro empurra para trás
   c.gun.position.set(0.1, 1.38 + Math.sin(p) * 0.08, -0.32 * Math.cos(p) + c.recoilAnim * 0.07);
   c.gun.rotation.set(p + c.recoilAnim * 0.12, 0, 0);
+  // o braço esquerdo precisa alcançar o guarda-mão: se a arma estiver longe demais, ela vem para perto do ombro (como se segura de verdade)
+  if (!c.oneHand && !c.scoped) { const fp = _ih.copy(c.fore).applyEuler(c.gun.rotation).add(c.gun.position), dx = fp.x + 0.25, dy = fp.y - 1.44, dd = Math.hypot(dx, dy, fp.z), reach = (ARM_A + ARM_B) * 0.9; if (dd > reach) c.gun.position.z += Math.min(0.3, (dd - reach) * 1.1); }
   c.head.rotation.x = p * 0.5; c.head.rotation.z = 0;
   if (c.isPlayer) c.scoped = !!pw.zoom;
   const A = c.anim; if (A) { A.t += dt; if (A.t >= A.dur) c.anim = null; }
@@ -3553,6 +3555,7 @@ const CharGLB = {
         const s = m[1], k = T.s * sz * (G.armK || 1), a = R['UpperArm' + s].p.distanceTo(R['LowerArm' + s].p) * k, bb = R['LowerArm' + s].p.distanceTo(R['Hand' + s].p) * k;
         b.parent.updateMatrixWorld(true); b.quaternion.copy(pq).invert().multiply(R['UpperArm' + s].q); b.updateMatrixWorld(true);
         const sh = b.getWorldPosition(new THREE.Vector3()), hand = P['ha' + s].clone(), pole = P['el' + s].clone().sub(P['sh' + s].clone().add(P['ha' + s]).multiplyScalar(0.5));
+        if (c.gun && !G.rag) { const HG0 = window.HG || { rd: [0, -0.5, -1], ld: [0.25, 0.1, -1] }; hand.addScaledVector(new THREE.Vector3(...(s === 'R' ? HG0.rd : HG0.ld)).normalize().applyQuaternion(c.gun.getWorldQuaternion(new THREE.Quaternion())), -(window.HOFF ?? 0.06)); }   // o centro do punho (não o pulso) é que fica no cabo
         const el = elbowPos(new THREE.Vector3(), sh, hand, a, bb, pole);
         aim('UpperArm' + s, sh, el, _cqB); aim('LowerArm' + s, el, hand, _cqB);
         want['Hand' + s] = want['LowerArm' + s].clone().multiply(R['LowerArm' + s].q.clone().invert()).multiply(R['Hand' + s].q);
