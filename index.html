@@ -3801,6 +3801,102 @@ function camoTex() {
   const t = _camoTex = new THREE.Texture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter; t.repeat.set(CAMO_REP, CAMO_REP);
   const im = new Image(); im.onload = () => { t.image = im; t.needsUpdate = true; }; im.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAADOklEQVR42u1avYobMRDWKSIkcbFkCVxjieDGzfkBnMbXpHGdKuAHyAvkhfwOru8qP8ClucZg71UGH7hwn0Kg7O2uRiPNaO0jJwwGs1rNN/PNaH589fvX983xJDxrVz0LcBldpu29vdGCY0ni/tlknLbx7k91EQCWq3WCcRgxSPorko0ghNBmqM0Q4HBwKXiz0WXQDZardVDZwQWIMSoGPgMaXSqRc2HwWxvePzzC2HzvUUG47V+4/I+Fvcqh91kKGQF9HEAaIdmYkksZo2JgP51nB50EEwk636NgR0lD0mkNe/ZsMl6u1ov5NPn9jb2SGAej4kanBMRwLMUrX30DAMJlmhGkEKLaPb1ZAHut0hOThg3P4AMwi2LfwA+Afk9jPMFheDe4/vT5w3te6YviI/zYdn/4ev0FfiB41nZ/2O4PkkjZTt1jcgeucCTpdt8cT/bTvzO8yEZ9GPC5fkLeZjE09G2rvMV8ikGYKwpFIbl/eHSyuhp1uVpjiCRj1Zw1vLZVHsSgMLrkYhEm560/Y1MEuF7jp5BFW8cMlAqYVe2egL1ZfMBJT5EbySVJ2UypCrgwSKICepPeJ8Z/UNC4ChBvBHb1azP0GUHC905C9Z2JPNA90Ck9pXHAnp8vahZoAmhLb3SZ3KfIQZ669O1muExO3XKvzfGkXyq+s5WvLi2qxKblypdXJbAojT/tND6KBYpdeQ4GZfTWqcfFfNpmkUJu7iygnBx1nXEVqEDFEwZgtdhoeAGjAzssOUsn5h8A4twTXzYE+RNVgSj6vDa2IUAZebT3vu5k7vZGS0b1s4yS8NWS5Y7kJQ/7rCRvW6XT1WaTcW4Y9XMTAbhWXFrSSo+5RpfW/jI2hrS7iA5DHUwPXDK63BxPyn4BR2L6ewl24JofhykE65LSoGW5vDPeA8jZNRHY+esBoh0YLMDS5mcA4JPjvPL15AM+kD0EU0WvJDHJc4PoweITXxVd/fj5DdBcFH/a4NsVoNFlbOkMg1E9835XPccCsM/7YHDeAw3YwD8yE5Zv1KDwPMaE7RxeBFtDRknfW9WCgZFOIRhDP/eGY5RMk5WCgfFfm6NiICnx5BLyC9nzPIJ9/QXgn5bivZflTwAAAABJRU5ErkJggg=='; return t;
 }
+// ---- mãos da 1ª pessoa do corpo-base: palma, polegar e quatro dedos de três falanges, luva preta e manga camuflada
+// grossa até o cotovelo (fora da tela). Cada pegada põe a mão num referencial da arma: dedos (F), palma (Pn) e o ponto
+// do cabo que fica dentro da mão fechada. Os dedos dobram no eixo X local (negativo = ponta para a palma).
+const VMH_POSE = {   // [falange1, 2, 3] por dedo; polegar [base, ponta, abertura]
+  fist:    { f: [[1.45, 1.55, 1.0], [1.5, 1.6, 1.05], [1.55, 1.6, 1.05], [1.6, 1.6, 1.05]], th: [0.9, 0.6, 1.6] },
+  grip:    { f: [[0.75, 0.55, 0.35], [1.35, 1.45, 0.95], [1.4, 1.5, 1.0], [1.45, 1.5, 1.0]], th: [0.45, 0.55, 0.3] },
+  cup:     { f: [[0.85, 0.8, 0.55], [0.9, 0.85, 0.6], [0.95, 0.85, 0.6], [1.0, 0.9, 0.6]], th: [0.15, 0.25, 0.75] },
+  relax:   { f: [[0.32, 0.38, 0.25], [0.38, 0.42, 0.28], [0.46, 0.48, 0.3], [0.55, 0.52, 0.32]], th: [0.2, 0.2, 0.55] },
+};
+const VMHands = {
+  hands: null,
+  mats() {
+    if (this._m) return this._m;
+    const sl = new THREE.Texture(); sl.wrapS = sl.wrapT = THREE.RepeatWrapping; sl.magFilter = sl.minFilter = THREE.NearestFilter; sl.repeat.set(2, 3);
+    const src = camoTex(); const fill = () => { if (src.image) { sl.image = src.image; sl.needsUpdate = true; } else setTimeout(fill, 200); }; fill();
+    return this._m = { glove: new THREE.MeshLambertMaterial({ color: 0x2a2a2e, flatShading: true }), gloveS: new THREE.MeshLambertMaterial({ color: 0x2a2a2e }), seam: new THREE.MeshLambertMaterial({ color: 0x18181a }), sleeve: new THREE.MeshLambertMaterial({ map: sl, flatShading: true }) };
+  },
+  build(side) {
+    const M = this.mats(), sx = side === 'R' ? 1 : -1, root = new THREE.Group(), hand = new THREE.Group(); root.add(hand);
+    const seg = (len, r0, r1, mat) => { const g = new THREE.CylinderGeometry(r1, r0, len, 10); g.rotateX(-Math.PI / 2); g.translate(0, 0, -len / 2); return new THREE.Mesh(g, mat); };
+    // palma: um pouco mais larga nos nós dos dedos, mais grossa na base do polegar
+    // cantos arredondados (meio caixa, meio elipsoide) e dorso abaulado: nada de bloco chapado
+    const pg = new THREE.BoxGeometry(0.084, 0.03, 0.09, 4, 2, 4), pp = pg.attributes.position, hx = 0.042, hy = 0.015, hz = 0.045;
+    for (let i = 0; i < pp.count; i++) {
+      let x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); const r = Math.hypot(x / hx, y / hy, z / hz) || 1, e = 1 - 0.7 * (1 - 1 / Math.max(1, r));
+      x *= e; y *= e; z *= e; if (y > 0) y += 0.006 * (1 - (x / hx) ** 2) * (1 - (z / hz) ** 2);
+      pp.setXYZ(i, x * (z < 0 ? 1.04 : 0.88), y < 0 && Math.abs(x) < 0.03 ? y - 0.004 : y, z);
+    }
+    pg.computeVertexNormals(); const palm = new THREE.Mesh(pg, M.gloveS); palm.position.set(0, 0, -0.045); hand.add(palm);
+    const th0 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 7, 5), M.glove); th0.scale.set(1, 0.8, 1.4); th0.position.set(-0.03 * sx, -0.008, -0.03); hand.add(th0);
+    // punho da luva e antebraço (manga): grossos, nada de palito
+    const cuff = seg(0.05, 0.04, 0.046, M.seam); cuff.rotation.y = Math.PI; cuff.scale.set(1.05, 0.62, 1); cuff.position.z = -0.004; hand.add(cuff);
+    const fore = seg(0.36, 0.043, 0.05, M.sleeve); root.add(fore);
+    const fingers = [], X = [-0.031, -0.0105, 0.0105, 0.03], L = [[0.042, 0.026, 0.022], [0.046, 0.029, 0.024], [0.043, 0.027, 0.022], [0.034, 0.021, 0.019]], R = [0.0105, 0.011, 0.0105, 0.0092];
+    for (let f = 0; f < 4; f++) {
+      let par = hand; const ch = [];
+      for (let j = 0; j < 3; j++) {
+        const piv = new THREE.Group(); piv.position.set(j ? 0 : X[f] * sx, j ? 0 : 0.002, j ? -L[f][j - 1] : -0.088 + (f === 3 ? 0.008 : f === 0 ? 0.002 : 0)); par.add(piv);
+        const m = seg(L[f][j], R[f] * (1 - j * 0.08), R[f] * (0.92 - j * 0.08), M.glove); piv.add(m);
+        const k = new THREE.Mesh(new THREE.SphereGeometry(R[f] * (1.02 - j * 0.08), 6, 4), M.glove); piv.add(k);
+        ch.push(piv); par = piv;
+      }
+      fingers.push(ch);
+    }
+    const thR = new THREE.Group(); thR.position.set(-0.04 * sx, -0.006, -0.028); hand.add(thR);
+    const t1 = new THREE.Group(); thR.add(t1); t1.add(seg(0.036, 0.0125, 0.0115, M.glove)); t1.add(new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 4), M.glove));
+    const t2 = new THREE.Group(); t2.position.z = -0.036; t1.add(t2); t2.add(seg(0.03, 0.0115, 0.0105, M.glove)); t2.add(new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), M.glove));
+    vmScene.add(root);
+    return { side, sx, root, hand, fingers, thR, t1, t2, fore, pose: null };
+  },
+  setPose(H, name) {
+    if (H.pose === name) return; H.pose = name; const P = VMH_POSE[name] || VMH_POSE.relax;
+    H.fingers.forEach((ch, f) => ch.forEach((piv, j) => piv.rotation.set(-P.f[f][j], 0, 0)));
+    // polegar: sai para o lado do indicador, aponta para a frente e dobra por cima/por baixo
+    H.thR.rotation.set(0, (0.75 - P.th[2] * 0.6) * H.sx, 0); H.thR.rotateZ(-0.9 * H.sx); H.t1.rotation.x = -P.th[0]; H.t2.rotation.x = -P.th[1];
+  },
+  // ax: eixo dos nós dos dedos (do mindinho para o indicador, ao contrário na esquerda: é o eixo do cabo dentro da mão);
+  // arm: do pulso para o cotovelo; at: ponto do cabo que fica no meio da mão fechada; inLocal: esse ponto na mão
+  place(H, ax, arm, at, inLocal) {
+    const x = ax.clone().normalize().multiplyScalar(H.sx === 1 ? -1 : 1), z = arm.clone(); z.addScaledVector(x, -z.dot(x)).normalize(); const y = new THREE.Vector3().crossVectors(z, x);
+    const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+    const k = (window.VMHT && window.VMHT.k) || 0.72; H.hand.scale.setScalar(k);
+    H.root.quaternion.identity(); H.root.position.set(0, 0, 0); H.hand.quaternion.copy(q);
+    H.hand.position.copy(at).sub(inLocal.clone().multiplyScalar(k).applyQuaternion(q));
+    H.fore.position.copy(H.hand.position).addScaledVector(z, 0.01 * k); const fz = arm.clone().normalize().lerp(z, 0.35).normalize(); H.fore.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), fz); H.fore.scale.setScalar(k);   // o pulso dobra: o antebraço não precisa seguir a mão
+  },
+  hide() { if (this.hands) this.hands.forEach(H => H.root.visible = false); },
+  update(m, gloves) {
+    if (!this.hands) this.hands = [this.build('R'), this.build('L')];
+    const [HR, HL] = this.hands; vmRoot.updateMatrixWorld(true);
+    const V = (a) => new THREE.Vector3(...a), W = window.VMHT || {};
+    const gR = gloves.R, gL = gloves.L;
+    HR.root.visible = vmRoot.visible && !!gR; HL.root.visible = vmRoot.visible && !!gL;
+    const knife = gR && gR.userData.hand === 'knife', IN = V(W.in || [0, -0.03, -0.075]);
+    if (gR) {
+      const at = gR.getWorldPosition(new THREE.Vector3());
+      if (knife) {   // punho fechado no cabo; a lâmina sai do lado do indicador e do polegar, o antebraço vem de baixo à direita
+        const kq = (m.kpivot || gR).getWorldQuaternion(new THREE.Quaternion()), blade = V([0, 0, -1]).applyQuaternion(kq);
+        this.setPose(HR, 'fist'); at.addScaledVector(blade, -(W.kS ?? 0.07));   // a mão fica no cabo, abaixo da guarda
+        this.place(HR, blade, V(W.kA || [0.35, -0.8, 0.5]), at, V(W.kIn || [0, -0.03, -0.03]));
+      } else {   // cabo da arma: polegar por cima, dedos dão a volta pela frente, indicador no gatilho
+        const gq = gR.getWorldQuaternion(new THREE.Quaternion());
+        this.setPose(HR, 'grip'); this.place(HR, V(W.gX || [0, 1, -0.35]).applyQuaternion(gq), V(W.gA || [0.3, -0.9, 0.35]).applyQuaternion(gq), at, IN);
+      }
+    }
+    if (gL) {
+      const at = gL.getWorldPosition(new THREE.Vector3());
+      if (gL.userData.hand === 'open') {   // faca: mão esquerda solta, dorso para cima, palma para baixo, meio fechada, dedos para a frente
+        this.setPose(HL, 'relax'); this.place(HL, V(W.oX || [1, 0.05, 0.35]), V(W.oA || [-0.35, -0.45, 1]), at, V([0, 0, -0.05]));
+      } else {   // guarda-mão: por baixo, polegar pelo lado esquerdo apontando para a frente, dedos sobem pelo lado direito
+        const gq = gL.getWorldQuaternion(new THREE.Quaternion());
+        this.setPose(HL, 'cup'); this.place(HL, V(W.sX || [0, 0, -1]).applyQuaternion(gq), V(W.sA || [-0.45, -0.7, 0.5]).applyQuaternion(gq), at, V(W.sIn || [0, -0.03, -0.065]));
+      }
+    }
+  },
+};
 var CAMO_REP = 450;   // o modelo dos braços está em unidades de 100 m: ~1 ladrilho a cada 15 cm
 const VMArms = {
   rigs: null, team: -1,
@@ -3836,13 +3932,15 @@ const VMArms = {
   },
   update(m, show) {
     const ok = show && m && CharGLB.on() && CharGLB.state === 'ready' && player;
-    if (!ok) { if (this.rigs) this.rigs.forEach(r => r.root.visible = false); vmModels.forEach(v => this.hideOld(v, false)); return; }
+    if (!ok) { VMHands.hide(); if (this.rigs) this.rigs.forEach(r => r.root.visible = false); vmModels.forEach(v => this.hideOld(v, false)); return; }
     if (!this.rigs || this.team !== (player.team | 0)) {
       if (this.rigs) this.rigs.forEach(r => vmScene.remove(r.root));
       this.rigs = [this.build('R'), this.build('L')]; this.team = player.team | 0; if (!this.rigs[0]) { this.rigs = null; return; }
     }
     vmModels.forEach(v => this.hideOld(v, v === m));
     if (!m.gloves) { m.gloves = {}; m.g.traverse(o => { if (o.isMesh && o.userData.glove) m.gloves[o.userData.glove] = o; }); if (m.kLeft) m.gloves.L = m.kLeft; }
+    if (CharGLB.base()) { if (this.rigs) this.rigs.forEach(r => r.root.visible = false); VMHands.update(m, m.gloves); return; }
+    VMHands.hide();
     vmRoot.updateMatrixWorld(true);
     for (const G of this.rigs) {
       const gl = m.gloves[G.side];
@@ -3917,7 +4015,7 @@ function buildViewModels0(sleeve, vmRoot_, vmModels_) {
   };
   const mk = (id, offset, build) => { const g = new THREE.Group(); gripAt = supAt = null; const parts = build(g); vmRoot.add(g); g.visible = false;
     vmModels[WI(id)] = { g, offset, grip: gripAt, sup: supAt, ...parts, magBase: parts.mag.position.clone(), boltBase: parts.bolt.position.clone() }; };
-  mk('knife', new THREE.Vector3(0.15, -0.15, -0.31), g => {
+  mk('knife', new THREE.Vector3(0.14, -0.09, -0.38), g => {
     const mag = X(g, C.black, 0.035, 0.045, 0.13, 0, 0, 0.03); X(g, C.metal2, 0.06, 0.05, 0.015, 0, 0.005, -0.04);
     const bolt = X(g, 0xc8ccd2, 0.008, 0.045, 0.2, 0, 0.012, -0.145); X(g, 0xe6e9ee, 0.009, 0.012, 0.2, 0, -0.008, -0.145);
     const kh = X(g, C.glove, 0.06, 0.08, 0.1, 0, -0.01, 0.04); const ar = X(g, sleeve, 0.07, 0.07, 0.5, 0.02, -0.125, 0.295); ar.rotation.set(0.45, 0.1, 0); kh.userData.hand = ar.userData.hand = 'knife'; kh.userData.glove = 'R';
