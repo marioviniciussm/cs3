@@ -115,6 +115,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
 #scope::before, #scope::after { content: ""; position: absolute; background: #000; }
 #scope::before { left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; }
 #scope::after { top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; }
+#lowhp { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s; background: radial-gradient(ellipse at center, transparent 55%, rgba(150, 0, 0, 0.4) 100%); }
+body.lowhp #lowhp { opacity: 1; animation: lowPulse 0.85s ease-in-out infinite; }
+@keyframes lowPulse { 0%, 100% { opacity: 0.55; } 18% { opacity: 1; } 36% { opacity: 0.7; } }
+body:not(.touch) #slots { transition: opacity 0.5s; }
+body:not(.touch) #slots.idle { opacity: 0 !important; }
 #hurt { position: absolute; inset: 0; background: radial-gradient(circle, transparent 50%, rgba(200, 0, 0, 0.55)); opacity: 0; }
 #hurtArrow { position: absolute; left: 50%; top: 50%; width: 90px; height: 8px; margin: -4px 0 0 -45px; background: rgba(255, 50, 30, 0.9); opacity: 0; }
 #scoreboard { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); width: min(760px, 94%); font-family: var(--body); display: none; }
@@ -176,6 +181,33 @@ button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent
 @media (max-width: 760px) and (orientation: landscape) { #mapEd { flex-direction: row; } #mePanel { width: 300px; order: 0; } #meWrap { flex: 1; } }
 #banner { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; font-size: clamp(26px, 4vw, 44px); font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; text-shadow: 0 2px 6px rgba(0,0,0,0.8); opacity: 0; transition: opacity 0.25s; width: min(900px, 94%); }
+/* aviso de abate: título (dobradinha, sequência), quem caiu e os detalhes do lance */
+#kpop { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.35s; width: min(720px, 94%); font-family: var(--display); text-shadow: 0 2px 5px rgba(0,0,0,0.85); }
+#kpop.on { opacity: 1; transition: none; }
+#kpop .kt { font-size: clamp(24px, 3.4vw, 40px); font-weight: 700; letter-spacing: 0.08em; color: var(--hud-accent); line-height: 1; margin-bottom: 4px; }
+#kpop .kt:empty { display: none; }
+#kpop .kl { font-size: clamp(16px, 2vw, 21px); font-weight: 700; letter-spacing: 0.05em; }
+#kpop .kl i { font-style: normal; color: var(--danger); margin-right: 6px; }
+#kpop .kg { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 6px; font-family: var(--body); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-shadow: none; }
+#kpop .kg span { background: rgb(0 0 0 / 0.55); padding: 2px 9px; border-left: 2px solid var(--hud-accent); text-transform: uppercase; }
+#kpop .kg span.gold { border-color: var(--gold); color: var(--gold); }
+#kpop.pop .kl { animation: kpopIn 0.22s cubic-bezier(.2,1.6,.4,1); }
+#kpop.pop .kt { animation: kpopBig 0.38s cubic-bezier(.2,1.5,.4,1); }
+@keyframes kpopIn { from { transform: scale(1.5); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes kpopBig { from { transform: scale(2.1); opacity: 0; letter-spacing: 0.3em; } to { transform: none; opacity: 1; } }
+body.touch #kpop { top: 58%; }
+#feed div.note { color: var(--gold); font-size: 13px; letter-spacing: 0.03em; }
+#death .riv { display: block; margin-top: 6px; font-size: 15px; color: var(--muted); }
+#death .riv b { color: var(--fg); font-family: var(--display); font-size: 18px; }
+#death .nem { display: block; margin-top: 4px; font-family: var(--display); font-size: 15px; letter-spacing: 0.08em; color: var(--danger); text-transform: uppercase; }
+/* prêmios do fim da partida */
+#endAwards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+#endAwards:empty { display: none; }
+#endAwards .aw { background: var(--panel-2); border: 1px solid var(--line); border-top: 2px solid var(--accent); padding: 8px 10px; clip-path: var(--chamfer); --cut: 8px; }
+#endAwards .aw small { display: block; font-family: var(--display); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+#endAwards .aw b { display: block; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#endAwards .aw span { font-size: 12px; color: var(--muted); }
+#endAwards .aw.bad { border-top-color: var(--muted); } #endAwards .aw.bad small { color: var(--muted); }
 #banner small { display: block; font-size: 18px; letter-spacing: 0.02em; text-transform: none; color: var(--muted); font-family: var(--body); }
 .wchecks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; padding: 4px 0 6px; }
 .wchecks label { display: flex; align-items: center; gap: 8px; }
@@ -408,6 +440,7 @@ html.ps1 #ps1fx,html.ps1 #ps1vig{display:block}
   <canvas id="ch" width="220" height="220"></canvas>
   <div id="scope"></div>
   <div id="hurt"></div>
+  <div id="lowhp"></div>
   <div id="uw"></div>
   <div id="hurtArrow"></div>
   <div class="box" id="fps"></div>
@@ -424,6 +457,7 @@ html.ps1 #ps1fx,html.ps1 #ps1vig{display:block}
   <div class="box" id="lockHint" hidden>Clique para voltar ao jogo</div>
   <div id="speed"></div>
   <div id="banner"></div>
+  <div id="kpop"><div class="kt"></div><div class="kl"></div><div class="kg"></div></div>
   <div class="box" id="chHint" hidden></div>
   <div id="chCur" hidden></div>
   <div id="abHud" hidden></div>
@@ -635,6 +669,7 @@ html.ps1 #ps1fx,html.ps1 #ps1vig{display:block}
     <h2 id="endTitle">Fim de partida</h2>
     <p id="endWinner" class="sub"></p>
     <table><thead><tr><th>Nome</th><th>Abates</th><th>Mortes</th><th>A/M</th></tr></thead><tbody id="endBody"></tbody></table>
+    <div id="endAwards"></div>
     <div id="endStats"></div>
     <div class="btnrow"><button class="btn primary" id="eAgain">Jogar novamente</button><button class="btn" id="eAdmin" hidden>Mudar regras</button><button class="btn" id="eMenu">Menu principal</button></div>
   </div>
@@ -1057,7 +1092,7 @@ function fillHudSample() {
   if (player) return;
   T('hpNum', '100'); T('ammoNum', '30'); T('ammoRes', '90'); T('ammoName', 'Metralhadora'); HT('top', topHtml({ l: ['Você', 0, TEAM_COLORS[0]], r: ['Bot Alfa', 0, TEAM_COLORS[1]], mid: '01:30', sub: 'Round 1' }));
   H('slots').innerHTML = WEAPONS.filter(w => !w.nade).map((w, i) => `<div class="${w.id === 'rifle' ? 'on' : ''}"><b>${i + 1}</b> &nbsp;${w.name}</div>`).join('');
-  H('slots')._cur = -1;
+  H('slots')._cur = -1; H('slots').classList.remove('idle');
   if (!chatLog.childElementCount) chatLog.innerHTML = '<div><b style="color:var(--hud-accent)">Bot Alfa</b>: gg</div>';
   if (!feedEl.childElementCount) feedEl.innerHTML = '<div>Você <span style="color:var(--muted)">[Deagle]</span> Bot Alfa</div><div>Bot Bravo <span style="color:var(--muted)">[Faca]</span> Você</div>';
   T('speed', '6.8 m/s'); H('speed').hidden = false; H('fps').hidden = false;
@@ -1185,6 +1220,9 @@ function initAudio() {
   } catch (e) { reverb = reverbIn = null; }
   if (S.audio.outId && typeof actx.setSinkId === 'function') actx.setSinkId(S.audio.outId).catch(() => {});
   const SR = actx.sampleRate;
+  // sequência de notas com ataque seco e cauda curta (onda quase quadrada suavizada): avisos de abate
+  const notes = (list, dur, sq = 2) => make(dur + 0.25, t => { let v = 0; for (const [at, hz] of list) if (t >= at) { const u = t - at, ph = 2 * Math.PI * hz * u;
+    v += (Math.sin(ph) + Math.sin(ph * 2) * 0.35 * sq / 2 + Math.sin(ph * 3) * 0.18) * Math.exp(-u * 9) * Math.min(1, u * 400); } return v * 0.22; });
   const make = (dur, fn) => { const n = Math.floor(dur * SR), b = actx.createBuffer(1, n, SR), d = b.getChannelData(0); let st = { lp: 0 }; for (let i = 0; i < n; i++) d[i] = clamp(fn(i / SR, Math.random() * 2 - 1, st), -1, 1); return b; };
   const shot = (dur, decay, hz, lp, gain) => make(dur, (t, w, s) => { s.lp += (w - s.lp) * lp; const env = Math.exp(-t * decay); const th = Math.sin(2 * Math.PI * hz * t * (1 - 0.4 * t / dur)) * Math.exp(-t * decay * 0.7); const cr = t < 0.01 ? w * (1 - t / 0.01) : 0; let v = (s.lp * 1.4 + th * 0.8 + cr * 0.6) * env * gain; if (t < 0.002) v *= t / 0.002; return v; });
   // tiro em camadas, como uma gravação: estalo supersônico (agudo, 2-3 ms) + explosão da boca (ruído largo que cai
@@ -1263,6 +1301,11 @@ function initAudio() {
     magOut: make(0.25, (t, w) => { const sl = t < 0.12 ? w * 0.18 * Math.sin(Math.PI * t / 0.12) : 0, c = t > 0.12 ? (Math.sin(2 * Math.PI * 1900 * (t - 0.12)) * 0.6 + w * 0.4) * Math.exp(-(t - 0.12) * 120) : 0; return (sl + c) * 0.7; }),
     magIn: make(0.3, (t, w) => { let v = 0; for (const [at, hz, g] of [[0, 1500, 0.6], [0.16, 2400, 0.9]]) if (t > at) { const u = t - at; v += (Math.sin(2 * Math.PI * hz * u) * 0.6 + w * 0.5) * Math.exp(-u * 140) * g; } return v * 0.7; }), empty: click(0.05, 2200, 0.5), draw: click(0.1, 1300, 0.35), zoom: click(0.05, 3000, 0.3),
     hit: tone(0.07, 1500, 0, 60, 0.5), head: tone(0.35, 1900, 2850, 10, 0.55), kill: tone(0.4, 1200, 1800, 7, 0.5),
+    // avisos de abate: notas curtas subindo (2, 3, 4 e 5+ abates seguidos), fanfarra de sequência, vingança e "dominado"
+    beat: make(0.34, t => { let v = 0; for (const [at, hz, g] of [[0, 62, 1], [0.15, 52, 0.7]]) if (t >= at) { const u = t - at; v += Math.sin(2 * Math.PI * hz * u * (1 - u * 1.5)) * Math.exp(-u * 26) * g * Math.min(1, u * 300); } return v * 0.9; }),
+    ms2: notes([[0, 523], [0.09, 784]], 0.5), ms3: notes([[0, 523], [0.08, 659], [0.16, 988]], 0.55), ms4: notes([[0, 587], [0.07, 740], [0.14, 880], [0.21, 1175]], 0.6),
+    ms5: notes([[0, 659], [0.06, 831], [0.12, 988], [0.18, 1319], [0.26, 1661]], 0.75), streak: notes([[0, 392], [0.1, 523], [0.2, 659], [0.2, 784]], 0.7),
+    revenge: notes([[0, 880], [0.07, 659], [0.14, 1319]], 0.6), nemesis: notes([[0, 233], [0.16, 196], [0.34, 147]], 0.9, 3),
     land: thump(0.2, 22, 0.7), hurt: make(0.25, (t, w, s) => { s.lp += (w - s.lp) * 0.15; return (s.lp * 1.5 + Math.sin(2 * Math.PI * (180 - 240 * t) * t) * 0.6) * Math.exp(-t * 12) * 0.7; }),
   });
   loadSoundPack();
@@ -1371,7 +1414,7 @@ function play(name, vol = 1, pos = null, rate = 0) {
   if (wet && reverbIn) { const sg = actx.createGain(); const d = pos && player ? Math.hypot(pos.x - camera.position.x, pos.z - camera.position.z) : 0; sg.gain.value = wet * Math.min(2.2, 1 + d / 30); node.connect(sg); sg.connect(reverbIn); }
   src.start();
 }
-const NO_VERB = { hit: 1, head: 1, kill: 1, round: 1, empty: 1, zoom: 1, draw: 1, hurt: 1 };
+const NO_VERB = { hit: 1, head: 1, kill: 1, round: 1, beat: 1, ms2: 1, ms3: 1, ms4: 1, ms5: 1, streak: 1, revenge: 1, nemesis: 1, empty: 1, zoom: 1, draw: 1, hurt: 1 };
 
 // =====================================================================================
 // Three.js: cena, câmeras, luz
@@ -1403,19 +1446,26 @@ const vmHemi = new THREE.HemisphereLight(0xe3ecf7, 0x5d4c38, 0.8); vmScene.add(v
 const vmSun = new THREE.DirectionalLight(0xffffff, 0.7); vmSun.position.set(1, 2, 1); vmScene.add(vmSun);
 // ---- hora do dia e clima (por partida: cfg.tod e cfg.weather; /noite, /chuva... no chat)
 const TOD = {
-  dia: { name: 'Dia', sky: 0x9fc4e4, fog: [90, 240], hemi: [0xe3ecf7, 0x5d4c38, 0.72], sun: [0xfff1dc, 0.85], pos: [45, 80, 30], vm: [0.8, 0.7] },
-  tarde: { name: 'Pôr do sol', sky: 0xe9a46e, fog: [70, 210], hemi: [0xffd2a8, 0x4d3a30, 0.55], sun: [0xff9a55, 0.95], pos: [90, 22, 15], vm: [0.65, 0.6] },
-  noite: { name: 'Noite', sky: 0x0a1222, fog: [30, 130], hemi: [0x6a7eae, 0x1c1c24, 0.32], sun: [0x9fb4ff, 0.22], pos: [-30, 70, -20], vm: [0.32, 0.3], lamp: true },
+  // sky = cor do horizonte (e da neblina); top = cor do alto do céu; cl = quanto de nuvem; glow = cor do clarão em volta do sol
+  dia: { name: 'Dia', sky: 0xb9cfe0, top: 0x2a66c0, cl: 0.36, glow: 0xfff0d0, fog: [90, 240], hemi: [0xcfe0f7, 0x6a5840, 0.6], sun: [0xffe9c8, 1.05], pos: [45, 80, 30], vm: [0.8, 0.7] },
+  tarde: { name: 'Pôr do sol', sky: 0xf0a468, top: 0x35467f, cl: 0.52, glow: 0xffb45a, fog: [70, 210], hemi: [0xffd2a8, 0x4d3a30, 0.5], sun: [0xff9a55, 1.05], pos: [90, 22, 15], vm: [0.65, 0.6] },
+  noite: { name: 'Noite', sky: 0x121c30, top: 0x04060c, cl: 0.36, glow: 0xaec4ff, stars: 1, fog: [30, 130], hemi: [0x6a7eae, 0x1c1c24, 0.32], sun: [0x9fb4ff, 0.22], pos: [-30, 70, -20], vm: [0.32, 0.3], lamp: true },
 };
 const WEATHER = { limpo: 'Limpo', chuva: 'Chuva', neve: 'Neve', neblina: 'Neblina' };
 const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
   apply(tod, w) {
     tod = TOD[tod] ? tod : 'dia'; w = WEATHER[w] ? w : 'limpo'; this.tod = tod; this.w = w;
-    const T = TOD[tod], sky = new THREE.Color(T.sky);
-    if (w === 'chuva' || w === 'neblina') sky.lerp(new THREE.Color(tod === 'noite' ? 0x10141a : 0x8a9198), tod === 'noite' ? 0.4 : 0.7);
-    if (w === 'neve') sky.lerp(new THREE.Color(tod === 'noite' ? 0x1a2030 : 0xd5dde6), 0.6);
-    if (S.video.ps1 !== false) sky.lerp(new THREE.Color(tod === 'noite' ? 0x14161a : 0x7d7468), 0.4);   // céu sujo e fechado (PS1 dark fantasy)
+    const T = TOD[tod], sky = new THREE.Color(T.sky), top = new THREE.Color(T.top);
+    // o tempo fechado e o visual PS1 puxam o horizonte e o alto do céu para o mesmo cinza
+    const tint = (c, k) => {
+      if (w === 'chuva' || w === 'neblina') c.lerp(new THREE.Color(tod === 'noite' ? 0x10141a : 0x8a9198), (tod === 'noite' ? 0.4 : 0.7) * k);
+      if (w === 'neve') c.lerp(new THREE.Color(tod === 'noite' ? 0x1a2030 : 0xd5dde6), 0.6 * k);
+      if (S.video.ps1 !== false) c.lerp(new THREE.Color(tod === 'noite' ? 0x14161a : 0x8a7c6a), 0.22 * k);   // céu um pouco sujo (PS1)
+      return c;
+    };
+    tint(sky, 1); tint(top, 0.85);
     SKY.copy(sky); scene.background = SKY; scene.fog.color.copy(sky);
+    Sky.set(top, sky, new THREE.Vector3(...T.pos).normalize(), new THREE.Color(T.glow), w === 'limpo' ? T.cl : w === 'neve' ? 0.2 : 0.08, T.stars && w === 'limpo' ? 1 : 0, w === 'limpo' ? 1 : 0.25);
     // neblina deixa ver ~1/3 do normal (antes era ~1/8 e não dava para ver nada); chuva e neve tiram pouco
     const fogK = w === 'neblina' ? 0.35 : w === 'chuva' ? 0.8 : w === 'neve' ? 0.75 : 1;
     const pk = S.video.ps1 !== false ? 1 : 1; scene.fog.near = T.fog[0] * fogK * pk; scene.fog.far = T.fog[1] * fogK * pk;
@@ -1464,6 +1514,51 @@ const Atmos = { tod: 'dia', w: 'limpo', fx: null, lamp: null,
     a.needsUpdate = true;
   },
 };
+
+// ---- céu: cúpula em volta da câmera com degradê do horizonte ao alto, sol com clarão, nuvens que andam devagar,
+// serras ao longe (duas camadas na névoa) e estrelas à noite. A neblina do mapa usa a mesma cor do horizonte.
+const Sky = (() => {
+  const U = { top: { value: new THREE.Color(0x2f6fc4) }, hor: { value: new THREE.Color(0xb9cfe0) }, sunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3).normalize() },
+    glow: { value: new THREE.Color(0xfff0d0) }, cover: { value: 0.46 }, stars: { value: 0 }, sunK: { value: 1 }, time: { value: 0 } };
+  const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false, uniforms: U,
+    vertexShader: 'varying vec3 vd; void main(){ vd = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      varying vec3 vd; uniform vec3 top, hor, glow, sunDir; uniform float cover, stars, sunK, time;
+      float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + 17.1; a *= 0.5; } return s; }
+      void main(){
+        vec3 d = normalize(vd); float y = d.y, s = max(dot(d, sunDir), 0.0);
+        vec3 c = mix(hor, top, pow(clamp(y, 0.0, 1.0), 0.42));
+        c += glow * (pow(s, 6.0) * 0.16 + pow(s, 48.0) * 0.3) * sunK;
+        // estrelas
+        if (stars > 0.0) { vec3 q = floor(d * 190.0); float st = h21(q.xy + q.z * 7.3); c += vec3(0.9, 0.95, 1.0) * step(0.9965, st) * stars * smoothstep(0.02, 0.3, y) * (0.5 + 0.5 * h21(q.zx)); }
+        // sol (ou lua)
+        c = mix(c, glow * 1.25, smoothstep(0.99935, 0.9997, s) * sunK);
+        // nuvens num plano alto, sumindo perto do horizonte
+        vec2 uv = d.xz / (y + 0.16) * 0.55 + vec2(time * 0.006, time * 0.0025);
+        float n = fbm(uv), n2 = fbm(uv * 2.7 + 9.0);
+        float cl = smoothstep(1.0 - cover - 0.12, 1.0 - cover + 0.2, n * 0.78 + n2 * 0.3) * smoothstep(0.015, 0.22, y);
+        vec3 lit = mix(hor, vec3(1.0), 0.75) + glow * pow(s, 3.0) * 0.3, shade = mix(top, hor, 0.7) * 0.9;
+        c = mix(c, mix(lit, shade, smoothstep(0.45, 1.0, n2 + (1.0 - cover) * 0.25)), cl * 0.9);
+        // serras ao longe: o contorno vem de ruído amarrado no círculo (não tem emenda)
+        float az = atan(d.z, d.x); vec2 cz = vec2(cos(az), sin(az));
+        float r1 = 0.035 + 0.075 * fbm(cz * 2.3 + 3.0), r2 = 0.012 + 0.06 * fbm(cz * 5.1 + 11.0);
+        vec3 m1 = mix(hor, top * 0.55 + hor * 0.2, 0.3), m2 = mix(hor, top * 0.35, 0.52);
+        c = mix(c, m1, smoothstep(r1 + 0.004, r1 - 0.004, y));
+        c = mix(c, m2, smoothstep(r2 + 0.004, r2 - 0.004, y));
+        // abaixo do horizonte: névoa da cor do horizonte (aparece por cima dos muros quando se olha de cima)
+        c = mix(c, hor * 0.92, smoothstep(0.0, -0.06, y));
+        gl_FragColor = vec4(c, 1.0);
+      }` });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), mat);
+  mesh.renderOrder = -1000; mesh.frustumCulled = false; mesh.matrixAutoUpdate = true; scene.add(mesh);
+  return { mesh, U,
+    set(top, hor, dir, glow, cover, stars, sunK) { U.top.value.copy(top); U.hor.value.copy(hor); U.sunDir.value.copy(dir); U.glow.value.copy(glow); U.cover.value = cover; U.stars.value = stars; U.sunK.value = sunK; },
+    update(dt, cam) { U.time.value += dt; mesh.position.copy(cam.position); mesh.visible = !(typeof FUN !== 'undefined' && FUN.disco); },
+  };
+})();
 
 (() => { try { const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], cv = document.createElement('canvas'); cv.width = cv.height = 4; const x = cv.getContext('2d'), im = x.createImageData(4, 4);
   for (let i = 0; i < 16; i++) { const v = 128 + (B[i] - 7.5) * 16; im.data.set([v, v, v, 255], i * 4); } x.putImageData(im, 0, 0);
@@ -1675,6 +1770,7 @@ function mergeBoxes(list, tile) {
 function bakeWorld() {
   world.userData.baked = true;
   RealTex.load();
+  try { dressWorld(); } catch (e) { console.warn('dressWorld', e); }
   world.updateMatrixWorld(true);
   const groups = new Map();
   for (const m of world.children) {
@@ -1703,6 +1799,88 @@ function bakeWorld() {
     world.add(im);
   }
   renderer.shadowMap.needsUpdate = true;
+}
+// ---- acabamento do mapa (vale para todos, inclusive os do editor): sombra de contato onde cada caixa encosta no chão
+// e na base das paredes, e manchas largas no piso para ele não ficar uma cor só. Tudo numa malha só por tipo.
+const Dress = { ao: null, dirt: null, caps: new Map(),
+  aoTex() { if (this.ao) return this.ao; const cv = document.createElement('canvas'); cv.width = 4; cv.height = 64; const g = cv.getContext('2d'), im = g.createImageData(4, 64);
+    for (let y = 0; y < 64; y++) { const v = 1 - y / 63, a = Math.pow(v, 1.7) * 150; for (let x = 0; x < 4; x++) im.data.set([8, 6, 4, a], (y * 4 + x) * 4); }
+    g.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.RepeatWrapping; return (this.ao = t); },
+  // quatro manchas irregulares (2x2 no mesmo desenho): borrões escuros de bordas macias
+  dirtTex() { if (this.dirt) return this.dirt; const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N; const g = cv.getContext('2d'), R = srand(77);
+    for (let q = 0; q < 4; q++) { const ox = (q % 2) * N / 2 + N / 4, oy = (q >> 1) * N / 2 + N / 4;
+      for (let i = 0; i < 26; i++) { const a = R() * 6.28, d = R() * N * 0.12, r = N * (0.05 + R() * 0.1), x = ox + Math.cos(a) * d, y = oy + Math.sin(a) * d;
+        const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(20,14,8,0.05)'); gr.addColorStop(1, 'rgba(20,14,8,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); } }
+    return (this.dirt = new THREE.CanvasTexture(cv)); },
+};
+function dressWorld() {
+  if (S.video.dress === false) return;
+  const bx = [];
+  for (const m of world.children) {
+    if (!m.isMesh || m.geometry !== BOX || !m.visible) continue;
+    const mt = m.material; if (!mt || Array.isArray(mt) || mt.transparent || mt.opacity < 1 || m.userData.noDress) continue;
+    if (Math.abs(m.rotation.x) + Math.abs(m.rotation.y) + Math.abs(m.rotation.z) > 1e-4) continue;
+    const sx = Math.abs(m.scale.x), sy = Math.abs(m.scale.y), sz = Math.abs(m.scale.z); if (sy < 0.25 || sx < 0.12 || sz < 0.12) continue;
+    const p = m.position;
+    bx.push({ x0: p.x - sx / 2, x1: p.x + sx / 2, y0: p.y - sy / 2, y1: p.y + sy / 2, z0: p.z - sz / 2, z1: p.z + sz / 2, sx, sy, sz, cx: p.x, cz: p.z, floor: sy <= 1.25 && sx >= 5 && sz >= 5,
+      hex: mt.color ? mt.color.getHex() : 0, lam: !!mt.isMeshLambertMaterial && !mt.map });
+  }
+  if (!bx.length) return;
+  // muros de bloco ganham uma capa de concreto no topo (só visual, um pouco mais larga que o muro)
+  for (const b of bx) {
+    if (!b.lam || texKind(b.hex) !== 'block' || b.sy < 1.8 || Math.min(b.sx, b.sz) > 1.3) continue;
+    if (bx.some(o => o !== b && Math.abs(o.y0 - b.y1) < 0.04 && o.x0 < b.x1 && o.x1 > b.x0 && o.z0 < b.z1 && o.z1 > b.z0)) continue;
+    const key = 'cap' + b.hex; let cm = Dress.caps.get(key);
+    if (!cm) { cm = new THREE.MeshLambertMaterial({ color: new THREE.Color(b.hex).multiplyScalar(0.62) }); cm.userData.texKind = 'concrete'; Dress.caps.set(key, cm); }
+    const m = mesh(BOX, cm, b.sx + 0.22, 0.2, b.sz + 0.22, b.cx, b.y1 + 0.1, b.cz, world); m.castShadow = m.receiveShadow = true; m.userData.dress = true;
+  }
+  const pos = [], uv = [], idx = [];
+  const quad = (a, b, c, d, u = 1) => { const n = pos.length / 3; pos.push(...a, ...b, ...c, ...d); uv.push(0, 1, u, 1, u, 0, 0, 0); idx.push(n, n + 1, n + 2, n, n + 2, n + 3); };   // a,b = lado escuro; c,d = lado claro
+  for (const b of bx) {
+    if (b.floor) continue;
+    // em cima de quem a caixa está apoiada: o anel no chão não passa da borda do apoio
+    let sup = null;
+    for (const s of bx) { if (s === b || Math.abs(s.y1 - b.y0) > 0.04) continue;
+      const ox = Math.min(s.x1, b.x1 + 0.5) - Math.max(s.x0, b.x0 - 0.5), oz = Math.min(s.z1, b.z1 + 0.5) - Math.max(s.z0, b.z0 - 0.5);
+      if (ox > 0.05 && oz > 0.05 && (!sup || ox * oz > sup.k)) sup = { s, k: ox * oz }; }
+    if (!sup) continue;
+    const s = sup.s, W = Math.min(0.7, 0.3 + 0.2 * b.sy), y = b.y0 + 0.012;
+    const ix0 = Math.max(b.x0, s.x0), ix1 = Math.min(b.x1, s.x1), iz0 = Math.max(b.z0, s.z0), iz1 = Math.min(b.z1, s.z1);
+    const ox0 = Math.max(b.x0 - W, s.x0), ox1 = Math.min(b.x1 + W, s.x1), oz0 = Math.max(b.z0 - W, s.z0), oz1 = Math.min(b.z1 + W, s.z1);
+    if (oz1 > iz1) quad([ix0, y, iz1], [ix1, y, iz1], [ox1, y, oz1], [ox0, y, oz1]);
+    if (oz0 < iz0) quad([ix1, y, iz0], [ix0, y, iz0], [ox0, y, oz0], [ox1, y, oz0]);
+    if (ox1 > ix1) quad([ix1, y, iz1], [ix1, y, iz0], [ox1, y, oz0], [ox1, y, oz1]);
+    if (ox0 < ix0) quad([ix0, y, iz0], [ix0, y, iz1], [ox0, y, oz1], [ox0, y, oz0]);
+    // base das paredes: escurece subindo
+    const hh = Math.min(0.9, b.sy * 0.7), e = 0.006, yb = b.y0 + 0.001, yt = b.y0 + hh;
+    quad([b.x0, yb, b.z1 + e], [b.x1, yb, b.z1 + e], [b.x1, yt, b.z1 + e], [b.x0, yt, b.z1 + e]);
+    quad([b.x1, yb, b.z0 - e], [b.x0, yb, b.z0 - e], [b.x0, yt, b.z0 - e], [b.x1, yt, b.z0 - e]);
+    quad([b.x1 + e, yb, b.z1], [b.x1 + e, yb, b.z0], [b.x1 + e, yt, b.z0], [b.x1 + e, yt, b.z1]);
+    quad([b.x0 - e, yb, b.z0], [b.x0 - e, yb, b.z1], [b.x0 - e, yt, b.z1], [b.x0 - e, yt, b.z0]);
+  }
+  const mk = (pos, uv, idx, tex, op) => { const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    m.renderOrder = 0.5; m.userData.dress = true; world.add(m); return m; };
+  if (idx.length) mk(pos, uv, idx, Dress.aoTex(), 1);
+  // manchas do piso
+  const dp = [], du = [], di = [], R = srand(bx.length * 131 + Math.round(bx[0].sx * 7));
+  for (const f of bx) {
+    if (!f.floor || !f.lam) continue;
+    const fk = texKind(f.hex); if (fk !== 'ground' && fk !== 'grass') continue;   // só terra e grama: em piso claro ou azulejo a mancha parece queimado
+    const n = Math.min(70, Math.round(f.sx * f.sz / 55));
+    for (let i = 0; i < n; i++) {
+      const r = 2.5 + R() * 5.5; if (f.sx < r * 2 + 0.5 || f.sz < r * 2 + 0.5) { R(); R(); R(); R(); continue; }
+      const cx = f.x0 + r + R() * (f.sx - 2 * r), cz = f.z0 + r + R() * (f.sz - 2 * r), a = R() * 6.28, q = Math.floor(R() * 4), u0 = (q % 2) * 0.5, v0 = (q >> 1) * 0.5;
+      const k = pos => [cx + (Math.cos(a) * pos[0] - Math.sin(a) * pos[1]) * r * 0.7, f.y1 + 0.006, cz + (Math.sin(a) * pos[0] + Math.cos(a) * pos[1]) * r * 0.7];
+      const nn = dp.length / 3; dp.push(...k([-1, -1]), ...k([1, -1]), ...k([1, 1]), ...k([-1, 1])); du.push(u0, v0, u0 + 0.5, v0, u0 + 0.5, v0 + 0.5, u0, v0 + 0.5); di.push(nn, nn + 2, nn + 1, nn, nn + 3, nn + 2);
+    }
+  }
+  if (di.length) mk(dp, du, di, Dress.dirtTex(), 1);
+  // terreno em volta: o mapa deixa de flutuar no vazio quando visto de cima (replay, espectador, menu)
+  let lowY = Infinity; for (const b of bx) lowY = Math.min(lowY, b.y0);
+  const tg = new THREE.Mesh(new THREE.CircleGeometry(420, 40), new THREE.MeshLambertMaterial({ color: 0x9c8b68 }));
+  tg.rotation.x = -Math.PI / 2; tg.position.y = Math.min(-0.5, lowY + 0.45); tg.userData.dress = true; world.add(tg);
 }
 const ground = { items: [], nades: [], proj: [], seq: 0 }, boomFx = [], sprays = new Map();
 let chatOpen = false;
@@ -2906,6 +3084,7 @@ function animateModel0(c, dt) {
 function damage(victim, amount, attacker, weapon, zone, dir) {
   if (!victim.alive || victim.spec) return false;
   if (attacker && attacker !== victim && mode && mode.teams && attacker.team === victim.team) return false;
+  Moments.onDamage(victim, attacker, victim.remote ? amount : Math.min(amount, victim.hp));
   if (victim.remote) {
     if (attacker === player) Net.send({ t: 'hit', d: amount, z: zone, w: weapon }, victim.netId);
     else if (attacker && attacker.netBot && mode && mode.host && !victim.isNetBot) Net.send({ t: 'hit', d: amount, z: zone, w: weapon, by: attacker.netId }, victim.netId);
@@ -2937,6 +3116,7 @@ function respawn(c, sp) {
   c.pos.copy(sp.pos); c.yaw = sp.yaw; c.pitch = 0; c.vel.set(0, 0, 0); c.hp = c.maxHp; c.alive = true; c.deathT = -1; c.lastAttacker = null; c.respawnAt = -1; c.crouch = 0; c.h = 1.8;
   c.vis.rotation.set(0, 0, 0); c.vis.position.set(0, 0, 0); if (c.rag) leaveCorpse(c); c.spawnAt = now;
   if (c.isPlayer && classesOn()) { applyClassStats(c, myClass); c.hp = c.maxHp; }
+  if (c.isPlayer) Moments.onRespawn();
   if (c.isPlayer) resetPlayerWeapons(); else if (c.bot) { c.weapon.magNow = c.weapon.w.mag; c.bot.target = null; c.bot.hasWp = false; }
 }
 
@@ -3019,10 +3199,22 @@ function meleeAttack(shooter, w, origin, forward, alt) {
 // ---- efeitos
 const fx = [], impacts = [];
 const tracerMat = new THREE.LineBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.8 });
+// rastro do tiro: um risco fraco que some na hora e um traço claro que corre do cano até o ponto de impacto;
+// e o clarão do disparo ilumina o que está perto do cano por um instante
+const muzzleLight = new THREE.PointLight(0xffc27a, 0, 13, 2); scene.add(muzzleLight);
+const streakMat = new THREE.LineBasicMaterial({ color: 0xfff3c8, transparent: true, opacity: 0.95 });
+const TRACER_V = 240, TRACER_LEN = 7;
 function tracer(a, b) {
   const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
-  const line = new THREE.Line(geo, tracerMat.clone()); world.add(line);
-  fx.push({ obj: line, life: 0.06, t: 0, kind: 'line' });
+  const m0 = tracerMat.clone(); m0.opacity = 0.3;
+  const line = new THREE.Line(geo, m0); world.add(line);
+  fx.push({ obj: line, life: 0.05, t: 0, kind: 'line', op: 0.3 });
+  const dist = a.distanceTo(b);
+  if (dist > 4) {
+    const sg = new THREE.BufferGeometry().setFromPoints([a, a]), sl = new THREE.Line(sg, streakMat.clone()); sl.frustumCulled = false; world.add(sl);
+    fx.push({ obj: sl, life: Math.min(0.5, dist / TRACER_V), t: 0, kind: 'line', streak: { a: a.clone(), d: b.clone().sub(a).normalize(), dist } });
+  }
+  if (a.distanceToSquared(camera.position) < 55 * 55) { muzzleLight.position.copy(a); muzzleLight.intensity = 2.4; }
 }
 const impactMat = new THREE.MeshBasicMaterial({ color: 0x151515, transparent: true });
 const HOLE_LIFE = 14, HOLE_FADE = 4;   // o buraco de bala some depois de ~14 s (nos últimos 4 s vai esmaecendo)
@@ -3043,7 +3235,13 @@ function impact(p, n) {
   m.position.copy(p).addScaledVector(n, 0.005); m.lookAt(p.clone().add(n)); world.add(m);
   impacts.push(m); if (impacts.length > 150) { const o = impacts.shift(); world.remove(o); o.material.dispose(); }
   burst(p, n, 0xb3a891, 3);
+  // poeira que abre e some no ponto do impacto
+  if (fx.length < 220) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex(), color: 0xcdbfa4, transparent: true, depthWrite: false }));
+    sp.position.copy(p).addScaledVector(n, 0.12); world.add(sp); fx.push({ obj: sp, life: 0.5, t: 0, kind: 'mist', s0: 0.12, s1: 0.75 }); }
 }
+let _puffTex = null;
+function puffTex() { if (_puffTex) return _puffTex; const cv = document.createElement('canvas'); cv.width = cv.height = 32; const g = cv.getContext('2d'), gr = g.createRadialGradient(16, 16, 1, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,0.5)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.22)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return (_puffTex = new THREE.CanvasTexture(cv)); }
 function burst(p, n, color, count) {
   for (let i = 0; i < count; i++) {
     const m = mesh(BOX, color, 0.06, 0.06, 0.06, p.x, p.y, p.z, world);
@@ -3139,6 +3337,7 @@ const BLOOD_UP = new THREE.Vector3(0, 1, 0);
 const PLANE1 = new THREE.PlaneGeometry(1, 1), _bv2 = new THREE.Vector3(), _bv3 = new THREE.Vector3();
 function updateFx(dt) {
   Blood.update(dt);
+  if (muzzleLight.intensity > 0) { muzzleLight.intensity *= Math.exp(-dt * 38); if (muzzleLight.intensity < 0.03) muzzleLight.intensity = 0; }
   for (let i = impacts.length - 1; i >= 0; i--) { const m = impacts[i]; m.userData.age += dt; const a = m.userData.age;
     if (a > HOLE_LIFE) { world.remove(m); m.material.dispose(); impacts.splice(i, 1); } else if (a > HOLE_LIFE - HOLE_FADE) m.material.opacity = (HOLE_LIFE - a) / HOLE_FADE; }
   for (let i = fx.length - 1; i >= 0; i--) {
@@ -3146,7 +3345,9 @@ function updateFx(dt) {
     if (f.kind === 'shrink') { f.v.y -= 9.8 * dt; f.obj.position.addScaledVector(f.v, dt); f.obj.scale.setScalar(0.06 * Math.max(0, 1 - k)); }
     else if (f.kind === 'drop') { f.v.y -= 9.8 * dt; f.obj.position.addScaledVector(f.v, dt); if (f.obj.position.y < 0.02) { f.obj.position.y = 0.02; f.v.set(0, 0, 0); if (f.splat) { f.splat = false; Blood.drip(f.obj.position, f.sz || 0.04); } } f.obj.scale.setScalar((f.sz || 0.035) * Math.max(0, 1 - k * k * k)); }
     else if (f.kind === 'mist') { f.obj.scale.setScalar(f.s0 + (f.s1 - f.s0) * k); f.obj.material.opacity = 1 - k; }
-    else f.obj.material.opacity = 0.8 * (1 - k);
+    else if (f.streak) { const T = f.streak, h = Math.min(T.dist, f.t * TRACER_V), t0 = Math.max(0, h - TRACER_LEN), P = f.obj.geometry.attributes.position;
+      P.setXYZ(0, T.a.x + T.d.x * t0, T.a.y + T.d.y * t0, T.a.z + T.d.z * t0); P.setXYZ(1, T.a.x + T.d.x * h, T.a.y + T.d.y * h, T.a.z + T.d.z * h); P.needsUpdate = true; }
+    else f.obj.material.opacity = (f.op || 0.8) * (1 - k);
     if (k >= 1) { world.remove(f.obj); if (f.kind === 'line') { f.obj.geometry.dispose(); f.obj.material.dispose(); } else if (f.kind === 'mist') f.obj.material.dispose(); fx.splice(i, 1); }
   }
 }
@@ -8489,7 +8690,93 @@ const feedEl = $('#feed');
 let hitT = 0, hitHead = false, hitKill = false, hurtT = 0, hurtFrom = null;
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const hex = n => '#' + new THREE.Color(n).getHexString();
+// ---- momentos da partida: aviso de abate com dobradinha/sequência, rivalidade entre você e cada adversário
+// (placar entre os dois, dano trocado, "dominando" e vingança) e os números que viram prêmio no fim.
+// Tudo sai do mesmo aviso de abate que alimenta a lista (vale contra bots e online, para todo mundo igual).
+const MULTI_NAMES = ['', '', 'DOBRADINHA', 'TRIPLA', 'QUADRA', 'CHACINA'];
+const STREAK_NAMES = { 3: 'ESQUENTANDO', 5: 'IMPARÁVEL', 7: 'DOMINANDO GERAL', 10: 'LENDA VIVA', 15: 'INTOCÁVEL' };
+const Moments = { ref: null, first: false, riv: new Map(), dealt: new Map(), taken: new Map(), death: '', popUntil: 0,
+  sync() { if (this.ref !== mode) { this.ref = mode; this.first = false; this.riv.clear(); this.dealt.clear(); this.taken.clear(); this.death = ''; } },
+  st(c) { return c.ms || (c.ms = { hs: 0, knife: 0, far: 0, best: 0, streak: 0, multi: 0, multiAt: -99, multiBest: 0, first: false }); },
+  rv(c) { let r = this.riv.get(c); if (!r) this.riv.set(c, r = { k: 0, d: 0, run: 0 }); return r; },
+  add(map, c, amt) { const e = map.get(c) || { d: 0, n: 0 }; e.d += amt; e.n++; map.set(c, e); },
+  onDamage(victim, attacker, amt) {
+    this.sync(); if (!attacker || attacker === victim || !(amt > 0)) return;
+    if (attacker === player) this.add(this.dealt, victim, amt); else if (victim === player) this.add(this.taken, attacker, amt);
+  },
+  onRespawn() { this.dealt.clear(); this.taken.clear(); this.death = ''; },
+  onKill(k, v, weapon, head) {
+    this.sync(); if (!v || v.zombie) return;
+    const vs = this.st(v), ended = vs.streak; vs.streak = 0; vs.multi = 0;
+    if (!k || k === v || k.zombie) { if (v === player) this.death = ''; return; }
+    const ks = this.st(k), W = WEAPONS.find(w => w.name === weapon), melee = !!(W && W.melee), dist = k.pos.distanceTo(v.pos);
+    ks.streak++; ks.best = Math.max(ks.best, ks.streak);
+    ks.multi = now - ks.multiAt < 4.5 ? ks.multi + 1 : 1; ks.multiAt = now; ks.multiBest = Math.max(ks.multiBest, ks.multi);
+    if (head) ks.hs++; if (melee) ks.knife++; else ks.far = Math.max(ks.far, dist);
+    const first = !this.first && combatants.length > 2; this.first = true; if (first) ks.first = true;
+    const nm = c => `<span style="color:${hex(c.color)}">${esc(c.name)}</span>`;
+    // todo mundo vê na lista quando alguém embala ou quando a sequência de alguém acaba
+    if (STREAK_NAMES[ks.streak] && k !== player) feedNote(`${nm(k)} · ${STREAK_NAMES[ks.streak]} (${ks.streak} seguidas)`);
+    if (ended >= 3 && k !== player) feedNote(`${nm(k)} acabou com a sequência de ${nm(v)} (${ended})`);
+    if (k === player) {
+      const r = this.rv(v), tags = [];
+      let title = ks.multi >= 2 ? MULTI_NAMES[Math.min(5, ks.multi)] : STREAK_NAMES[ks.streak] || '', snd = ks.multi >= 2 ? 'ms' + Math.min(5, ks.multi) : STREAK_NAMES[ks.streak] ? 'streak' : '';
+      if (r.run >= 3) { title = title || 'VINGANÇA'; tags.push(['Vingança', 1]); snd = snd || 'revenge'; } else if (r.run >= 1) tags.push(['Troco', 0]);
+      r.k++; r.run = 0;
+      if (first) tags.push(['Primeiro sangue', 1]);
+      if (head) tags.push(['Na cabeça', 1]);
+      if (melee) tags.push(['Na lâmina', 0]); else if (dist >= 40) tags.push([`De longe · ${dist.toFixed(0)} m`, 0]);
+      if (ended >= 3) tags.push([`Fim da sequência de ${ended}`, 0]);
+      if (player.alive && player.hp <= 15) tags.push(['Por um fio', 0]);
+      if (player.alive && !player.grounded && !melee) tags.push(['No ar', 0]);
+      if (ks.streak >= 2 && !STREAK_NAMES[ks.streak]) tags.push([`${ks.streak} seguidas`, 0]);
+      this.pop(title, v, tags); if (snd && S.audio.hit) play(snd, 0.8);
+      this.dealt.delete(v);
+    }
+    if (v === player) {
+      const r = this.rv(k); r.d++; r.run++;
+      const dl = this.dealt.get(k), tk = this.taken.get(k);
+      let h = `<span class="riv">Entre vocês: você <b>${r.k}</b> × <b>${r.d}</b> ${esc(k.name)}`;
+      if (dl) h += ` · você tirou <b>${Math.round(dl.d)}</b> de vida dele em ${dl.n} acerto${dl.n === 1 ? '' : 's'}`;
+      if (tk && tk.n > 1) h += ` · levou <b>${Math.round(tk.d)}</b> em ${tk.n}`;
+      h += '</span>';
+      if (r.run >= 3) { h += `<span class="nem">${esc(k.name)} está te dominando · ${r.run} seguidas</span>`; if (r.run === 3 && S.audio.hit) play('nemesis', 0.7); }
+      this.death = h;
+    }
+  },
+  pop(title, v, tags) {
+    const el = $('#kpop'); if (!el) return;
+    el.querySelector('.kt').textContent = title;
+    el.querySelector('.kl').innerHTML = `<i>✕</i>${esc(v.name)}`;
+    el.querySelector('.kg').innerHTML = tags.map(([t, g]) => `<span class="${g ? 'gold' : ''}">${esc(t)}</span>`).join('');
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop', 'on');
+    this.popUntil = performance.now() + (title ? 2600 : 1900);
+  },
+  tick() { if (this.popUntil && performance.now() > this.popUntil) { this.popUntil = 0; $('#kpop').classList.remove('on'); } },
+  // prêmios do fim: no máximo seis, um por categoria, só quando alguém mereceu
+  awards() {
+    const L = combatants.filter(c => !c.zombie && !c.spec); if (L.length < 2) return '';
+    const best = (f, min) => { let b = null, bv = min - 1e-9; for (const c of L) { const x = f(c); if (x > bv) { bv = x; b = c; } } return b ? [b, bv] : null; };
+    const ms = c => c.ms || {}, out = [], card = (t, c, d, bad) => out.push(`<div class="aw${bad ? ' bad' : ''}"><small>${t}</small><b style="color:${hex(c.color)}">${esc(c.name)}</b><span>${d}</span></div>`);
+    let a;
+    if ((a = best(c => ms(c).best || 0, 3))) card('Imparável', a[0], `${a[1]} abates sem morrer`);
+    if ((a = best(c => ms(c).hs || 0, 2))) card('Mira de ouro', a[0], `${a[1]} na cabeça`);
+    if ((a = best(c => ms(c).multiBest || 0, 2))) card('Mão rápida', a[0], MULTI_NAMES[Math.min(5, a[1])].toLowerCase() + ' em segundos');
+    if ((a = best(c => ms(c).knife || 0, 1))) card('Açougueiro', a[0], `${a[1]} na lâmina`);
+    if ((a = best(c => ms(c).far || 0, 30))) card('Olho de águia', a[0], `abate a ${a[1].toFixed(0)} m`);
+    const fb = L.find(c => ms(c).first); if (fb) card('Primeiro sangue', fb, 'abriu a contagem');
+    if ((a = best(c => c.deaths || 0, 3))) card(a[0].kills === 0 ? 'Pacifista' : 'Saco de pancada', a[0], `${a[1]} mortes${a[0].kills === 0 ? ' e nenhum abate' : ''}`, true);
+    return out.slice(0, 6).join('');
+  },
+};
+function feedNote(html) {
+  if (mode && mode.noFeed) return;
+  const d = document.createElement('div'); d.className = 'note'; d.innerHTML = html; feedEl.appendChild(d);
+  while (feedEl.children.length > 6) feedEl.firstChild.remove();
+  setTimeout(() => d.remove(), 6000);
+}
 function addFeed(k, v, weapon, head) {
+  try { Moments.onKill(k, v, weapon, head); } catch (e) { console.warn('moments', e); }
   if (mode && mode.noFeed) return;
   const d = document.createElement('div');
   const nm = c => `<span style="color:${hex(c.color)}">${esc(c.name)}</span>`;
@@ -8501,9 +8788,10 @@ function addFeed(k, v, weapon, head) {
 }
 function buildSlots() {
   $('#slots').innerHTML = pw.slots.map((s, i) => `<div data-i="${i}"><b>${i < 9 ? keyLabel(S.keys['w' + (i + 1)]) : ''}</b> &nbsp;${s.w.name}${s.w.melee ? ` <span style="color:var(--muted)">(${keyLabel(S.keys.knife)})</span>` : ''}</div>`).join('');
-  H('slots')._cur = -1;
+  H('slots')._cur = -1; H('slots').classList.remove('idle');
 }
 function fillScore(tbody) {
+  if (tbody && tbody.id === 'endBody') { try { $('#endAwards').innerHTML = Moments.awards(); } catch (e) { $('#endAwards').innerHTML = ''; } }
   const list = combatants.filter(c => !c.zombie && !c.spec).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
   tbody.innerHTML = list.map(c => `<tr class="${c.isPlayer ? 'me' : ''}"><td><span class="dot" style="background:${hex(c.color)}"></span>${esc(c.name)}${c.isPlayer ? ' (você)' : ''}${c.alive ? '' : ' <span style="color:var(--muted)">(morto)</span>'}</td><td>${c.kills}</td><td>${c.deaths}</td><td>${(c.deaths ? c.kills / c.deaths : c.kills).toFixed(2)}</td></tr>`).join('');
 }
@@ -8588,7 +8876,9 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   ST('scope', 'display', pw.zoom && player.alive ? 'block' : 'none');
   // vida / munição
   T('hpNum', String(Math.ceil(player.hp)));
-  const hpLow = player.alive && player.hp / player.maxHp <= 0.3; if (H('hp')._low !== hpLow) { H('hp')._low = hpLow; H('hp').classList.toggle('low', hpLow); }
+  const hpLow = player.alive && player.hp / player.maxHp <= 0.3; if (H('hp')._low !== hpLow) { H('hp')._low = hpLow; H('hp').classList.toggle('low', hpLow); document.body.classList.toggle('lowhp', hpLow && !pv.god); }
+  // coração batendo com a vida baixa (mais rápido quanto menos vida)
+  if (hpLow && !pv.god && S.audio.hit && performance.now() > (H('hp')._beat || 0)) { H('hp')._beat = performance.now() + 560 + 900 * player.hp / player.maxHp; play('beat', 0.9); }
   T('ammoName', slot.w.name);
   const amLow = !slot.w.melee && slot.mag <= Math.max(1, Math.floor(slot.w.mag * 0.25)); if (H('ammo')._low !== amLow) { H('ammo')._low = amLow; H('ammo').classList.toggle('lowammo', amLow); }
   HT('hpTag', pv.god ? '<span style="color:var(--gold)">DEUS</span>' : '');
@@ -8601,6 +8891,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   if (H('slots')._cur !== pw.cur || H('slots')._n !== H('slots').childElementCount) {
     H('slots')._cur = pw.cur; H('slots')._n = H('slots').childElementCount;
     [...H('slots').children].forEach((d, i) => d.classList.toggle('on', i === pw.cur));
+    H('slots')._shown = performance.now(); H('slots').classList.remove('idle');
   }
   const tp = mode.topParts && mode.topParts();
   HT('top', tp ? topHtml(tp) : `<span class="plain">${esc(mode.top())}</span>`);
@@ -8610,6 +8901,10 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
   const cp = !!(player.alive && pickupOn() && nearItem()); if (document.body._cp !== cp) { document.body._cp = cp; document.body.classList.toggle('canpick', cp); }
   if (showSp) { T('speed', Math.hypot(player.vel.x, player.vel.z).toFixed(1) + ' m/s'); const sl = player.slideT > 0; if (H('speed')._sl !== sl) { H('speed')._sl = sl; H('speed').classList.toggle('slide', sl); } }
   if (bannerUntil && performance.now() > bannerUntil) { H('banner').style.opacity = 0; bannerUntil = 0; }
+  Moments.tick();
+  // a lista de armas aparece ao trocar de arma e some sozinha (no celular fica, porque é nela que se toca)
+  if (H('slots')._shown && performance.now() - H('slots')._shown > 2600 && !isHeld('score')) { H('slots')._shown = 0; H('slots').classList.add('idle'); }
+  else if (isHeld('score') && H('slots').classList.contains('idle')) { H('slots').classList.remove('idle'); H('slots')._shown = performance.now(); }
   const P = mapInfo && mapInfo.pool, under = !!P && camera.position.y < P.y && Math.abs(camera.position.x - P.x) < P.hx && Math.abs(camera.position.z - P.z) < P.hz;
   ST('uw', 'opacity', under ? '1' : '0');
   // dano recebido
@@ -8626,7 +8921,7 @@ function updateHud(dt, cpuMs = 0, realDt = dt) {
     const d = player.lastDeath || {};
     const by = d.attacker && d.attacker !== player ? `Você foi eliminado por <b style="color:${hex(d.attacker.color)}">${esc(d.attacker.name)}</b> (${esc(d.weapon)}${d.head ? ', na cabeça' : ''})` : 'Você morreu';
     const t = player.respawnAt > 0 ? `<br><span style="color:var(--muted)">Renascendo em ${Math.max(0, player.respawnAt - now).toFixed(1)} s</span>` : '';
-    HT('death', by + t); HID('death', false);
+    HT('death', by + (d.attacker && d.attacker !== player ? Moments.death : '') + t); HID('death', false);
   } else HID('death', true);
   // placar (atualiza 4 vezes por segundo enquanto aberto)
   const showSb = isHeld('score') && !mode.over && !paused;
@@ -9443,7 +9738,7 @@ function kcStart(killer, weapon, zone) {
   // o renascimento local espera o replay acabar (nos rounds o próximo round já começa depois dele)
   if (player.respawnAt > 0) player.respawnAt = Math.max(player.respawnAt, now + KC_LEN + 0.2);
   const dist = killer.pos.distanceTo(player.pos);
-  T('kcInfo', `${killer.name} te matou · ${weapon || ''}${zone === 'head' ? ' · na cabeça' : ''} · ${dist.toFixed(0)} m${killer.alive ? ` · ficou com ${Math.ceil(killer.hp)} de vida` : ''}`);
+  T('kcInfo', `${killer.name} te matou · ${weapon || ''}${zone === 'head' ? ' · na cabeça' : ''} · ${dist.toFixed(0)} m${killer.alive ? ` · ficou com ${Math.ceil(killer.hp)} de vida` : ''}` + (() => { const r = Moments.riv.get(killer); return r ? ` · entre vocês ${r.k} × ${r.d}` + (r.run >= 3 ? ' · está te dominando' : '') : ''; })());
   $('#killcam').hidden = false; document.body.classList.add('kc');
 }
 function kcStop() { kc.active = false; kc.killer = null; $('#killcam').hidden = true; document.body.classList.remove('kc'); }
@@ -9591,7 +9886,7 @@ function frame(t) {
     updateViewModel(sim);
     updateListener();
     const kcOn = kcApply(dt);
-    renderer.clear(); renderer.render(scene, camera);
+    Sky.update(dt, camera); renderer.clear(); renderer.render(scene, camera);
     if (kcOn) { kcRestore(); VMArms.update(null, false); if (kc.active && kcVmShow(kc.wi, kc.pd || dt)) { renderer.clearDepth(); renderer.render(vmScene, vmCam); kcVmHide(); } }
     else if (player.alive && !thirdOn() && !(mode && mode.noWeapons)) { VMArms.update(vmModels[active().wi], true); renderer.clearDepth(); renderer.render(vmScene, vmCam); }
     updateDmgNums();
@@ -9604,7 +9899,7 @@ function frame(t) {
       camera.position.set(Math.sin(menuOrbit) * 46, 22, Math.cos(menuOrbit) * 46);
       camera.lookAt(0, 0, 0);
     }
-    renderer.clear(); renderer.render(scene, camera);
+    Sky.update(dt, camera); renderer.clear(); renderer.render(scene, camera);
     pvVm.pivot.visible = false;
     if (skinView && skinView.pvWi >= 0 && GunGLB.state !== 'idle' && pvShow(skinView.pvWi, dt)) { VMArms.update(null, false); renderer.clearDepth(); renderer.render(vmScene, vmCam); pvVm.pivot.visible = false; vmRoot.visible = true; }
   }
@@ -9615,6 +9910,7 @@ function frame(t) {
 
 resize();
 buildArena();
+Atmos.apply('dia', 'limpo');
 applyLayout();
 renderer.shadowMap.enabled = S.video.shadows > 0; applyShadows();
 requestAnimationFrame(frame);
