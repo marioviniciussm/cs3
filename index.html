@@ -196,6 +196,8 @@ button.aimcard.on { border-color: var(--accent); border-left-color: var(--accent
 @keyframes kpopIn { from { transform: scale(1.5); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes kpopBig { from { transform: scale(2.1); opacity: 0; letter-spacing: 0.3em; } to { transform: none; opacity: 1; } }
 body.touch #kpop { top: 58%; }
+#feed .fw { font-family: var(--display); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg); background: rgb(255 255 255 / 0.12); padding: 1px 6px; margin: 0 3px; }
+#feed .fh { color: var(--gold); font-weight: 700; margin-right: 2px; }
 #feed div.note { color: var(--gold); font-size: 13px; letter-spacing: 0.03em; }
 #death .riv { display: block; margin-top: 6px; font-size: 15px; color: var(--muted); }
 #death .riv b { color: var(--fg); font-family: var(--display); font-size: 18px; }
@@ -1832,7 +1834,41 @@ function dressWorld() {
     if (bx.some(o => o !== b && Math.abs(o.y0 - b.y1) < 0.04 && o.x0 < b.x1 && o.x1 > b.x0 && o.z0 < b.z1 && o.z1 > b.z0)) continue;
     const key = 'cap' + b.hex; let cm = Dress.caps.get(key);
     if (!cm) { cm = new THREE.MeshLambertMaterial({ color: new THREE.Color(b.hex).multiplyScalar(0.62) }); cm.userData.texKind = 'concrete'; Dress.caps.set(key, cm); }
-    const m = mesh(BOX, cm, b.sx + 0.22, 0.2, b.sz + 0.22, b.cx, b.y1 + 0.1, b.cz, world); m.castShadow = m.receiveShadow = true; m.userData.dress = true;
+    const add = (sx, sy, sz, x, y, z) => { const m = mesh(BOX, cm, sx, sy, sz, x, y, z, world); m.castShadow = m.receiveShadow = true; m.userData.dress = true; };
+    add(b.sx + 0.22, 0.2, b.sz + 0.22, b.cx, b.y1 + 0.1, b.cz);
+    // rodapé e pilares rasos a cada ~5 m quebram o paredão liso (só visual, 14 cm para fora)
+    const alongX = b.sx >= b.sz, len = alongX ? b.sx : b.sz;
+    if (len >= 7 && b.sy >= 2.4) {
+      add(b.sx + 0.12, 0.32, b.sz + 0.12, b.cx, b.y0 + 0.16, b.cz);
+      const n = Math.max(2, Math.round(len / 5)), st = len / n;
+      for (let i = 0; i <= n; i++) { const o = -len / 2 + i * st;
+        if (alongX) add(0.5, b.sy, b.sz + 0.28, b.cx + clamp(o, -len / 2 + 0.25, len / 2 - 0.25), b.y0 + b.sy / 2, b.cz);
+        else add(b.sx + 0.28, b.sy, 0.5, b.cx, b.y0 + b.sy / 2, b.cz + clamp(o, -len / 2 + 0.25, len / 2 - 0.25)); }
+    }
+  }
+  // prédios ao fundo, fora dos muros: dão a sensação de lugar (não têm colisão, ninguém chega lá)
+  const mapName = mapInfo && mapInfo.name || '';
+  if (!/Praça|Sala de treino|Tabuleiro|Rocket/.test(mapName)) {
+    let X0 = Infinity, X1 = -Infinity, Z0 = Infinity, Z1 = -Infinity; for (const b of bx) { X0 = Math.min(X0, b.x0); X1 = Math.max(X1, b.x1); Z0 = Math.min(Z0, b.z0); Z1 = Math.max(Z1, b.z1); }
+    const R = srand(mapName.length * 977 + Math.round(X1 * 13 + Z1 * 7)), cols = [0xb9a98a, 0xa89878, 0xc4b79d, 0x9a8f80, 0xb09a7c, 0x8e8a84];
+    const bm = hexv => { const k = 'bg' + hexv; let m = Dress.caps.get(k); if (!m) { m = new THREE.MeshLambertMaterial({ color: hexv }); m.userData.texKind = 'plain'; Dress.caps.set(k, m); } return m; };
+    const win = bm(0x2c3640), roof = bm(0x6b6258), gy = Math.min(-0.5, Math.min(...bx.map(b => b.y0)) + 0.45);
+    const put = (m, sx, sy, sz, x, y, z) => { const o = mesh(BOX, m, sx, sy, sz, x, y, z, world); o.userData.dress = true; o.receiveShadow = true; };
+    const side = (fx, fz, a0, a1) => {   // fx/fz: para que lado do mapa; a0..a1: trecho ao longo do muro
+      let a = a0 - 6;
+      while (a < a1 + 6) {
+        const w = 7 + R() * 9, d = 7 + R() * 6, h = 8 + Math.floor(R() * 5) * 3, gap = 1.5 + R() * 6, off = 5 + R() * 14, wall = bm(cols[Math.floor(R() * cols.length)]);
+        const c = a + w / 2, x = fx ? fx * ((fx > 0 ? X1 : -X0) + off + d / 2) : c, z = fz ? fz * ((fz > 0 ? Z1 : -Z0) + off + d / 2) : c;
+        const sx = fx ? d : w, sz = fx ? w : d;
+        put(wall, sx, h, sz, x, gy + h / 2, z); put(roof, sx + 0.5, 0.35, sz + 0.5, x, gy + h + 0.17, z);
+        // janelas na face virada para o mapa
+        for (let fl = 0; fl < Math.floor((h - 3) / 3); fl++) for (let k = 1; k < Math.floor(w / 2.6); k++) { if (R() < 0.15) continue;
+          const t = -w / 2 + k * (w / Math.floor(w / 2.6)), wy = gy + 4 + fl * 3;
+          if (fx) put(win, 0.12, 1.4, 1.1, x - fx * (d / 2 + 0.02), wy, z + t); else put(win, 1.1, 1.4, 0.12, x + t, wy, z - fz * (d / 2 + 0.02)); }
+        a += w + gap;
+      }
+    };
+    side(1, 0, Z0, Z1); side(-1, 0, Z0, Z1); side(0, 1, X0, X1); side(0, -1, X0, X1);
   }
   const pos = [], uv = [], idx = [];
   const quad = (a, b, c, d, u = 1) => { const n = pos.length / 3; pos.push(...a, ...b, ...c, ...d); uv.push(0, 1, u, 1, u, 0, 0, 0); idx.push(n, n + 1, n + 2, n, n + 2, n + 3); };   // a,b = lado escuro; c,d = lado claro
@@ -8780,7 +8816,7 @@ function addFeed(k, v, weapon, head) {
   if (mode && mode.noFeed) return;
   const d = document.createElement('div');
   const nm = c => `<span style="color:${hex(c.color)}">${esc(c.name)}</span>`;
-  d.innerHTML = !k || k === v ? `${nm(v)} morreu` : `${nm(k)} <span style="color:var(--muted)">[${esc(weapon)}]</span>${head ? ' <span style="color:var(--gold)">(HS)</span>' : ''} ${nm(v)}`;
+  d.innerHTML = !k || k === v ? `${nm(v)} morreu` : `${nm(k)} <span class="fw">${esc(weapon)}</span>${head ? '<span class="fh" title="na cabeça">⌖</span>' : ''} ${nm(v)}`;
   if (k === player || v === player) d.className = 'mine';
   feedEl.appendChild(d);
   while (feedEl.children.length > 6) feedEl.firstChild.remove();
